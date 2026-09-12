@@ -163,7 +163,7 @@ export async function corrigirEReenviarAction(recordId, itensAtualizados) {
   await addApproval(recordId, me, "Corrigiu o registro após erro reportado e reenviou para confirmação");
 
   revalidatePath(`/registros/${recordId}`);
-  revalidatePath("/registros");
+revalidatePath(`/registros`);
 }
 
 export async function excluirRegistroAction(recordId) {
