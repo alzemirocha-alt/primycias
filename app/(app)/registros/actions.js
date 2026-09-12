@@ -1,44 +1,54 @@
 "use server";
-import { getSessionUser, getChurch } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { redirect } from "next/navigation";
+import { randomUUID } from "crypto";
 
-export async function criarDizimoAction(formData) {
+export async function criarRegistroCultoAction(formData){
   const me = await getSessionUser();
-  const church = await getChurch(me.igreja_id);
-  const nome_digitado = formData.get("nome_membro")?.trim();
-  const valor = parseFloat(formData.get("valor"));
-  const tipo = formData.get("tipo");
+  const data_culto = formData.get("data_culto");
+  const segundoDiaconoId = formData.get("segundoDiaconoId");
+  const linhas = JSON.parse(formData.get("linhas_json"));
+  const serie_id = randomUUID();
 
-  // 1. Procura membro pelo nome, se não achar cria
-  let { data: membro } = await supabaseAdmin.from("membros").select("id").eq("igreja_id", me.igreja_id).ilike("nome", nome_digitado).maybeSingle();
+  for (const linha of linhas) {
+    if (!linha.nome ||!linha.valor) continue;
+    const valor = parseFloat(linha.valor);
 
-  if (!membro) {
-    const { data: novo, error } = await supabaseAdmin.from("membros").insert({ igreja_id: me.igreja_id, nome: nome_digitado }).select("id").single();
-    if (error) throw new Error("Erro ao criar membro: " + error.message);
-    membro = novo;
+    // 1. Acha ou cria membro pelo nome livre
+    let { data: membro } = await supabaseAdmin.from("membros").select("id").eq("igreja_id", me.igreja_id).ilike("nome", linha.nome.trim()).maybeSingle();
+    if (!membro) {
+      const { data: novo } = await supabaseAdmin.from("membros").insert({ igreja_id: me.igreja_id, nome: linha.nome.trim() }).select("id").single();
+      membro = novo;
+    }
+
+    // 2. Grava em dizimos
+    await supabaseAdmin.from("dizimos").insert({ membro_id: membro.id, valor, tipo: linha.tipo, data: data_culto });
+
+    // 3. Grava em lancamentos com mesmo serie_id (mesmo culto)
+    const { data: lanc } = await supabaseAdmin.from("lancamentos").insert({
+      igreja_id: me.igreja_id,
+      tipo: "entrada",
+      data: data_culto,
+      historico: `${linha.tipo.toUpperCase()} - ${linha.nome} - R$ ${valor}`,
+      valor,
+      categoria: linha.tipo,
+      status: "rascunho",
+      serie_id,
+      criado_por: me.id,
+      criado_por_nome: me.nome,
+    }).select().single();
+
+    // 4. Aprovação - mesmo segundo diácono para todos do dia
+    if (segundoDiaconoId && lanc) {
+      await supabaseAdmin.from("approval_requests").insert({
+        lancamento_id: lanc.id,
+        igreja_id: me.igreja_id,
+        solicitante_id: me.id,
+        aprovador_id: segundoDiaconoId,
+        status: "pendente",
+      });
+    }
   }
-
-  // 2. Lança no dizimos (um valor por membro, nome se repete nas datas)
-  const { error: e1 } = await supabaseAdmin.from("dizimos").insert({
-    membro_id: membro.id,
-    valor,
-    tipo,
-    data: new Date().toISOString().split('T')[0],
-  });
-  if (e1) throw new Error(e1.message);
-
-  // 3. Lança no financeiro também
-  await supabaseAdmin.from("lancamentos").insert({
-    igreja_id: me.igreja_id,
-    tipo: "entrada",
-    historico: `${tipo.toUpperCase()} - ${nome_digitado} - R$ ${valor}`,
-    valor,
-    categoria: tipo,
-    status: "rascunho",
-    criado_por: me.id,
-    criado_por_nome: me.nome,
-  });
-
   redirect("/registros");
 }
