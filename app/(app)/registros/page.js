@@ -6,7 +6,7 @@ import { Btn, Tag } from "@/components/ui";
 
 const TAG_TONE = {
   lancado: "neutral",
-  confirmado_secretario: "gold",
+  confirmado_segundo_diacono: "gold",
   validado: "sage",
   erro_reportado: "rust",
 };
@@ -17,11 +17,11 @@ export default async function RegistrosPage() {
 
   let query = supabaseAdmin.from("records").select("*, record_items(*)").eq("igreja_id", me.igreja_id).order("data_culto", { ascending: false });
   if (!(isAdmin(me) || isTreasurer(me, church))) {
-    query = query.eq("diacono_id", me.id);
-  }
+  query = query.or(`diacono_id.eq.${me.id},segundo_diacono_id.eq.${me.id}`);
+}
   const { data: records } = await query;
 
-  const podeLancar = me.oficio === "diacono";
+  const podeLancar = me.oficio === "diacono" && !isTreasurer(me, church);
 
   return (
     <div>
