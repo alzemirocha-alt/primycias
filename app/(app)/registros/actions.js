@@ -145,25 +145,28 @@ export async function corrigirEReenviarAction(recordId, itensAtualizados) {
     throw new Error("Apenas o diácono responsável (ou o Pastor) pode corrigir este registro.");
   }
 
-  await supabaseAdmin.from("record_items").delete().eq("record_id", recordId);
+    await supabaseAdmin.from("record_items").delete().eq("record_id", recordId);
   if (itensAtualizados.length > 0) {
     await supabaseAdmin.from("record_items").insert(itensAtualizados.map((i) => ({ ...i, record_id: recordId })));
   }
-
   await supabaseAdmin.from("records").update({ status: "lancado" }).eq("id", recordId);
   await addApproval(recordId, me, "Corrigiu e reenviou o registro");
   revalidatePath(`/registros/${recordId}`);
   revalidatePath("/registros");
 }
-  await supabaseAdmin
-    .from("error_reports")
-    .update({ status: "resolvido", resolved_at: new Date().toISOString() })
-    .eq("record_id", recordId)
-    .eq("status", "pendente");
-  await addApproval(recordId, me, "Corrigiu o registro após erro reportado e reenviou para confirmação");
+
+export async function corrigirEReenviarAposErroAction(recordId) {
+  const me = await getSessionUser();
+  const supabaseAdmin = createAdminClient();
+  await supabaseAdmin.from("error_reports").update({ status: "resolvido", resolved_at: new Date().toISOString() }).eq("record_id", recordId).eq("status", "pendente");
+  await supabaseAdmin.from("records").update({ status: "lancado" }).eq("id", recordId);
+  await addApproval(recordId, me, "Corrigiu o registro apos erro reportado e reenviou");
+  revalidatePath(`/registros/${recordId}`);
+  revalidatePath("/registros");
+}
 
   revalidatePath(`/registros/${recordId}`);
-revalidatePath(`/registros`);
+  revalidatePath("/registros");
 }
 
 export async function excluirRegistroAction(recordId) {
