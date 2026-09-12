@@ -23,7 +23,7 @@ export default function NovoRegistroPage() {
   return (
     <div>
       <h2 className="text-xl font-serif text-ink mb-1">Lançar registro de culto</h2>
-      <p className="text-xs text-gray-500 mb-5">Depois de enviado, o registro vai para a confirmação do Secretário do Conselho.</p>
+      <p className="text-xs text-gray-500 mb-5">Depois de enviado, o registro vai para a confirmação do 2º Diácono.</p>
 
       <form action={formAction} className="bg-white border border-line rounded-sm p-4">
         <Field label="Data do culto">
