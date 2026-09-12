@@ -33,7 +33,7 @@ export default async function RegistrosPage() {
           </Link>
         )}
       </div>
-      <p className="text-xs text-gray-500 mb-5">Diácono lança → Secretário do Conselho confirma → Tesoureiro da Igreja valida.</p>
+      <p className="text-xs text-gray-500 mb-5">Diácono lança → 2º Diácono confirma → Tesoureiro da Igreja valida.</p>
 
       {(!records || records.length === 0) && <div className="text-sm text-gray-500">Nenhum registro encontrado.</div>}
 
