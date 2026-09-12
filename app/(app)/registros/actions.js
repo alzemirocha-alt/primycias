@@ -165,9 +165,6 @@ export async function corrigirEReenviarAposErroAction(recordId) {
   revalidatePath("/registros");
 }
 
-  revalidatePath(`/registros/${recordId}`);
-  revalidatePath("/registros");
-}
 
 export async function excluirRegistroAction(recordId) {
   const me = await getSessionUser();
