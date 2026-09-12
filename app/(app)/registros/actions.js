@@ -1,66 +1,54 @@
 "use server";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, getChurch } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { redirect } from "next/navigation";
 
-async function getMeuCargo(userId) {
-  const { data } = await supabaseAdmin.from("users").select("cargo").eq("id", userId).single();
-  return (data?.cargo || '').toLowerCase();
-}
+export async function criarDizimoAction(formData) {
+  const me = await getSessionUser();
+  const church = await getChurch(me.igreja_id);
 
-export async function criarRegistroAction(formData) {
-  const user = await getSessionUser();
-  const cargo = await getMeuCargo(user.id);
-  if (cargo.includes('tesour') || cargo.includes('pastor') || cargo.includes('presb')) throw new Error("Apenas diáconos (exceto tesoureiro) podem lançar.");
-  if (!cargo.includes('diacono')) throw new Error("Apenas diáconos podem lançar.");
+  const membro_id = formData.get("membro_id");
+  const valor = parseFloat(formData.get("valor"));
+  const tipo = formData.get("tipo"); // dizimo ou oferta
+  const segundoDiaconoId = formData.get("segundoDiaconoId");
 
-  const data_culto = formData.get("data_culto");
-  const igreja_id = formData.get("igreja_id");
-  const segundo_diacono_id = formData.get("segundo_diacono_id");
-  const linhas = JSON.parse(formData.get("linhas_json"));
+  if (!membro_id ||!valor) throw new Error("Dados incompletos");
 
-  // Aqui você mantém sua regra do rodízio + exceção do pastor que já tinha
-  // Ex: if (rodizioBloqueado &&!liberadoPeloPastor) throw...
+  // 1. Grava em dizimos (um valor por membro)
+  const { data: membro } = await supabaseAdmin.from("membros").select("nome").eq("id", membro_id).single();
+  const { error: err1 } = await supabaseAdmin.from("dizimos").insert({
+    membro_id,
+    valor,
+    tipo,
+    data: new Date().toISOString().split('T')[0],
+  });
+  if (err1) throw new Error("Erro dizimos: " + err1.message);
 
-  const registros = linhas.filter(l=>l.nome && parseFloat(l.valor)>0).map(l=>({
-    igreja_id, data_culto, tipo: l.tipo, nome_dizimista: l.nome, valor: parseFloat(l.valor),
-    lancado_por: user.id, segundo_diacono_id, status: 'pendente_confirmacao'
-  }));
-  const { error } = await supabaseAdmin.from("registros").insert(registros);
-  if (error) throw new Error(error.message);
-  redirect("/registros");
-}
+  // 2. Grava em lancamentos (financeiro) - tipo tem que ser 'entrada', status 'rascunho'
+  const { data: lanc, error: err2 } = await supabaseAdmin.from("lancamentos").insert({
+    igreja_id: me.igreja_id,
+    tipo: "entrada",
+    data: new Date().toISOString().split('T')[0],
+    historico: `${tipo.toUpperCase()} - ${membro?.nome || membro_id} - R$ ${valor}`,
+    valor,
+    categoria: tipo,
+    status: "rascunho",
+    criado_por: me.id,
+    criado_por_nome: me.nome,
+  }).select().single();
 
-export async function confirmarRegistroAction(formData) {
-  const user = await getSessionUser();
-  const cargo = await getMeuCargo(user.id);
-  if (cargo.includes('tesour')) throw new Error("Tesoureiro não pode confirmar, só validar.");
+  if (err2) throw new Error("Erro lancamentos: " + err2.message);
 
-  const registroId = formData.get("registro_id");
-  const { data: reg } = await supabaseAdmin.from("registros").select("segundo_diacono_id").eq("id", registroId).single();
-  if (reg.segundo_diacono_id!== user.id) throw new Error("Apenas o 2º diácono selecionado pode conferir este registro.");
+  // 3. Cria pedido de aprovação para o 2º diácono
+  if (segundoDiaconoId && lanc) {
+    await supabaseAdmin.from("approval_requests").insert({
+      lancamento_id: lanc.id,
+      igreja_id: me.igreja_id,
+      solicitante_id: me.id,
+      aprovador_id: segundoDiaconoId,
+      status: "pendente",
+    });
+  }
 
-  await supabaseAdmin.from("registros").update({ status: 'pendente_validacao', confirmado_por: user.id, confirmado_em: new Date().toISOString() }).eq("id", registroId);
-  redirect("/registros");
-}
-
-export async function validarRegistroAction(formData) {
-  const user = await getSessionUser();
-  const cargo = await getMeuCargo(user.id);
-  if (!cargo.includes('tesour')) throw new Error("Apenas o tesoureiro pode validar.");
-
-  const registroId = formData.get("registro_id");
-  await supabaseAdmin.from("registros").update({ status: 'validado', validado_por: user.id, validado_em: new Date().toISOString() }).eq("id", registroId);
-  redirect("/registros");
-}
-
-export async function reportarErroAction(formData) {
-  const user = await getSessionUser();
-  const cargo = await getMeuCargo(user.id);
-  if (!cargo.includes('tesour')) throw new Error("Apenas o tesoureiro pode reportar erro.");
-
-  const registroId = formData.get("registro_id");
-  const motivo = formData.get("motivo");
-  await supabaseAdmin.from("registros").update({ status: 'erro_reportado', erro_motivo: motivo, validado_por: user.id }).eq("id", registroId);
   redirect("/registros");
 }
