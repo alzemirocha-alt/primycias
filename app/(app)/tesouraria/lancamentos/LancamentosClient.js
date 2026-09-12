@@ -89,7 +89,7 @@ function NovoLancamentoForm({ onCreated }) {
   const solicitarLiberacao = () => {
     startTransition(async () => {
       await solicitarLiberacaoDataAction(data);
-      setErro("Solicitação enviada ao Pastor/Secretário. Tente lançar novamente após a liberação.");
+      setErro("Solicitação enviada ao Pastor. Tente lançar novamente após a liberação.");
       setBloqueadoPorData(false);
     });
   };
