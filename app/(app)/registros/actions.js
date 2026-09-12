@@ -28,8 +28,7 @@ export async function criarRegistroAction(prevState, formData) {
 
   // REGRA QUE VOCÊ PEDIU: diácono que é tesoureiro não pode lançar
   const { data: church } = await supabaseAdmin.from("churches").select("*").eq("id", me.igreja_id).maybeSingle();
-  const { isTreasurer } = await import("@/lib/permissions");
-  if (isTreasurer(me, church)) return { error: "Tesoureiro não pode lançar, apenas validar." };
+  if (me.oficio === "tesoureiro" || me.cargo === "tesoureiro") return { error: "Tesoureiro não pode lançar, apenas validar." };
 
   const dataCulto = String(formData.get("dataCulto") || "");
   if (!dataCulto) return { error: "Informe a data do culto." };
