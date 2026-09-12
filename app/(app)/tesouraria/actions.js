@@ -9,12 +9,12 @@ import { revalidatePath } from "next/cache";
 async function requireTesouraria() {
   const me = await getSessionUser();
   const church = await getChurch(me.igreja_id);
-  if (!canAccessTesouraria(me, church)) throw new Error("Acesso restrito ao Tesoureiro, Pastor e Secretário do Conselho.");
+  if (!canAccessTesouraria(me, church)) throw new Error("Acesso restrito ao Tesoureiro e Pastor.");
   return { me, church };
 }
 
-function isPastorOrSecretario(u) {
-  return u.oficio === "pastor" || u.funcao_presbitero === "secretario_conselho";
+function isPastor(u) {
+  return u.oficio === "pastor";
 }
 
 // -------------------- Lançamentos --------------------
@@ -28,7 +28,7 @@ export async function criarLancamentoAction(payload) {
     if (!dentro90) {
       const liberado = await hasLiberacaoData(me.igreja_id, data);
       if (!liberado) {
-        throw new Error("Data com mais de 90 dias no passado. Solicite liberação do Pastor/Secretário abaixo.");
+        throw new Error("Data com mais de 90 dias no passado. Solicite liberação do Pastor abaixo.");
       }
     }
   }
@@ -104,7 +104,7 @@ export async function reportarErroLancamentoAction(id, descricao) {
   const l = await getLancamentoScoped(id, me.igreja_id);
   if (!l) throw new Error("Lançamento não encontrado.");
   const dentroPrazo = l.data_aprovacao ? daysBetween(l.data_aprovacao, today()) <= 30 : true;
-  if (!dentroPrazo && !isPastorOrSecretario(me)) {
+  if (!dentroPrazo && !isPastor(me)) {
     throw new Error("Prazo de 30 dias encerrado — só o Pastor pode alterar.");
   }
   await supabaseAdmin.from("lancamentos").update({ status: "erro_reportado", erro_descricao: descricao }).eq("id", id);
@@ -145,7 +145,7 @@ export async function excluirLancamentoAction(id) {
   const l = await getLancamentoScoped(id, me.igreja_id);
   if (!l) return;
   const souCriador = l.criado_por === me.id;
-  const podeExcluir = (l.status === "rascunho" && (souCriador || me.oficio === "pastor" || me.funcao_presbitero === "secretario_conselho"))
+  const podeExcluir = (l.status === "rascunho" && (souCriador || me.oficio === "pastor"))
     || (me.oficio === "pastor" && l.status !== "rascunho");
   if (!podeExcluir) throw new Error("Você não tem permissão para excluir este lançamento.");
   await supabaseAdmin.from("lancamentos").delete().eq("id", id);
@@ -157,8 +157,8 @@ export async function excluirLancamentoAction(id) {
 export async function definirSaldoInicialAction(valor, data) {
   const { me } = await requireTesouraria();
   const { data: existing } = await supabaseAdmin.from("financas").select("*").eq("igreja_id", me.igreja_id).maybeSingle();
-  if (existing?.bloqueado && me.oficio !== "pastor" && me.funcao_presbitero !== "secretario_conselho") {
-    throw new Error("Saldo inicial já confirmado — solicite liberação do Pastor/Secretário.");
+  if (existing?.bloqueado && me.oficio !== "pastor") {
+    throw new Error("Saldo inicial já confirmado — solicite liberação do Pastor.");
   }
   const payload = {
     igreja_id: me.igreja_id,
@@ -178,12 +178,12 @@ export async function solicitarLiberacaoSaldoAction() {
   revalidatePath("/tesouraria/fluxo");
 }
 
-// -------------------- Decisões do Pastor/Secretário sobre solicitações --------------------
+// -------------------- Decisões do Pastor sobre solicitações --------------------
 
 export async function decidirSolicitacaoAction(requestId, liberar) {
   const me = await getSessionUser();
-  if (me.oficio !== "pastor" && me.funcao_presbitero !== "secretario_conselho") {
-    throw new Error("Apenas Pastor e Secretário decidem sobre solicitações.");
+  if (me.oficio !== "pastor") {
+    throw new Error("Apenas Pastor.");
   }
   const { data: reqRow } = await supabaseAdmin
     .from("approval_requests")
