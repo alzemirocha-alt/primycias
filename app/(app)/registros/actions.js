@@ -52,30 +52,19 @@ export async function criarRegistroCultoAction(formData){
   }
   redirect("/registros");
 }
-// FIX: Botão Excluir que estava dando erro n.excluirRegistroAction is not a function
-// Só o Pastor pode apagar definitivo
+// FIX: Botão Excluir - Só Pastor apaga definitivo
 export async function excluirRegistroAction(recordId) {
-  "use server"
-  const { createClient } = await import('@/utils/supabase/server')
-  const supabase = await createClient()
+  const me = await getSessionUser()
+  if (!me) throw new Error('Não logado')
   
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Não logado')
-  
-  const { data: perfil } = await supabase
-    .from('usuarios')
-    .select('funcao')
-    .eq('id', user.id)
-    .single()
-  
-  const funcao = perfil?.funcao?.toLowerCase()
+  const funcao = (me.funcao || me.cargo || '').toLowerCase()
   if (funcao !== 'pastor' && funcao !== 'presidente') {
     throw new Error('Só o pastor pode excluir definitivamente')
   }
 
-  // Apaga de verdade como você pediu
-  await supabase.from('record_items').delete().eq('record_id', recordId)
-  await supabase.from('record_approvals').delete().eq('record_id', recordId)
-  await supabase.from('aprovacoes_culto').delete().eq('culto_id', recordId)
-  await supabase.from('records').delete().eq('id', recordId)
+  // Apaga definitivo como você pediu
+  await supabaseAdmin.from('record_items').delete().eq('record_id', recordId)
+  await supabaseAdmin.from('record_approvals').delete().eq('record_id', recordId)
+  await supabaseAdmin.from('aprovacoes_culto').delete().eq('culto_id', recordId)
+  await supabaseAdmin.from('records').delete().eq('id', recordId)
 }
