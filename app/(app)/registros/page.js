@@ -5,10 +5,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export default async function RegistrosPage() {
   const me = await getSessionUser();
 
-  // Busca todos da sua igreja (sem filtro de diácono por enquanto pra aparecer)
   const { data: records } = await supabaseAdmin
     .from("records")
-    .select("*")
+    .select("*, record_items(*)")
     .eq("igreja_id", me.igreja_id)
     .order("created_at", { ascending: false });
 
@@ -25,21 +24,19 @@ export default async function RegistrosPage() {
         )}
       </div>
 
-      <p style={{ marginTop: 10 }}>ID Igreja: {me.igreja_id}</p>
-
-      {(!records || records.length === 0) && (
-        <div style={{ marginTop: 20, padding: 20, border: '1px dashed #ccc' }}>
-          Nenhum registro. Clique no botão acima para criar o primeiro.
-        </div>
-      )}
-
-      {records?.map((r) => (
-        <div key={r.id} style={{ border: '1px solid #ccc', padding: 10, marginTop: 10 }}>
-          <p><b>{r.membro_nome || 'Culto'}</b> - R$ {r.valor}</p>
-          <p>Status: {r.status}</p>
-          <p>Data: {r.data_culto}</p>
-        </div>
-      ))}
+      <div style={{ marginTop: 20 }}>
+        {records?.map((r) => {
+          const total = r.record_items?.reduce((s, i) => s + Number(i.valor), 0) || 0;
+          return (
+            <div key={r.id} style={{ border: '1px solid #ccc', padding: 15, marginBottom: 10, borderRadius: 8 }}>
+              <p><b>Data: {r.data_culto}</b> - Total: R$ {total.toFixed(2)} - Status: {r.status}</p>
+              {r.record_items?.map((item) => (
+                <p key={item.id} style={{ marginLeft: 10 }}>- {item.tipo}: {item.nome} - R$ {item.valor}</p>
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
