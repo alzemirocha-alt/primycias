@@ -1,89 +1,117 @@
 import Link from "next/link"
-import { redirect } from "next/navigation"
 import { getSessionUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { revalidatePath } from "next/cache"
 
-async function criarRegistro(formData) {
+async function confirmarSegundo(formData) {
   "use server"
   const me = await getSessionUser()
-  if (!me) redirect("/login")
-
-  const nome = String(formData.get("nome") || "").trim()
-  const tipo = String(formData.get("tipo") || "dizimo")
-  const valor = Number(formData.get("valor"))
-  const data_culto = String(formData.get("data_culto") || new Date().toISOString().split('T')[0])
-
-  if (!nome ||!valor) throw new Error("Preencha nome e valor")
-
-  // 1. Cria o registro do culto
-  const { data: rec, error: errRec } = await supabaseAdmin
-   .from("records")
-   .insert({
-      igreja_id: me.igreja_id,
-      diacono_id: me.id,
-      data_culto: data_culto,
-      status: "lancado",
-    })
-   .select()
-   .single()
-
-  if (errRec) throw new Error("Erro ao criar culto: " + errRec.message)
-
-  // 2. Cria o item - COLUNA CORRETA É 'nome' (não membro_nome)
-  const { error: errItem } = await supabaseAdmin.from("record_items").insert({
-    record_id: rec.id,
-    tipo: tipo,
-    nome: nome,
-    valor: valor,
-  })
-
-  if (errItem) throw new Error("Erro ao criar item: " + errItem.message)
-
-  redirect("/registros")
+  const id = formData.get("id")
+  await supabaseAdmin.from("records").update({
+    diacono2_nome: me.nome,
+    diacono2_at: new Date().toISOString(),
+    status: "aguardando_tesoureiro"
+  }).eq("id", id)
+  revalidatePath("/registros")
 }
 
-export default function NovoRegistroPage() {
-  const hoje = new Date().toISOString().split('T')[0]
+async function validarTesoureiro(formData) {
+  "use server"
+  const me = await getSessionUser()
+  const id = formData.get("id")
+  await supabaseAdmin.from("records").update({
+    tesoureiro_nome: me.nome,
+    tesoureiro_at: new Date().toISOString(),
+    status: "aguardando_pastor"
+  }).eq("id", id)
+  revalidatePath("/registros")
+}
+
+async function reportarErro(formData) {
+  "use server"
+  const id = formData.get("id")
+  const motivo = formData.get("motivo")
+  await supabaseAdmin.from("records").update({
+    status: "erro_reportado",
+    motivo_erro: motivo
+  }).eq("id", id)
+  revalidatePath("/registros")
+}
+
+export default async function RegistrosPage() {
+  const me = await getSessionUser()
+  const { data: records } = await supabaseAdmin
+    .from("records")
+    .select("*, record_items(*)")
+    .eq("igreja_id", me.igreja_id)
+    .order("created_at", { ascending: false })
 
   return (
-    <div className="p-6 max-w-xl">
-      <Link href="/registros" className="text-sm text-gray-600 hover:underline">
-        ← Voltar para registros
-      </Link>
+    <div style={{ padding: 20, maxWidth: 800 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ fontSize: 20, fontWeight: 'bold' }}>Dízimos e Ofertas - {records?.length || 0}</h2>
+        {me.oficio === 'diacono' && (
+          <Link href="/registros/novo" style={{ background: '#1a4d2e', color: 'white', padding: '10px 15px', borderRadius: 6, textDecoration: 'none' }}>
+            + Lançar registro
+          </Link>
+        )}
+      </div>
 
-      <h1 className="text-2xl font-bold mt-4">Lançar Dízimo / Oferta</h1>
-      <p className="text-gray-500 text-sm mt-1">Preencha os dados do culto</p>
+      <div style={{ marginTop: 20 }}>
+        {records?.map((r) => {
+          const total = r.record_items?.reduce((s, i) => s + Number(i.valor), 0) || 0
+          return (
+            <div key={r.id} style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16, marginBottom: 16, background: 'white' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <b>{r.data_culto} - R$ {total.toFixed(2)}</b>
+                <span style={{ background: '#eee', padding: '2px 8px', borderRadius: 10, fontSize: 12 }}>{r.status}</span>
+              </div>
 
-      <form action={criarRegistro} className="mt-6 flex flex-col gap-4 bg-white border rounded-xl p-6 shadow-sm">
+              {r.record_items?.map((it) => (
+                <div key={it.id} style={{ marginTop: 4, fontSize: 14 }}>- {it.tipo}: {it.nome} - R$ {it.valor}</div>
+              ))}
 
-        <div>
-          <label className="text-sm font-medium">Data do Culto</label>
-          <input name="data_culto" type="date" defaultValue={hoje} required className="mt-1 w-full border rounded-lg p-3" />
-        </div>
+              {/* LINHA DO TEMPO QUE VOCÊ PEDIU */}
+              <div style={{ marginTop: 12, padding: 10, background: '#f9f9f9', borderRadius: 8, fontSize: 13 }}>
+                <div>✅ <b>Lançado por:</b> {r.diacono1_nome || 'Diácono 1'} em {new Date(r.diacono1_at || r.created_at).toLocaleString('pt-BR')}</div>
+                
+                {r.diacono2_nome ? (
+                  <div>✅ <b>Confirmado por (2º diácono):</b> {r.diacono2_nome} em {new Date(r.diacono2_at).toLocaleString('pt-BR')}</div>
+                ) : (
+                  <div>⏳ <b>Aguardando confirmação do 2º diácono</b></div>
+                )}
 
-        <div>
-          <label className="text-sm font-medium">Nome do Membro</label>
-          <input name="nome" placeholder="Ex: Valdecy Santana" required defaultValue="Valdecy Santana" className="mt-1 w-full border rounded-lg p-3" />
-        </div>
+                {r.tesoureiro_nome && <div>✅ <b>Validado por Tesoureiro:</b> {r.tesoureiro_nome} em {new Date(r.tesoureiro_at).toLocaleString('pt-BR')}</div>}
+                {r.motivo_erro && <div style={{ color: 'red' }}>❌ <b>Erro reportado:</b> {r.motivo_erro}</div>}
+              </div>
 
-        <div>
-          <label className="text-sm font-medium">Tipo</label>
-          <select name="tipo" className="mt-1 w-full border rounded-lg p-3">
-            <option value="dizimo">Dízimo</option>
-            <option value="oferta">Oferta</option>
-            <option value="oferta_especial">Oferta Especial</option>
-          </select>
-        </div>
+              {/* BOTÕES DE AÇÃO */}
+              <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                {r.status === 'aguardando_segundo' && me.oficio === 'diacono' && (
+                  <form action={confirmarSegundo}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <button style={{ background: '#1a4d2e', color: 'white', padding: '8px 12px', borderRadius: 6, border: 0 }}>Confirmar como 2º Diácono</button>
+                  </form>
+                )}
 
-        <div>
-          <label className="text-sm font-medium">Valor R$</label>
-          <input name="valor" type="number" step="0.01" placeholder="10.00" required className="mt-1 w-full border rounded-lg p-3" />
-        </div>
-
-        <button type="submit" className="mt-2 bg-[#1a4d2e] text-white font-semibold py-3 rounded-lg hover:bg-[#143d24]">
-          Salvar Registro
-        </button>
-      </form>
+                {r.status === 'aguardando_tesoureiro' && me.oficio === 'tesoureiro' && (
+                  <>
+                    <form action={validarTesoureiro}>
+                      <input type="hidden" name="id" value={r.id} />
+                      <button style={{ background: '#1a4d2e', color: 'white', padding: '8px 12px', borderRadius: 6, border: 0 }}>Validar</button>
+                    </form>
+                    <form action={reportarErro} style={{ display: 'flex', gap: 4 }}>
+                      <input type="hidden" name="id" value={r.id} />
+                      <input name="motivo" placeholder="Motivo do erro" required style={{ padding: 6, border: '1px solid #ccc', borderRadius: 6 }} />
+                      <button style={{ background: '#c0392b', color: 'white', padding: '8px 12px', borderRadius: 6, border: 0 }}>Reportar Erro</button>
+                    </form>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
