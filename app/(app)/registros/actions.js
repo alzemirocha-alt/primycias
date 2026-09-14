@@ -52,19 +52,20 @@ export async function criarRegistroCultoAction(formData){
   }
   redirect("/registros");
 }
-// FIX: Botão Excluir - Só Pastor apaga definitivo
 export async function excluirRegistroAction(recordId) {
+  "use server"
   const me = await getSessionUser()
   if (!me) throw new Error('Não logado')
   
   const funcao = (me.funcao || me.cargo || '').toLowerCase()
   if (funcao !== 'pastor' && funcao !== 'presidente') {
-    throw new Error('Só o pastor pode excluir definitivamente')
+    throw new Error('Só o pastor pode excluir')
   }
 
-  // Apaga definitivo como você pediu
+  // apaga na ordem certa para não dar erro de chave estrangeira
   await supabaseAdmin.from('record_items').delete().eq('record_id', recordId)
   await supabaseAdmin.from('record_approvals').delete().eq('record_id', recordId)
-  await supabaseAdmin.from('aprovacoes_culto').delete().eq('culto_id', recordId)
-  await supabaseAdmin.from('records').delete().eq('id', recordId)
+  await supabaseAdmin.from('error_reports').delete().eq('record_id', recordId)
+  const { error } = await supabaseAdmin.from('records').delete().eq('id', recordId).eq('igreja_id', me.igreja_id)
+  if (error) throw new Error(error.message)
 }
