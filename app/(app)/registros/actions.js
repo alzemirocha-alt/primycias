@@ -3,32 +3,49 @@
 import { getSessionUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
-// FUNÇÃO QUE ESTAVA QUEBRANDO - AGORA CORRIGIDA
+function isPastor(me) {
+  const cargo = (me?.role || me?.perfil || me?.cargo || me?.funcao || "").toLowerCase();
+  return cargo.includes("pastor") || cargo.includes("admin") || cargo.includes("presidente");
+}
+
 export async function excluirRegistroAction(recordId) {
   const me = await getSessionUser();
   if (!me) throw new Error("Não logado");
 
-  console.log("TENTANDO EXCLUIR COMO:", me.id, me.email);
+  // Busca status do registro para aplicar a trava
+  const { data: registro } = await supabaseAdmin
+   .from("records")
+   .select("id, status, igreja_id")
+   .eq("id", recordId)
+   .single();
 
-  // apaga filhos primeiro para não dar erro de chave estrangeira
+  if (!registro) {
+    // Já foi excluído, só redireciona
+    redirect("/registros");
+  }
+
+  // TRAVA: Se já foi validado pelo tesoureiro, só pastor apaga
+  if (registro.status === "validado" &&!isPastor(me)) {
+    throw new Error("Este registro já foi validado pelo tesoureiro. Apenas o Pastor pode excluí-lo.");
+  }
+
   await supabaseAdmin.from("record_items").delete().eq("record_id", recordId);
   await supabaseAdmin.from("record_approvals").delete().eq("record_id", recordId);
   await supabaseAdmin.from("error_reports").delete().eq("record_id", recordId);
-  
-  const { error } = await supabaseAdmin.from("records").delete().eq("id", recordId).eq("igreja_id", me.igreja_id);
-  
-  if (error) {
-    console.error("ERRO SUPABASE AO EXCLUIR:", error);
-    throw new Error(error.message);
-  }
+
+  const { error } = await supabaseAdmin
+   .from("records")
+   .delete()
+   .eq("id", recordId)
+   .eq("igreja_id", me.igreja_id);
+
+  if (error) throw new Error(error.message);
 
   revalidatePath("/registros");
+  redirect("/registros");
 }
-
-// Mantém as outras funções que seu arquivo já tinha
-// Se seu arquivo tinha mais funções, elas continuam abaixo. 
-// Se não tinha, pode deixar só essa que já vai funcionar.
 
 export async function validarRegistroAction(recordId) {
   const me = await getSessionUser();
