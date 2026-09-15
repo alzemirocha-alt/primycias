@@ -6,7 +6,6 @@ import { redirect } from "next/navigation"
 
 function agora() { return new Date().toISOString() }
 
-// Verifica se é tesoureiro
 function ehTesoureiro(user) {
   if(!user) return false
   return user.funcao === 'tesoureiro' || user.oficio === 'tesoureiro' || user.nome.toLowerCase().includes('gilson')
@@ -19,19 +18,19 @@ export async function criarRegistros(formData) {
   const itens = JSON.parse(formData.get('itens'))
   const isPastor = eu.oficio === 'pastor'
 
-  // === TRAVA 1: SÓ 1 POR DATA ===
+  // === TRAVA 1: SÓ 1 CULTO POR DATA (mas permite várias linhas dentro do mesmo culto) ===
   const { data: existe } = await supabaseAdmin.from('records').select('id').eq('data_culto', data_culto).limit(1)
   if (existe?.length > 0) {
-    throw new Error(`TRAVA 1: Já existe registro em ${new Date(data_culto).toLocaleDateString('pt-BR')}. Só pode 1 por data.`)
+    throw new Error(`Já existe registro em ${new Date(data_culto).toLocaleDateString('pt-BR')}. Só pode 1 culto por data.`)
   }
 
   // === TRAVA 2: TESOUREIRO NUNCA PARTICIPA DA ELABORAÇÃO ===
   if (ehTesoureiro(eu)) {
-    throw new Error('TRAVA 2: Tesoureiro não pode elaborar registro. Você só valida.')
+    throw new Error('Tesoureiro não pode elaborar registro. Você só valida.')
   }
   const { data: segundoUser } = await supabaseAdmin.from('users').select('id,nome,funcao,oficio').eq('id', segundo_id).single()
   if (ehTesoureiro(segundoUser)) {
-    throw new Error(`TRAVA 2: ${segundoUser.nome} é Tesoureiro e só pode validar, não pode ser 2º diácono.`)
+    throw new Error(`${segundoUser.nome} é Tesoureiro e só pode validar, não pode ser 2º diácono.`)
   }
   if (eu.id === segundo_id) throw new Error('Você não pode ser os 2 diáconos ao mesmo tempo.')
 
@@ -41,10 +40,10 @@ export async function criarRegistros(formData) {
     if (ultimo?.length > 0) {
       const ult = ultimo[0]
       const bloqueados = [ult.primeiro_diacono_id, ult.segundo_diacono_id].filter(Boolean)
-      if (bloqueados.includes(eu.id)) throw new Error(`TRAVA 3: Você participou do último culto (${new Date(ult.data_culto).toLocaleDateString('pt-BR')}). Só o Pastor pode liberar.`)
+      if (bloqueados.includes(eu.id)) throw new Error(`Você participou do último culto (${new Date(ult.data_culto).toLocaleDateString('pt-BR')}). Só o Pastor pode liberar.`)
       if (bloqueados.includes(segundo_id)) {
         const nome = segundoUser?.nome || 'Diácono'
-        throw new Error(`TRAVA 3: ${nome} participou do último culto e está bloqueado. Só o Pastor pode liberar.`)
+        throw new Error(`${nome} participou do último culto e está bloqueado. Só o Pastor pode liberar.`)
       }
     }
   }
