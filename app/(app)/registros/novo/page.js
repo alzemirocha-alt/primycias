@@ -1,11 +1,9 @@
-import { getSessionUser, getChurch } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import FormNovoRegistro from "./FormNovoRegistro";
-export const dynamic = 'force-dynamic';
+import { getSessionUser } from "@/lib/auth"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import FormNovoRegistro from "./FormNovoRegistro.jsx"
 
-export default async function Page(){
-  const me = await getSessionUser();
-  const church = await getChurch(me.igreja_id);
-  const { data: diaconos } = await supabaseAdmin.from("users").select("id, nome").eq("igreja_id", me.igreja_id).eq("oficio","diacono").neq("id", me.id).neq("id", church.tesoureiro_user_id);
-  return <FormNovoRegistro diaconos={diaconos || []} />;
+export default async function NovoPage() {
+  const eu = await getSessionUser()
+  const { data: diaconos } = await supabaseAdmin.from('users').select('id, nome').eq('oficio', 'diacono').neq('id', eu.id)
+  return <FormNovoRegistro diaconos={diaconos} />
 }
