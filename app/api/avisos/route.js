@@ -7,10 +7,17 @@ export async function POST(req) {
   if (!user) return new NextResponse("Não autenticado", { status: 401 });
   const body = await req.json();
 
+  // FIX: seu CHECK só aceita texto, imagem, link, video - mapeia automaticamente
+  let tipoFinal = "texto";
+  if (body.imagem_url) tipoFinal = "imagem";
+  else if (body.video_url) tipoFinal = "video";
+  else if (body.link_url) tipoFinal = "link";
+  else if (body.tipo && ["texto","imagem","link","video"].includes(body.tipo)) tipoFinal = body.tipo;
+
   // Monta payload compatível com qualquer nome de coluna que sua tabela tiver
   const payload = {
     igreja_id: user.igreja_id,
-    tipo: body.tipo || "lideranca", // << FIX do erro null value in column "tipo"
+    tipo: tipoFinal,
     titulo: body.titulo,
     mensagem: body.mensagem,
     conteudo: body.mensagem,
@@ -50,8 +57,16 @@ export async function DELETE(req) {
 export async function PUT(req) {
   const user = await getSessionUser();
   const body = await req.json();
+
+  // FIX também na edição
+  let tipoFinal = "texto";
+  if (body.imagem_url) tipoFinal = "imagem";
+  else if (body.video_url) tipoFinal = "video";
+  else if (body.link_url) tipoFinal = "link";
+  else if (body.tipo && ["texto","imagem","link","video"].includes(body.tipo)) tipoFinal = body.tipo;
+
   const { data, error } = await supabaseAdmin.from("avisos").update({
-    tipo: body.tipo || "lideranca", // << FIX também na edição
+    tipo: tipoFinal,
     titulo: body.titulo,
     mensagem: body.mensagem,
     conteudo: body.mensagem,
