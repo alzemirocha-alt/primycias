@@ -18,13 +18,11 @@ export async function criarRegistros(formData) {
   const itens = JSON.parse(formData.get('itens'))
   const isPastor = eu.oficio === 'pastor'
 
-  // === TRAVA 1: SÓ 1 CULTO POR DATA (mas permite várias linhas dentro do mesmo culto) ===
   const { data: existe } = await supabaseAdmin.from('records').select('id').eq('data_culto', data_culto).limit(1)
   if (existe?.length > 0) {
     throw new Error(`Já existe registro em ${new Date(data_culto).toLocaleDateString('pt-BR')}. Só pode 1 culto por data.`)
   }
 
-  // === TRAVA 2: TESOUREIRO NUNCA PARTICIPA DA ELABORAÇÃO ===
   if (ehTesoureiro(eu)) {
     throw new Error('Tesoureiro não pode elaborar registro. Você só valida.')
   }
@@ -34,7 +32,6 @@ export async function criarRegistros(formData) {
   }
   if (eu.id === segundo_id) throw new Error('Você não pode ser os 2 diáconos ao mesmo tempo.')
 
-  // === TRAVA 3: NÃO PODE REPETIR DIÁCONO EM DATA SEGUIDA, SALVO PASTOR LIBERAR ===
   if (!isPastor) {
     const { data: ultimo } = await supabaseAdmin.from('records').select('data_culto, primeiro_diacono_id, segundo_diacono_id').order('data_culto', { ascending: false }).limit(1)
     if (ultimo?.length > 0) {
@@ -50,21 +47,24 @@ export async function criarRegistros(formData) {
 
   const hist = [{ acao: isPastor? 'CRIOU (Pastor liberou revezamento)' : 'CRIOU', usuario: eu.nome, em: agora() }]
 
-  for (const it of itens) {
-    await supabaseAdmin.from('records').insert({
-      tipo: it.tipo.toLowerCase(),
-      membro_nome: it.membro_nome,
-      valor: Number(it.valor),
-      data_culto,
-      primeiro_diacono_id: eu.id,
-      segundo_diacono_id: segundo_id,
-      diacono_id: eu.id,
-      diacono1_nome: eu.nome,
-      diacono1_at: agora(),
-      status: 'aguardando_segundo_diacono',
-      historico: hist
-    })
-  }
+  // CORREÇÃO: insere tudo de uma vez pra salvar as 3 linhas
+  const paraInserir = itens.map(it=>({
+    tipo: it.tipo.toLowerCase(),
+    membro_nome: it.membro_nome,
+    valor: Number(it.valor),
+    data_culto,
+    primeiro_diacono_id: eu.id,
+    segundo_diacono_id: segundo_id,
+    diacono_id: eu.id,
+    diacono1_nome: eu.nome,
+    diacono1_at: agora(),
+    status: 'aguardando_segundo_diacono',
+    historico: hist
+  }))
+
+  const { error } = await supabaseAdmin.from('records').insert(paraInserir)
+  if(error) throw new Error(error.message)
+
   revalidatePath('/registros'); redirect('/registros')
 }
 
@@ -105,4 +105,38 @@ export async function excluirRegistro(id) {
   const { data: reg } = await supabaseAdmin.from('records').select('data_culto').eq('id', id).single()
   await supabaseAdmin.from('records').delete().eq('data_culto', reg.data_culto)
   revalidatePath('/registros')
+}
+
+// === FUNÇÃO NOVA QUE CONSERTA O BOTÃO DA SUA FOTO ===
+export async function corrigirRegistro(formData){
+  const eu = await getSessionUser()
+  const data_culto = formData.get('data_culto')
+  const segundo_id = formData.get('segundo_diacono_id')
+  const itens = JSON.parse(formData.get('itens'))
+
+  // apaga o culto antigo com erro
+  await supabaseAdmin.from('records').delete().eq('data_culto', data_culto)
+
+  const hist = [{ acao: 'CORRIGIU e reenviou ao 2º Diácono', usuario: eu.nome, em: agora() }]
+
+  const paraInserir = itens.filter(i=>i.membro_nome && i.valor).map(it=>({
+    tipo: it.tipo.toLowerCase(),
+    membro_nome: it.membro_nome,
+    valor: Number(it.valor),
+    data_culto,
+    primeiro_diacono_id: eu.id,
+    segundo_diacono_id: segundo_id,
+    diacono_id: eu.id,
+    diacono1_nome: eu.nome,
+    diacono1_at: agora(),
+    status: 'aguardando_segundo_diacono',
+    motivo_erro: null,
+    historico: hist
+  }))
+
+  const { error } = await supabaseAdmin.from('records').insert(paraInserir)
+  if(error) throw new Error(error.message)
+
+  revalidatePath('/registros')
+  redirect('/registros') // isso tira da tela e volta pra lista
 }
