@@ -100,10 +100,26 @@ export default async function DashboardPage() {
       <h2 className="text-xl font-serif text-ink mb-1">Início</h2>
       <p className="text-xs text-gray-500 mb-4">{officeLabel(user)} · {church.nome}</p>
 
-      {/* COMUNICAÇÕES NO TOPO - SÓ APARECE SE TIVER AVISOS */}
-      <AvisosBoard me={user} avisos={avisos || []} />
+      {/* 1. TOPO: SÓ AS COMUNICAÇÕES JÁ PUBLICADAS - SEM FORMULÁRIO */}
+      {avisos && avisos.length > 0 && (
+        <div className="bg-white border border-line rounded-sm p-4 mb-6">
+          <div className="text-sm font-medium text-ink mb-3">Comunicações</div>
+          <div className="space-y-3">
+            {avisos.slice(0, 3).map(a => (
+              <div key={a.id} className="border-l-4 border-l-[#0F3A1F] bg-[#faf9f6] p-3 rounded-sm">
+                <div className="font-medium text-sm">{a.titulo} {a.data_evento && <span className="text-xs text-gray-500">- {new Date(a.data_evento).toLocaleString('pt-BR')}</span>}</div>
+                <div className="text-sm whitespace-pre-wrap">{a.mensagem || a.conteudo}</div>
+                {a.imagem_url && <img src={a.imagem_url} className="mt-2 max-h-48 border" />}
+                {a.arquivo_url && <a href={a.arquivo_url} target="_blank" className="text-xs text-blue-600 underline mt-1 block">📎 Baixar anexo</a>}
+                {a.video_url && <a href={a.video_url} target="_blank" className="text-xs text-blue-600 underline block">▶️ Vídeo</a>}
+                {a.link_url && <a href={a.link_url} target="_blank" className="text-xs text-blue-600 underline block">🔗 {a.link_url}</a>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {/* EVENTOS DE HOJE COM HORA */}
+      {/* EVENTOS DE HOJE COM HORA - SEU ORIGINAL PRESERVADO */}
       {eventosHoje?.length > 0 && (
         <div className="bg-white border-l-4 border-l-[#1E5631] border border-line rounded-sm p-4 mb-6">
           <div className="text-sm font-medium text-ink mb-2">📌 Hoje - {new Date().toLocaleDateString('pt-BR', {timeZone: 'America/Recife'})}</div>
@@ -138,6 +154,9 @@ export default async function DashboardPage() {
       )}
 
       <LeadershipBoards users={users || []} church={church} />
+
+      {/* 2. EM BAIXO: FORMULÁRIO DE COMUNICAÇÕES COMO ESTAVA NA SUA FOTO - PRESERVADO */}
+      <AvisosBoard me={user} avisos={[]} modoFormApenas={true} />
     </div>
   );
 }
