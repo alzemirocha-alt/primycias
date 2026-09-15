@@ -4,6 +4,7 @@ import { atualizarRegistros } from "../../actions"
 
 export default function FormEditarRegistro({ registros, data_culto }) {
   const [itens, setItens] = useState(registros.map(r => ({ id: r.id, tipo: r.tipo, membro_nome: r.membro_nome, valor: r.valor })))
+  const [salvando, setSalvando] = useState(false)
 
   function update(i, campo, val) {
     const c = [...itens]; c[i][campo] = val; setItens(c)
@@ -11,6 +12,16 @@ export default function FormEditarRegistro({ registros, data_culto }) {
 
   const totalDiz = itens.filter(x => x.tipo.toLowerCase().includes('dizimo')).reduce((s,x)=>s+Number(x.valor||0),0)
   const totalOfe = itens.filter(x => x.tipo.toLowerCase().includes('oferta')).reduce((s,x)=>s+Number(x.valor||0),0)
+
+  async function handleSalvar(){
+    setSalvando(true)
+    try{
+      await atualizarRegistros(data_culto, itens)
+    }catch(e){
+      alert(e.message)
+      setSalvando(false)
+    }
+  }
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4">
@@ -29,7 +40,9 @@ export default function FormEditarRegistro({ registros, data_culto }) {
         <p>Dizimos: R$ {totalDiz.toFixed(2)}</p><p>Ofertas: R$ {totalOfe.toFixed(2)}</p><p>TOTAL: R$ {(totalDiz+totalOfe).toFixed(2)}</p>
       </div>
 
-      <button onClick={() => atualizarRegistros(data_culto, itens)} className="bg-green-700 text-white w-full py-3 rounded font-bold">Salvar Correção e reenviar p/ 2º Diácono</button>
+      <button disabled={salvando} onClick={handleSalvar} className="bg-green-700 text-white w-full py-3 rounded font-bold disabled:opacity-50">
+        {salvando? 'Salvando...' : 'Salvar Correção e reenviar p/ 2º Diácono'}
+      </button>
     </div>
   )
 }
