@@ -18,8 +18,13 @@ export default function AvisosBoard({ me, avisos }) {
   // seu original já libera Pastor e Secretário do Conselho nos mesmos moldes - preservado
   const podePostar = oficio === 'pastor' || me?.funcao === 'secretario_conselho' || (me?.funcao||'').includes('secret');
 
-  // FIX: tipo fixo que faltava e causava o erro NOT NULL
-  const tipo = "lideranca";
+  // FIX: mapeia para o CHECK do seu Supabase (texto, imagem, link, video)
+  const getTipo = () => {
+    if (imagemUrl) return "imagem";
+    if (videoUrl) return "video";
+    if (linkUrl) return "link";
+    return "texto";
+  };
 
   async function uploadArquivo(e) {
     const file = e.target.files[0]; if (!file) return;
@@ -39,10 +44,10 @@ export default function AvisosBoard({ me, avisos }) {
     const method = editando? "PUT" : "POST";
     const body = {
       id: editando,
-      tipo, // << AQUI CORRIGIDO - nunca mais null
+      tipo: getTipo(), // << CORRIGIDO - nunca mais null e passa no CHECK
       titulo,
       mensagem,
-      conteudo: mensagem, // compatível com seu avisos-actions.js antigo
+      conteudo: mensagem,
       imagem_url: imagemUrl,
       video_url: videoUrl,
       link_url: linkUrl,
@@ -74,11 +79,10 @@ export default function AvisosBoard({ me, avisos }) {
 
   return (
     <div className="bg-white border border-line rounded-sm p-4 mb-6">
-      <div className="text-sm font-medium text-ink mb-3">Avisos da Liderança</div>
+      <div className="text-sm font-medium text-ink mb-3">Comunicações</div>
       {podePostar && (
         <div className="border border-paperDeep p-3 rounded-sm mb-4 bg-[#faf9f6]">
-          {/* name="tipo" exigido - escondido mas enviado */}
-          <input type="hidden" name="tipo" value={tipo} />
+          <input type="hidden" name="tipo" value={getTipo()} />
           <input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Título" className="w-full border p-2 text-sm mb-2" />
           <textarea value={mensagem} onChange={e=>setMensagem(e.target.value)} placeholder="Texto do aviso..." className="w-full border p-2 text-sm mb-2 h-20" />
           <div className="grid grid-cols-2 gap-2 mb-2">
