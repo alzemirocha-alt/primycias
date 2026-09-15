@@ -67,9 +67,11 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
       if(safeDatasBloq.includes(data)){ showMsg('Já existe registro para essa data.'); return }
       if(safeBloqueados.includes(segundo)){ showMsg(`${getNome(segundo)} participou do último culto e está bloqueado. Peça ao pastor.`); return }
       fd.set('itens', JSON.stringify(itens))
+      fd.set('igreja_id', safeEu.igreja_id) // FIX: MANDA IGREJA_ID
       try{ await criarRegistros(fd) }catch(e){ showMsg(e.message) }
     }} className="p-6 max-w-2xl mx-auto space-y-4">
       {msg && <div className="bg-red-600 text-white p-3 rounded font-bold text-center animate-pulse">{msg}</div>}
+      <input type="hidden" name="igreja_id" value={safeEu.igreja_id || ''} />
       <div>
         <label className="block font-bold mb-2">Data do Culto</label>
         <input type="date" name="data_culto" value={data} onChange={e=>setData(e.target.value)} required className="border p-3 rounded w-full" />
