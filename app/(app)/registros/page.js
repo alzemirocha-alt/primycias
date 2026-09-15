@@ -10,13 +10,41 @@ export default async function RegistrosPage() {
   if (!eu) return <div className="p-6">Faça login</div>
   const { data } = await supabaseAdmin.from('records').select('*').order('data_culto', { ascending: false })
   const regsAll = data || []
-  const isTesoureiro = eu.funcao==='tesoureiro' || eu.oficio==='tesoureiro' || eu.nome.toLowerCase().includes('gilson')
-  const isPastor = eu.oficio==='pastor'
+
+  // DETECÇÃO ROBUSTA DE CARGOS (ofício = diácono, função = tesoureiro)
+  const oficio = String(eu.oficio || eu.cargo || '').toLowerCase()
+  const funcao = String(eu.funcao || '').toLowerCase()
+  const nome = String(eu.nome || '').toLowerCase()
+  const meuId = String(eu.id)
+
+  const isTesoureiro = funcao.includes('tesour') || oficio.includes('tesour') || nome.includes('gilson')
+  const isPastor = oficio.includes('pastor')
+  const isDiacono = oficio.includes('diacono')
+
+  // FUNÇÃO QUE VERIFICA SE EU PARTICIPEI (checa todos os nomes possíveis de coluna)
+  function participei(r) {
+    const ids = [
+      r.primeiro_diacono_id, r.segundo_diacono_id, r.diacono_id,
+      r.criado_por, r.diacono1_id, r.diacono2_id,
+      r.lancado_por, r.confirmado_por
+    ].map(x => String(x || ''))
+    return ids.includes(meuId)
+  }
 
   let regsFiltrados = regsAll
-  if (isPastor) regsFiltrados = regsAll.filter(r=>r.status==='validado')
-  else if (isTesoureiro) regsFiltrados = regsAll.filter(r=>['aguardando_tesoureiro','validado','devolvido_com_erro'].includes(r.status))
-  else regsFiltrados = regsAll.filter(r=>r.primeiro_diacono_id===eu.id || r.segundo_diacono_id===eu.id || r.diacono_id===eu.id)
+  if (isPastor) {
+    // Pastor: só vê validado (não lança, não confirma)
+    regsFiltrados = regsAll.filter(r=>r.status==='validado')
+  } else if (isTesoureiro) {
+    // Gilson: é diácono E tesoureiro - vê o que precisa validar + o que participou + já validados
+    regsFiltrados = regsAll.filter(r=>['aguardando_tesoureiro','validado','devolvido_com_erro'].includes(r.status) || participei(r))
+  } else if (isDiacono) {
+    // TRAVA FINAL: DIÁCONO COMUM SÓ VÊ O QUE PARTICIPOU - SE NÃO PARTICIPOU NÃO VÊ NADA
+    regsFiltrados = regsAll.filter(r=> participei(r) )
+  } else {
+    // Presbítero não vê nada
+    regsFiltrados = []
+  }
 
   const grupos = {}
   regsFiltrados.forEach(r=>{ const k=r.data_culto||r.created_at?.slice(0,10); if(!grupos[k]) grupos[k]=[]; grupos[k].push(r) })
@@ -24,7 +52,7 @@ export default async function RegistrosPage() {
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="font-bold">Olá {eu.nome} - {Object.keys(grupos).length} cultos</h1>
+        <h1 className="font-bold">Olá {eu.nome} - {Object.keys(grupos).length} cultos {isTesoureiro? '(Tesoureiro)' : isDiacono? '(Diácono)' : ''} - {regsFiltrados.length} regs visíveis</h1>
         {!isPastor && <a href="/registros/novo" className="bg-green-700 text-white px-4 py-2 rounded font-bold">+ Novo Registro</a>}
         {isPastor && <a href="/registros/novo" className="bg-blue-700 text-white px-4 py-2 rounded font-bold">🔓 Liberar Diáconos</a>}
       </div>
@@ -57,6 +85,7 @@ export default async function RegistrosPage() {
           </div>
         )
       })}
+      {regsFiltrados.length===0 && <p className="text-center text-gray-500 mt-10">Nenhum registro para você. (Regra: só vê o que participou)</p>}
     </div>
   )
 }
