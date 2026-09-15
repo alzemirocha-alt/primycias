@@ -25,35 +25,38 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
     }).sort((a,b)=> new Date(a.data_culto) - new Date(b.data_culto))
     setFiltrados(lista)
     setGerou(true)
+    // BAIXA AUTOMATICAMENTE APÓS GERAR
+    setTimeout(()=> baixarPDF(lista), 300)
   }
 
-  const gerarHTML = ()=>{
+  const gerarHTML = (listaParaUsar = null)=>{
+    const lista = listaParaUsar || filtrados
     const porData = {}
-    filtrados.forEach(r=>{
+    lista.forEach(r=>{
       if(!porData[r.data_culto]) porData[r.data_culto]=[]
       porData[r.data_culto].push(r)
     })
     const agora = new Date().toLocaleString('pt-BR')
-    const totDizGeral = filtrados.filter(f=>String(f.tipo).toLowerCase()==='dizimo').reduce((s,i)=>s+Number(i.valor||0),0)
-    const totOfeGeral = filtrados.filter(f=>String(f.tipo).toLowerCase()==='oferta').reduce((s,i)=>s+Number(i.valor||0),0)
+    const totDizGeral = lista.filter(f=>String(f.tipo).toLowerCase()==='dizimo').reduce((s,i)=>s+Number(i.valor||0),0)
+    const totOfeGeral = lista.filter(f=>String(f.tipo).toLowerCase()==='oferta').reduce((s,i)=>s+Number(i.valor||0),0)
 
     let html = `
     <html><head><meta charset="utf-8"><title>Relatorio</title>
     <style>
       body{font-family:Arial;padding:30px;color:#222;font-size:12px}
-    .cab{display:flex;gap:16px;border-bottom:2px solid #1a4330;padding-bottom:12px}
-    .cab img{height:70px}
-    .cab h2{margin:0;color:#1a4330;font-size:16px}
-    .small{font-size:11px}
-    .titulo{color:#1a4330;font-size:18px;font-weight:bold;text-align:center;margin:16px 0}
-    .meta{font-size:11px;color:#555;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:14px}
-    .dia{margin-bottom:28px;border:1px solid #ddd;border-radius:6px;overflow:hidden;page-break-inside:avoid}
-    .dia-head{background:#f3f6f3;padding:8px 12px;font-weight:bold;display:flex;justify-content:space-between;color:#1a4330}
+   .cab{display:flex;gap:16px;border-bottom:2px solid #1a4330;padding-bottom:12px}
+   .cab img{height:70px}
+   .cab h2{margin:0;color:#1a4330;font-size:16px}
+   .small{font-size:11px}
+   .titulo{color:#1a4330;font-size:18px;font-weight:bold;text-align:center;margin:16px 0}
+   .meta{font-size:11px;color:#555;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:14px}
+   .dia{margin-bottom:28px;border:1px solid #ddd;border-radius:6px;overflow:hidden;page-break-inside:avoid}
+   .dia-head{background:#f3f6f3;padding:8px 12px;font-weight:bold;display:flex;justify-content:space-between;color:#1a4330}
       table{width:100%;border-collapse:collapse} th,td{border-top:1px solid #e5e5e5;padding:6px 10px;text-align:left}
       th{background:#fafafa;font-size:11px}
-    .sub{font-size:11px;background:#f9f9f9;padding:8px 12px;display:flex;justify-content:space-between}
-    .assin{font-size:10px;color:#555;padding:8px 12px;border-top:1px dashed #ccc;line-height:1.5}
-    .totais{border-top:2px solid #1a4330;margin-top:20px;padding-top:12px;font-weight:bold}
+   .sub{font-size:11px;background:#f9f9f9;padding:8px 12px;display:flex;justify-content:space-between}
+   .assin{font-size:10px;color:#555;padding:8px 12px;border-top:1px dashed #ccc;line-height:1.5}
+   .totais{border-top:2px solid #1a4330;margin-top:20px;padding-top:12px;font-weight:bold}
     </style></head><body>
       <div class="cab">
         <img src="${dadosIgreja.logo}" onerror="this.style.display='none'" />
@@ -67,7 +70,7 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
       <div class="meta">Emitido em: ${agora} · Por: ${eu?.nome || ''} (${eu?.oficio || ''} — ${eu?.funcao || ''})</div>
     `
 
-    if(filtrados.length===0){
+    if(lista.length===0){
       html+=`<p>Nenhum registro para exibir.</p>`
     } else {
       Object.keys(porData).sort().forEach(dataCulto=>{
@@ -85,13 +88,22 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
       })
     }
 
-    html+=`<div class="totais">Dízimos: R$ ${totDizGeral.toFixed(2)} · Ofertas: R$ ${totOfeGeral.toFixed(2)} · Total geral: R$ ${(totDizGeral+totOfeGeral).toFixed(2)}</div></body></html>`
+    html+=`<div class="totais">Dízimos: R$ ${totDizGeral.toFixed(2)} · Ofertas: R$ ${totOfeGeral.toFixed(2)} · Total geral: R$ ${(totDizGeral+totOfeGeral).toFixed(2)}</div>
+    <script>
+      window.onload = function(){ setTimeout(function(){ window.print(); }, 500); }
+    </script>
+    </body></html>`
     return html
   }
 
-  function baixarPDF(){
-    if(!gerou || filtrados.length===0){ alert('Gere o relatório primeiro'); return }
-    const html = gerarHTML()
+  function baixarPDF(listaOverride = null){
+    const lista = listaOverride || filtrados
+    if(lista.length===0){
+      if(!gerou) { alert('Gere o relatório primeiro'); return }
+      alert('Nenhum registro para o período');
+      return
+    }
+    const html = gerarHTML(lista)
     const w = window.open('', '_blank')
     w.document.write(html)
     w.document.close()
@@ -112,7 +124,7 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
         </div>
         <div className="flex gap-3 mt-4">
           <button onClick={gerar} className="bg-[#1a4330] text-white px-6 py-2 rounded font-bold">Gerar relatório</button>
-          {gerou && filtrados.length>0 && <button onClick={baixarPDF} className="bg-[#1a4330] text-white px-6 py-2 rounded font-bold">Baixar relatório em PDF</button>}
+          {gerou && filtrados.length>0 && <button onClick={()=>baixarPDF()} className="bg-[#1a4330] text-white px-6 py-2 rounded font-bold">Baixar relatório em PDF</button>}
         </div>
       </div>
 
