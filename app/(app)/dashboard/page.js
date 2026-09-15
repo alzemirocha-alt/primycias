@@ -3,9 +3,8 @@ export const revalidate = 0
 
 import { getSessionUser, getChurch } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { isAdmin, isTreasurer, isRestrictedFinanceiro, officeLabel, STATUS_LABEL, fmtDate, brl, today } from "@/lib/constants";
+import { isAdmin, isTreasurer, officeLabel, brl } from "@/lib/constants";
 import { computeLedgerRealizado } from "@/lib/ledger";
-import Link from "next/link";
 import LeadershipBoards from "@/components/LeadershipBoards";
 import BirthdayBanners from "@/components/BirthdayBanners";
 import AvisosBoard from "./AvisosBoard";
@@ -18,17 +17,15 @@ export default async function DashboardPage() {
   const [
     { count: pendentesUsuarios },
     { count: pendentesSenha },
-    { data: registrosAbertos },
     { data: users },
     { data: avisos },
   ] = await Promise.all([
     isAdmin(user)
-   ? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+  ? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
     isAdmin(user)
-   ? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+  ? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
-    supabaseAdmin.from("records").select("id, data_culto, status").eq("igreja_id", igrejaId).neq("status", "validado").order("data_culto", { ascending: false }),
     supabaseAdmin.from("users").select("*").eq("igreja_id", igrejaId),
     supabaseAdmin.from("avisos").select("*").eq("igreja_id", igrejaId).order("created_at", { ascending: false }).limit(10),
   ]);
@@ -66,11 +63,7 @@ export default async function DashboardPage() {
     const mesAtual = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' }).slice(0, 7);
     const inicioMes = mesAtual + '-01'
 
-    const entradasDizimosOfertasMes = records.filter(r=>{
-      const d = String(r.data_culto||'')
-      return d >= inicioMes
-    }).reduce((s,r)=> s + getValor(r), 0)
-
+    const entradasDizimosOfertasMes = records.filter(r=> String(r.data_culto||'') < inicioMes? false : String(r.data_culto||'') >= inicioMes).reduce((s,r)=> s + getValor(r), 0)
     const entradasTesourariaMes = lancamentos.filter(l=>{
       const d = String(l.data||l.data_lancamento||'')
       const tipo = String(l.tipo||'').toLowerCase()
@@ -84,7 +77,6 @@ export default async function DashboardPage() {
     }).reduce((s,l)=> s + Number(l.valor||0), 0)
 
     const entradasMes = entradasDizimosOfertasMes + entradasTesourariaMes
-
     const entradasAnteriores = records.filter(r=> String(r.data_culto||'') < inicioMes).reduce((s,r)=>s+getValor(r),0)
     const entradasTesAnteriores = lancamentos.filter(l=> String(l.data||l.data_lancamento||'') < inicioMes && String(l.tipo||'').toLowerCase().includes('entrada')).reduce((s,l)=>s+Number(l.valor||0),0)
     const saidasAnteriores = lancamentos.filter(l=> String(l.data||l.data_lancamento||'') < inicioMes && String(l.tipo||'').toLowerCase().includes('saida')).reduce((s,l)=>s+Number(l.valor||0),0)
@@ -124,25 +116,7 @@ export default async function DashboardPage() {
       )}
 
       <LeadershipBoards users={users || []} church={church} />
-
       <AvisosBoard me={user} avisos={avisos || []} />
-
-      <div className="bg-white border border-line rounded-sm p-4">
-        <div className="text-sm font-medium text-ink mb-3">Registros em aberto</div>
-        {(!registrosAbertos || registrosAbertos.length === 0) && (
-          <div className="text-sm text-gray-500">Nenhum registro em aberto no momento.</div>
-        )}
-        {registrosAbertos?.map((r) => (
-          <Link
-            key={r.id}
-            href={`/registros/editar/${r.data_culto}`}
-            className="flex items-center justify-between py-2 border-b border-paperDeep text-sm hover:opacity-80"
-          >
-            <span>Culto de {fmtDate(r.data_culto)}</span>
-            <span className="text-xs text-gray-500">{STATUS_LABEL[r.status]}</span>
-          </Link>
-        ))}
-      </div>
     </div>
   );
 }
