@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 import { getSessionUser, getChurch } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdmin, isTreasurer, isRestrictedFinanceiro, officeLabel, STATUS_LABEL, fmtDate, brl, today } from "@/lib/constants";
@@ -20,10 +23,10 @@ export default async function DashboardPage() {
     { data: avisos },
   ] = await Promise.all([
     isAdmin(user)
-    ? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+   ? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
     isAdmin(user)
-    ? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+   ? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
     supabaseAdmin.from("records").select("id, data_culto, status").eq("igreja_id", igrejaId).neq("status", "validado").order("data_culto", { ascending: false }),
     supabaseAdmin.from("users").select("*").eq("igreja_id", igrejaId),
@@ -43,13 +46,15 @@ export default async function DashboardPage() {
   let resumoFinanceiro = null;
   if (podeVerFinanceiro) {
     const [{ data: recordsRaw }, { data: lancamentosRaw }, { data: financas }] = await Promise.all([
-      // CORREÇÃO: tirei deleted_at e valor_total que não existem na sua tabela public.records
-      supabaseAdmin.from("records").select("id, valor, data_culto, status, tipo, igreja_id").eq("igreja_id", igrejaId),
+      supabaseAdmin.from("records").select("id, valor, data_culto, status, tipo, igreja_id, record_items(valor)").eq("igreja_id", igrejaId),
       supabaseAdmin.from("lancamentos").select("*").eq("igreja_id", igrejaId),
       supabaseAdmin.from("financas").select("*").eq("igreja_id", igrejaId).maybeSingle(),
     ]);
 
     // --- TRAVA DE EXCLUSÃO: só validado pelo tesoureiro entra ---
+    // FIX: se valor estiver nulo, soma pelos items (seu caso do 1200)
+    const getValor = (r) => Number(r.valor||0) || (r.record_items||[]).reduce((s,i)=>s+Number(i.valor||0),0)
+
     const records = (recordsRaw||[]).filter(r=>{
       const s = String(r.status||'').toLowerCase().trim()
       if(s === 'excluido' || s === 'apagado' || s === 'cancelado') return false
@@ -68,7 +73,7 @@ export default async function DashboardPage() {
     const entradasDizimosOfertasMes = records.filter(r=>{
       const d = String(r.data_culto||'')
       return d >= inicioMes
-    }).reduce((s,r)=> s + Number(r.valor||0), 0)
+    }).reduce((s,r)=> s + getValor(r), 0)
 
     const entradasTesourariaMes = lancamentos.filter(l=>{
       const d = String(l.data||l.data_lancamento||'')
@@ -85,7 +90,7 @@ export default async function DashboardPage() {
     const entradasMes = entradasDizimosOfertasMes + entradasTesourariaMes
 
     // SALDO ANTERIOR: saldo inicial + tudo antes deste mês (também respeitando exclusão)
-    const entradasAnteriores = records.filter(r=> String(r.data_culto||'') < inicioMes).reduce((s,r)=>s+Number(r.valor||0),0)
+    const entradasAnteriores = records.filter(r=> String(r.data_culto||'') < inicioMes).reduce((s,r)=>s+getValor(r),0)
     const entradasTesAnteriores = lancamentos.filter(l=> String(l.data||l.data_lancamento||'') < inicioMes && String(l.tipo||'').toLowerCase().includes('entrada')).reduce((s,l)=>s+Number(l.valor||0),0)
     const saidasAnteriores = lancamentos.filter(l=> String(l.data||l.data_lancamento||'') < inicioMes && String(l.tipo||'').toLowerCase().includes('saida')).reduce((s,l)=>s+Number(l.valor||0),0)
 
