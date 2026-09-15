@@ -1,6 +1,6 @@
 import { getSessionUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
-import FormNovo from "./FormNovo"
+import FormNovo from "./FormNovoRegistro"
 
 export default async function NovoPage() {
   const eu = await getSessionUser()
