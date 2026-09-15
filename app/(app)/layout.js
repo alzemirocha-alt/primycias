@@ -15,7 +15,7 @@ export default async function AppLayout({ children }) {
       </div>
     );
   }
-  if (church.status !== "ativa") {
+  if (church.status!== "ativa") {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 text-sm text-gray-600">
         O acesso da sua igreja está indisponível no momento ({church.status}). Procure a liderança ou o
@@ -24,15 +24,24 @@ export default async function AppLayout({ children }) {
     );
   }
 
+  // === REGRA: PRESBÍTERO NÃO VÊ DÍZIMO E RELATÓRIO ===
+  const oficio = (user.oficio || '').toLowerCase()
+  const funcao = (user.funcao || '').toLowerCase()
+  const nome = (user.nome || '').toLowerCase()
+  const isTesoureiro = funcao === 'tesoureiro' || oficio === 'tesoureiro'
+  const isPresbitero = oficio === 'presbitero' || nome.includes('alzemir') || nome.includes('jairo magero') || nome.includes('nilo da silva')
+  const isPresbiteroPuro = isPresbitero &&!isTesoureiro
+
   const nav = [
     { href: "/dashboard", label: "Início" },
-    ...(isAdmin(user) ? [{ href: "/usuarios", label: "Usuários" }] : []),
-    { href: "/registros", label: "Dízimos e Ofertas" },
-    { href: "/relatorios", label: "Relatórios" },
+   ...(isAdmin(user)? [{ href: "/usuarios", label: "Usuários" }] : []),
+    // SÓ MOSTRA SE NÃO FOR PRESBÍTERO PURO
+   ...(!isPresbiteroPuro? [{ href: "/registros", label: "Dízimos e Ofertas" }] : []),
+   ...(!isPresbiteroPuro? [{ href: "/relatorios", label: "Relatórios" }] : []),
     { href: "/calendario", label: "Calendário" },
-    ...(canAccessTesouraria(user, church) ? [{ href: "/tesouraria", label: "Tesouraria" }] : []),
-    ...(canAccessTesouraria(user, church) ? [{ href: `/igreja/${user.igreja_id}/orcamento-anual`, label: "Orçamento Anual" }] : []),
-    ...(isAdmin(user) ? [{ href: "/igreja", label: "Dados da Igreja" }] : []),
+   ...(canAccessTesouraria(user, church)? [{ href: "/tesouraria", label: "Tesouraria" }] : []),
+   ...(canAccessTesouraria(user, church)? [{ href: `/igreja/${user.igreja_id}/orcamento-anual`, label: "Orçamento Anual" }] : []),
+   ...(isAdmin(user)? [{ href: "/igreja", label: "Dados da Igreja" }] : []),
     { href: "/perfil", label: "Meus dados" },
   ];
 
