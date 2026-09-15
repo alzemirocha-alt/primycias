@@ -28,7 +28,7 @@ function Card({ children }) {
 }
 
 export default function LoginClient({ igrejas }) {
-  const [tab, setTab] = useState("igreja"); // igreja | desenvolvedor
+  const [tab, setTab] = useState("igreja");
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
@@ -38,8 +38,7 @@ export default function LoginClient({ igrejas }) {
             <span className="text-white font-serif text-lg">P</span>
           </div>
           <div>
-            <div className="text-sm font-medium text-ink">Primycias</div>
-            <div className="text-xs text-gray-500">Gestão de Dízimos e Ofertas</div>
+            <div className="text-sm font-medium text-ink leading-tight">Primycias - Sistema de Gestão Eclesiástica</div>
           </div>
         </div>
 
