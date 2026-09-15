@@ -8,7 +8,7 @@ function agora() { return new Date().toISOString() }
 
 function ehTesoureiro(user) {
   if(!user) return false
-  return user.funcao === 'tesoureiro' || user.oficio === 'tesoureiro' || user.nome.toLowerCase().includes('gilson')
+  return user.funcao === 'tesoureiro' || user.oficio === 'tesoureiro' || (user.nome||'').toLowerCase().includes('gilson')
 }
 
 export async function criarRegistros(formData) {
@@ -16,7 +16,7 @@ export async function criarRegistros(formData) {
   const data_culto = formData.get('data_culto')
   const segundo_id = formData.get('segundo_diacono_id')
   const itens = JSON.parse(formData.get('itens'))
-  const isPastor = eu.oficio === 'pastor'
+  const isPastor = (eu?.oficio||'').toLowerCase() === 'pastor'
 
   const { data: existe } = await supabaseAdmin.from('records').select('id').eq('data_culto', data_culto).limit(1)
   if (existe?.length > 0) {
@@ -32,17 +32,15 @@ export async function criarRegistros(formData) {
   }
   if (eu.id === segundo_id) throw new Error('Você não pode ser os 2 diáconos ao mesmo tempo.')
 
-  // === TRAVA 3 CORRIGIDA: AGORA RESPEITA O BOTÃO LIBERADO DA SUA FOTO (GENÉRICO) ===
+  // === TRAVA 3 CORRIGIDA: AGORA RESPEITA O BOTÃO LIBERADO ===
   if (!isPastor) {
     const { data: ultimo } = await supabaseAdmin.from('records').select('data_culto, primeiro_diacono_id, segundo_diacono_id').order('data_culto', { ascending: false }).limit(1)
     if (ultimo?.length > 0) {
       const ult = ultimo[0]
       let bloqueados = [ult.primeiro_diacono_id, ult.segundo_diacono_id].filter(Boolean)
 
-      // busca quem o pastor liberou na tabela liberacoes_diaconos
       const { data: liberados } = await supabaseAdmin.from('liberacoes_diaconos').select('diacono_id')
       const idsLiberados = (liberados||[]).map(l=>l.diacono_id)
-      // remove quem foi liberado da lista de bloqueados
       bloqueados = bloqueados.filter(id =>!idsLiberados.includes(id))
 
       if (bloqueados.includes(eu.id)) throw new Error(`Você participou do último culto (${new Date(ult.data_culto).toLocaleDateString('pt-BR')}). Só o Pastor pode liberar.`)
@@ -53,7 +51,6 @@ export async function criarRegistros(formData) {
     }
   }
 
-  // consome a liberação, só vale 1 culto
   try{
     await supabaseAdmin.from('liberacoes_diaconos').delete().in('diacono_id', [eu.id, segundo_id])
   }catch{}
@@ -173,17 +170,21 @@ export async function atualizarRegistros(data_culto_param, itens) {
   redirect('/registros')
 }
 
-// === NOVAS FUNÇÕES PARA O BOTÃO LIBERADO DA SUA FOTO ===
+// === NOVAS FUNÇÕES CORRIGIDAS - NÃO QUEBRA MAIS ===
 export async function liberarDiacono(id){
   const eu = await getSessionUser()
-  if(eu.oficio!== 'pastor') throw new Error('Só pastor pode liberar')
-  await supabaseAdmin.from('liberacoes_diaconos').upsert({ diacono_id: id, liberado_por: eu.id, liberado_em: new Date().toISOString() })
+  if((eu?.oficio||'').toLowerCase()!== 'pastor') throw new Error('Só pastor pode liberar')
+  const { error } = await supabaseAdmin.from('liberacoes_diaconos').upsert({ diacono_id: id, liberado_por: eu.id, liberado_em: new Date().toISOString() }, { onConflict: 'diacono_id' })
+  if(error) throw new Error("Erro ao liberar: " + error.message)
   revalidatePath('/registros/novo')
+  return true
 }
 
 export async function bloquearDiacono(id){
   const eu = await getSessionUser()
-  if(eu.oficio!== 'pastor') throw new Error('Só pastor pode bloquear')
-  await supabaseAdmin.from('liberacoes_diaconos').delete().eq('diacono_id', id)
+  if((eu?.oficio||'').toLowerCase()!== 'pastor') throw new Error('Só pastor pode bloquear')
+  const { error } = await supabaseAdmin.from('liberacoes_diaconos').delete().eq('diacono_id', id)
+  if(error) throw new Error("Erro ao bloquear: " + error.message)
   revalidatePath('/registros/novo')
+  return true
 }
