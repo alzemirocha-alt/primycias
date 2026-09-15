@@ -1,8 +1,8 @@
 "use client"
-import { useState, useMemo } from "react"
-import { criarRegistros } from "../actions"
+import { useState } from "react"
+import { criarRegistros, liberarDiacono, bloquearDiacono } from "../actions"
 
-export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, datasBloqueadas }) {
+export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, datasBloqueadas, liberadosIds = [] }) {
   const [data, setData] = useState('')
   const [segundo, setSegundo] = useState('')
   const [itens, setItens] = useState([{ tipo:'dizimo', membro_nome:'', valor:'' }])
@@ -10,40 +10,45 @@ export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, d
   const isPastor = eu.oficio === 'pastor'
 
   const getNome = (id) => todosDiaconos.find(d=>d.id===id)?.nome || 'Diácono'
-  const liberadosLS = useMemo(()=>{ try{ return JSON.parse(localStorage.getItem('pastor_liberados')||'{}').ids||[] }catch{return []} },[segundo])
 
-  // SUBTOTAL AUTOMATICO
   const totalDizimo = itens.filter(i=>i.tipo==='dizimo').reduce((s,i)=>s+(Number(i.valor)||0),0)
   const totalOferta = itens.filter(i=>i.tipo==='oferta').reduce((s,i)=>s+(Number(i.valor)||0),0)
   const totalGeral = totalDizimo + totalOferta
 
   const showMsg = (t)=>{ setMsg(t); setTimeout(()=>setMsg(''),4000) }
 
+  // VISÃO DO PASTOR: AGORA SALVA NO BANCO, NÃO NO localStorage
   if(isPastor){
     return (
       <div className="p-6 max-w-2xl mx-auto">
         <h1 className="font-bold text-lg mb-4">Liberar Diáconos</h1>
-        {bloqueadosIds.length===0?<p>Nenhum bloqueado</p>:bloqueadosIds.map(id=>(
+        <p className="text-sm text-gray-600 mb-4">Clique para liberar o revezamento de qualquer diácono. Vale só para o próximo culto.</p>
+        {bloqueadosIds.length===0 && liberadosIds.length===0 ? <p className="bg-green-100 p-3 rounded">Nenhum diácono bloqueado no momento.</p> : null}
+        
+        {/* Mostra bloqueados */}
+        {bloqueadosIds.map(id=>(
           <div key={id} className="flex justify-between border p-3 rounded mb-2 bg-white">
-            <span>{getNome(id)}</span>
-            <button onClick={()=>{
-              const atual = JSON.parse(localStorage.getItem('pastor_liberados')||'{"ids":[]}').ids||[]
-              const novo = atual.includes(id)?atual.filter(x=>x!==id):[...atual,id]
-              localStorage.setItem('pastor_liberados',JSON.stringify({ids:novo})); location.reload()
-            }} className="bg-blue-600 text-white px-3 py-1 rounded font-bold">
-              {liberadosLS.includes(id)?'Liberado':'Liberar'}
-            </button>
+            <span>{getNome(id)} - bloqueado</span>
+            <button onClick={async()=>{ await liberarDiacono(id) }} className="bg-blue-600 text-white px-3 py-1 rounded font-bold">Liberar</button>
+          </div>
+        ))}
+        {/* Mostra já liberados */}
+        {liberadosIds.map(id=>(
+          <div key={id} className="flex justify-between border p-3 rounded mb-2 bg-blue-50">
+            <span>{getNome(id)} - Liberado pelo pastor</span>
+            <button onClick={async()=>{ await bloquearDiacono(id) }} className="bg-gray-500 text-white px-3 py-1 rounded font-bold">Bloquear de novo</button>
           </div>
         ))}
       </div>
     )
   }
 
+  // VISÃO DO DIÁCONO
   return (
     <form action={async (fd)=>{
       if(datasBloqueadas.includes(data)){ showMsg('Já existe registro para essa data.'); return }
-      const liberados = JSON.parse(localStorage.getItem('pastor_liberados')||'{"ids":[]}').ids||[]
-      if(bloqueadosIds.includes(segundo) &&!liberados.includes(segundo)){ showMsg(`${getNome(segundo)} participou do último culto e está bloqueado. Peça ao pastor.`); return }
+      // agora checa no banco, não no localStorage
+      if(bloqueadosIds.includes(segundo)){ showMsg(`${getNome(segundo)} participou do último culto e está bloqueado. Peça ao pastor.`); return }
       fd.set('itens', JSON.stringify(itens))
       try{ await criarRegistros(fd) }catch(e){ showMsg(e.message) }
     }} className="p-6 max-w-2xl mx-auto space-y-4">
@@ -60,7 +65,7 @@ export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, d
         <select name="segundo_diacono_id" value={segundo} onChange={e=>setSegundo(e.target.value)} required className="border p-3 rounded w-full bg-gray-100">
           <option value="">Selecione</option>
           {diaconos.map(d=>{
-            const bloqueado = bloqueadosIds.includes(d.id) &&!liberadosLS.includes(d.id)
+            const bloqueado = bloqueadosIds.includes(d.id)
             return <option key={d.id} value={d.id} disabled={bloqueado}>{d.nome}{bloqueado?' - bloqueado':''}</option>
           })}
         </select>
@@ -78,7 +83,6 @@ export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, d
 
       <button type="button" onClick={()=>setItens([...itens,{tipo:'oferta',membro_nome:'',valor:''}])} className="text-blue-600 font-bold">+ Adicionar linha</button>
 
-      {/* SUBTOTAL AUTOMATICO QUE VOCE PEDIU */}
       <div className="bg-gray-100 p-4 rounded border font-bold space-y-1">
         <div className="flex justify-between"><span>Dízimos:</span><span>R$ {totalDizimo.toFixed(2)}</span></div>
         <div className="flex justify-between"><span>Ofertas:</span><span>R$ {totalOferta.toFixed(2)}</span></div>
