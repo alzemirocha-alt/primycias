@@ -140,3 +140,48 @@ export async function corrigirRegistro(formData){
   revalidatePath('/registros')
   redirect('/registros') // isso tira da tela e volta pra lista
 }
+// === FUNÇÃO QUE FALTAVA PARA O BOTÃO VERDE FUNCIONAR ===
+export async function atualizarRegistros(data_culto_param, itens) {
+  const eu = await getSessionUser()
+
+  // data_culto pode vir como Date ou string
+  const data_culto = typeof data_culto_param === 'string'
+   ? data_culto_param.split('T')[0]
+    : new Date(data_culto_param).toISOString().split('T')[0]
+
+  // pega o 2º diácono original que já estava no banco
+  const { data: original } = await supabaseAdmin
+   .from('records')
+   .select('segundo_diacono_id')
+   .eq('data_culto', data_culto)
+   .limit(1)
+   .single()
+
+  const segundo_id = original?.segundo_diacono_id
+
+  // apaga o culto com erro
+  await supabaseAdmin.from('records').delete().eq('data_culto', data_culto)
+
+  const hist = [{ acao: 'CORRIGIU e reenviou ao 2º Diácono', usuario: eu.nome, em: agora() }]
+
+  const paraInserir = itens.filter(i=>i.membro_nome && i.valor).map(it=>({
+    tipo: it.tipo.toLowerCase(),
+    membro_nome: it.membro_nome,
+    valor: Number(it.valor),
+    data_culto,
+    primeiro_diacono_id: eu.id,
+    segundo_diacono_id: segundo_id,
+    diacono_id: eu.id,
+    diacono1_nome: eu.nome,
+    diacono1_at: agora(),
+    status: 'aguardando_segundo_diacono',
+    motivo_erro: null,
+    historico: hist
+  }))
+
+  const { error } = await supabaseAdmin.from('records').insert(paraInserir)
+  if(error) throw new Error(error.message)
+
+  revalidatePath('/registros')
+  redirect('/registros')
+}
