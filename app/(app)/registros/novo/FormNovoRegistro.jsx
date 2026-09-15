@@ -7,6 +7,7 @@ export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, d
   const [segundo, setSegundo] = useState('')
   const [itens, setItens] = useState([{ tipo:'dizimo', membro_nome:'', valor:'' }])
   const [msg, setMsg] = useState('')
+  const [carregando, setCarregando] = useState(null)
   const isPastor = eu.oficio === 'pastor'
 
   const getNome = (id) => todosDiaconos.find(d=>d.id===id)?.nome || 'Diácono'
@@ -17,7 +18,6 @@ export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, d
 
   const showMsg = (t)=>{ setMsg(t); setTimeout(()=>setMsg(''),4000) }
 
-  // VISÃO DO PASTOR: AGORA SALVA NO BANCO, NÃO NO localStorage
   if(isPastor){
     return (
       <div className="p-6 max-w-2xl mx-auto">
@@ -25,29 +25,53 @@ export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, d
         <p className="text-sm text-gray-600 mb-4">Clique para liberar o revezamento de qualquer diácono. Vale só para o próximo culto.</p>
         {bloqueadosIds.length===0 && liberadosIds.length===0 ? <p className="bg-green-100 p-3 rounded">Nenhum diácono bloqueado no momento.</p> : null}
         
-        {/* Mostra bloqueados */}
         {bloqueadosIds.map(id=>(
-          <div key={id} className="flex justify-between border p-3 rounded mb-2 bg-white">
+          <div key={id} className="flex justify-between items-center border p-3 rounded mb-2 bg-white">
             <span>{getNome(id)} - bloqueado</span>
-            <button onClick={async()=>{ await liberarDiacono(id) }} className="bg-blue-600 text-white px-3 py-1 rounded font-bold">Liberar</button>
+            <button 
+              disabled={carregando===id}
+              onClick={async()=>{ 
+                setCarregando(id)
+                try{
+                  await liberarDiacono(id)
+                  window.location.reload()
+                }catch(e){
+                  alert(e.message)
+                  setCarregando(null)
+                }
+              }} 
+              className="bg-blue-600 text-white px-3 py-1 rounded font-bold disabled:opacity-50">
+              {carregando===id ? 'Liberando...' : 'Liberar'}
+            </button>
           </div>
         ))}
-        {/* Mostra já liberados */}
         {liberadosIds.map(id=>(
-          <div key={id} className="flex justify-between border p-3 rounded mb-2 bg-blue-50">
-            <span>{getNome(id)} - Liberado pelo pastor</span>
-            <button onClick={async()=>{ await bloquearDiacono(id) }} className="bg-gray-500 text-white px-3 py-1 rounded font-bold">Bloquear de novo</button>
+          <div key={id} className="flex justify-between items-center border p-3 rounded mb-2 bg-blue-50 border-blue-200">
+            <span>{getNome(id)} - Liberado</span>
+            <button 
+              disabled={carregando===id}
+              onClick={async()=>{ 
+                setCarregando(id)
+                try{
+                  await bloquearDiacono(id)
+                  window.location.reload()
+                }catch(e){
+                  alert(e.message)
+                  setCarregando(null)
+                }
+              }} 
+              className="bg-gray-500 text-white px-3 py-1 rounded font-bold disabled:opacity-50">
+              {carregando===id ? '...' : 'Bloquear de novo'}
+            </button>
           </div>
         ))}
       </div>
     )
   }
 
-  // VISÃO DO DIÁCONO
   return (
     <form action={async (fd)=>{
       if(datasBloqueadas.includes(data)){ showMsg('Já existe registro para essa data.'); return }
-      // agora checa no banco, não no localStorage
       if(bloqueadosIds.includes(segundo)){ showMsg(`${getNome(segundo)} participou do último culto e está bloqueado. Peça ao pastor.`); return }
       fd.set('itens', JSON.stringify(itens))
       try{ await criarRegistros(fd) }catch(e){ showMsg(e.message) }
