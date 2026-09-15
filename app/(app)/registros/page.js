@@ -100,7 +100,7 @@ export default async function RegistrosPage() {
               )}
             </div>
 
-            <RegistroBotoes culto={primeiro} eu={eu} isTesoureiro={isTesoureiro} />
+            <RegistroBotoes culto={primeiro} eu={eu} isTesoureiro={isTesoureiro} isPastor={isPastor} />
           </div>
         )
       })}
