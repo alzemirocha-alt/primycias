@@ -2,15 +2,25 @@
 import { useState } from "react"
 import { criarRegistros, liberarDiacono, bloquearDiacono } from "../actions"
 
-export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, datasBloqueadas, liberadosIds = [] }) {
+export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloqueadosIds = [], datasBloqueadas = [], liberadosIds = [] }) {
   const [data, setData] = useState('')
   const [segundo, setSegundo] = useState('')
   const [itens, setItens] = useState([{ tipo:'dizimo', membro_nome:'', valor:'' }])
   const [msg, setMsg] = useState('')
   const [carregando, setCarregando] = useState(null)
-  const isPastor = eu.oficio === 'pastor'
 
-  const getNome = (id) => todosDiaconos.find(d=>d.id===id)?.nome || 'Diácono'
+  // BLINDAGEM ANTI-CRASH
+  const safeEu = eu || {}
+  const safeDiaconos = Array.isArray(diaconos) ? diaconos : []
+  const safeTodos = Array.isArray(todosDiaconos) ? todosDiaconos : []
+  const safeBloqueados = Array.isArray(bloqueadosIds) ? bloqueadosIds : []
+  const safeDatasBloq = Array.isArray(datasBloqueadas) ? datasBloqueadas : []
+  const safeLiberados = Array.isArray(liberadosIds) ? liberadosIds : []
+  
+  const oficio = (safeEu.oficio || '').toLowerCase()
+  const isPastor = oficio === 'pastor'
+
+  const getNome = (id) => safeTodos.find(d=>d.id===id)?.nome || 'Diácono'
 
   const totalDizimo = itens.filter(i=>i.tipo==='dizimo').reduce((s,i)=>s+(Number(i.valor)||0),0)
   const totalOferta = itens.filter(i=>i.tipo==='oferta').reduce((s,i)=>s+(Number(i.valor)||0),0)
@@ -18,14 +28,18 @@ export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, d
 
   const showMsg = (t)=>{ setMsg(t); setTimeout(()=>setMsg(''),4000) }
 
+  if(!eu){
+    return <div className="p-6">Carregando sessão... Faça login novamente se continuar.</div>
+  }
+
   if(isPastor){
     return (
       <div className="p-6 max-w-2xl mx-auto">
         <h1 className="font-bold text-lg mb-4">Liberar Diáconos</h1>
         <p className="text-sm text-gray-600 mb-4">Clique para liberar o revezamento de qualquer diácono. Vale só para o próximo culto.</p>
-        {bloqueadosIds.length===0 && liberadosIds.length===0 ? <p className="bg-green-100 p-3 rounded">Nenhum diácono bloqueado no momento.</p> : null}
+        {safeBloqueados.length===0 && safeLiberados.length===0 ? <p className="bg-green-100 p-3 rounded">Nenhum diácono bloqueado no momento.</p> : null}
         
-        {bloqueadosIds.map(id=>(
+        {safeBloqueados.map(id=>(
           <div key={id} className="flex justify-between items-center border p-3 rounded mb-2 bg-white">
             <span>{getNome(id)} - bloqueado</span>
             <button 
@@ -45,7 +59,7 @@ export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, d
             </button>
           </div>
         ))}
-        {liberadosIds.map(id=>(
+        {safeLiberados.map(id=>(
           <div key={id} className="flex justify-between items-center border p-3 rounded mb-2 bg-blue-50 border-blue-200">
             <span>{getNome(id)} - Liberado</span>
             <button 
@@ -71,8 +85,8 @@ export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, d
 
   return (
     <form action={async (fd)=>{
-      if(datasBloqueadas.includes(data)){ showMsg('Já existe registro para essa data.'); return }
-      if(bloqueadosIds.includes(segundo)){ showMsg(`${getNome(segundo)} participou do último culto e está bloqueado. Peça ao pastor.`); return }
+      if(safeDatasBloq.includes(data)){ showMsg('Já existe registro para essa data.'); return }
+      if(safeBloqueados.includes(segundo)){ showMsg(`${getNome(segundo)} participou do último culto e está bloqueado. Peça ao pastor.`); return }
       fd.set('itens', JSON.stringify(itens))
       try{ await criarRegistros(fd) }catch(e){ showMsg(e.message) }
     }} className="p-6 max-w-2xl mx-auto space-y-4">
@@ -88,8 +102,8 @@ export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, d
         <label className="block font-bold mb-2">2º Diácono</label>
         <select name="segundo_diacono_id" value={segundo} onChange={e=>setSegundo(e.target.value)} required className="border p-3 rounded w-full bg-gray-100">
           <option value="">Selecione</option>
-          {diaconos.map(d=>{
-            const bloqueado = bloqueadosIds.includes(d.id)
+          {safeDiaconos.map(d=>{
+            const bloqueado = safeBloqueados.includes(d.id)
             return <option key={d.id} value={d.id} disabled={bloqueado}>{d.nome}{bloqueado?' - bloqueado':''}</option>
           })}
         </select>
@@ -112,6 +126,11 @@ export default function FormNovo({ eu, diaconos, todosDiaconos, bloqueadosIds, d
         <div className="flex justify-between"><span>Ofertas:</span><span>R$ {totalOferta.toFixed(2)}</span></div>
         <div className="flex justify-between border-t pt-2 mt-2 text-green-800 text-lg"><span>TOTAL GERAL:</span><span>R$ {totalGeral.toFixed(2)}</span></div>
       </div>
+
+      <button className="bg-green-700 text-white w-full py-3 rounded font-bold">Salvar Registro</button>
+    </form>
+  )
+}
 
       <button className="bg-green-700 text-white w-full py-3 rounded font-bold">Salvar Registro</button>
     </form>
