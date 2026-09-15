@@ -2,6 +2,23 @@ import { getSessionUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import RegistroBotoes from "./RegistroBotoes"
 
+function fmt(d) {
+  if(!d) return '-';
+  return new Date(d).toLocaleString('pt-BR', {
+    timeZone: 'America/Recife',
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit', second:'2-digit'
+  })
+}
+
+function formatTipo(t) {
+  if(!t) return '-'
+  const low = t.toLowerCase()
+  if(low.includes('dizimo')) return 'Dízimo'
+  if(low.includes('oferta')) return 'Oferta'
+  return t
+}
+
 export default async function RegistrosPage() {
   const eu = await getSessionUser()
   if (!eu) return <div className="p-6">Faça login</div>
@@ -27,8 +44,6 @@ export default async function RegistrosPage() {
     grupos[key].push(r)
   })
 
-  function fmt(d) { if(!d) return '-'; return new Date(d).toLocaleString('pt-BR') }
-
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
@@ -41,7 +56,6 @@ export default async function RegistrosPage() {
         const totalOferta = lista.filter(x => (x.tipo||'').toLowerCase().includes('oferta')).reduce((s,x) => s + Number(x.valor||0), 0)
         const totalGeral = lista.reduce((s,x) => s + Number(x.valor||0), 0)
         const primeiro = lista[0]
-        const nomeSegundoQueVaiConferir = mapUsers[primeiro.segundo_diacono_id] || 'Não definido'
 
         return (
           <div key={dataCulto} className="bg-white p-4 rounded shadow border-l-4 border-l-green-800 space-y-3">
@@ -51,22 +65,39 @@ export default async function RegistrosPage() {
             </div>
 
             <div className="border rounded overflow-hidden">
-              <div className="grid grid-cols-3 bg-green-800 text-white p-2 text-sm font-bold"><div>Tipo (Diz/Ofer)</div><div>Nome</div><div className="text-right">Valor</div></div>
+              <div className="grid grid-cols-3 bg-green-800 text-white p-2 text-sm font-bold">
+                <div>Tipo (Diz/Ofer)</div><div>Nome</div><div className="text-right">Valor</div>
+              </div>
               {lista.map(r => (
-                <div key={r.id} className="grid grid-cols-3 p-2 text-sm border-b"><div className="font-bold text-blue-700">{r.tipo}</div><div>{r.membro_nome}</div><div className="text-right">R$ {Number(r.valor).toFixed(2)}</div></div>
+                <div key={r.id} className="grid grid-cols-3 p-2 text-sm border-b">
+                  <div className="text-blue-800 font-bold">{formatTipo(r.tipo)}</div>
+                  <div>{r.membro_nome}</div>
+                  <div className="text-right">R$ {Number(r.valor).toFixed(2)}</div>
+                </div>
               ))}
             </div>
 
-            <div className="bg-gray-100 p-3 rounded text-sm font-bold">
-              <p>Total de Dizimo: R$ {totalDizimo.toFixed(2)}</p><p>Total de Ofertas: R$ {totalOferta.toFixed(2)}</p><p className="text-base border-t mt-1">TOTAL GERAL: R$ {totalGeral.toFixed(2)}</p>
+            <div className="bg-gray-100 p-3 rounded text-sm font-bold space-y-1">
+              <p>Total de Dizimo: R$ {totalDizimo.toFixed(2)}</p>
+              <p>Total de Ofertas: R$ {totalOferta.toFixed(2)}</p>
+              <p className="text-base border-t pt-1 mt-1">TOTAL GERAL: R$ {totalGeral.toFixed(2)}</p>
             </div>
 
-            <div className="bg-blue-50 p-3 rounded text-sm border">
-              <p className="font-bold">Historico:</p>
-              <p>1o Diacono: {primeiro.diacono1_nome} em {fmt(primeiro.diacono1_at)}</p>
-              <p>2o Diacono que vai conferir: <b className="text-green-800">{primeiro.diacono2_nome || nomeSegundoQueVaiConferir}</b> {primeiro.diacono2_at? `em ${fmt(primeiro.diacono2_at)}` : '(Aguardando conferência)'}</p>
-              <p>Tesoureiro: {primeiro.tesoureiro_nome || 'Aguardando'}</p>
-              {primeiro.motivo_erro && <p className="text-red-600">Motivo erro: {primeiro.motivo_erro}</p>}
+            <div className="bg-blue-50 p-3 rounded text-sm border space-y-1">
+              <p className="font-bold">Historico completo:</p>
+              {primeiro.historico && primeiro.historico.length > 0? (
+                primeiro.historico.map((h,i) => (
+                  <p key={i}>• {fmt(h.em)} - <b>{h.usuario_nome}</b> - {h.acao}</p>
+                ))
+              ) : (
+                <>
+                  <p>• {fmt(primeiro.diacono1_at)} - <b>{primeiro.diacono1_nome}</b> - CRIOU registro inicial</p>
+                  {primeiro.diacono2_nome && <p>• {fmt(primeiro.diacono2_at)} - <b>{primeiro.diacono2_nome}</b> - CONFIRMOU e enviou p/ Tesoureiro</p>}
+                  {!primeiro.diacono2_nome && primeiro.segundo_diacono_id && <p>• Aguardando - <b>{mapUsers[primeiro.segundo_diacono_id]}</b> - CONFIRMAR</p>}
+                  {primeiro.tesoureiro_nome && <p>• {fmt(primeiro.tesoureiro_at)} - <b>{primeiro.tesoureiro_nome}</b> - VALIDOU</p>}
+                  {primeiro.motivo_erro && <p className="text-red-600">• Erro: {primeiro.motivo_erro}</p>}
+                </>
+              )}
             </div>
 
             <RegistroBotoes culto={primeiro} eu={eu} isTesoureiro={isTesoureiro} />
