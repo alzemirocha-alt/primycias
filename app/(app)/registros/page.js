@@ -46,13 +46,25 @@ export default async function RegistrosPage() {
     regsFiltrados = []
   }
 
+  // --- FILTRO DE MÊS ATUAL PARA TELA DÍZIMOS E OFERTAS ---
+  // Pega mês/ano atual em Recife
+  const agoraRecifeStr = new Date().toLocaleString('en-CA', { timeZone: 'America/Recife', year: 'numeric', month: '2-digit' }) // "2026-09"
+  const [anoAtual, mesAtual] = agoraRecifeStr.split('-').map(Number)
+
+  const regsDoMes = regsFiltrados.filter(r=>{
+    const dataBase = r.data_culto || r.created_at?.slice(0,10)
+    if(!dataBase) return false
+    const d = new Date(dataBase+"T12:00:00")
+    return (d.getMonth()+1) === mesAtual && d.getFullYear() === anoAtual
+  })
+
   const grupos = {}
-  regsFiltrados.forEach(r=>{ const k=r.data_culto||r.created_at?.slice(0,10); if(!grupos[k]) grupos[k]=[]; grupos[k].push(r) })
+  regsDoMes.forEach(r=>{ const k=r.data_culto||r.created_at?.slice(0,10); if(!grupos[k]) grupos[k]=[]; grupos[k].push(r) })
 
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="font-bold">Olá {eu.nome} - {Object.keys(grupos).length} cultos {isTesoureiro? '(Tesoureiro)' : isDiacono? '(Diácono)' : ''} - {regsFiltrados.length} regs visíveis</h1>
+        <h1 className="font-bold">Olá {eu.nome} - {Object.keys(grupos).length} cultos em {String(mesAtual).padStart(2,'0')}/{anoAtual} {isTesoureiro? '(Tesoureiro)' : isDiacono? '(Diácono)' : ''}</h1>
         {!isPastor && <a href="/registros/novo" className="bg-green-700 text-white px-4 py-2 rounded font-bold">+ Novo Registro</a>}
         {isPastor && <a href="/registros/novo" className="bg-blue-700 text-white px-4 py-2 rounded font-bold">🔓 Liberar Diáconos</a>}
       </div>
@@ -85,7 +97,7 @@ export default async function RegistrosPage() {
           </div>
         )
       })}
-      {regsFiltrados.length===0 && <p className="text-center text-gray-500 mt-10">Nenhum registro para você. (Regra: só vê o que participou)</p>}
+      {regsDoMes.length===0 && <div className="text-center text-gray-500 mt-10 border-2 border-dashed p-8 rounded">Nenhum registro em {String(mesAtual).padStart(2,'0')}/{anoAtual}.<br/>A tela fica limpa quando o mês vira.<br/>Os registros anteriores continuam salvos e aparecem nos Relatórios (respeitando a regra de cada usuário).</div>}
     </div>
   )
 }
