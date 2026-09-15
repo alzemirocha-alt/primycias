@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-export default function AvisosBoard({ me, avisos }) {
+export default function AvisosBoard({ me, avisos, modoFormApenas = false }) {
   const [titulo, setTitulo] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [dataEvento, setDataEvento] = useState("");
@@ -15,10 +15,8 @@ export default function AvisosBoard({ me, avisos }) {
   const [editando, setEditando] = useState(null);
 
   const oficio = (me?.oficio || '').toLowerCase();
-  // seu original já libera Pastor e Secretário do Conselho nos mesmos moldes - preservado
   const podePostar = oficio === 'pastor' || me?.funcao === 'secretario_conselho' || (me?.funcao||'').includes('secret');
 
-  // FIX: mapeia para o CHECK do seu Supabase (texto, imagem, link, video)
   const getTipo = () => {
     if (imagemUrl) return "imagem";
     if (videoUrl) return "video";
@@ -44,7 +42,7 @@ export default function AvisosBoard({ me, avisos }) {
     const method = editando? "PUT" : "POST";
     const body = {
       id: editando,
-      tipo: getTipo(), // << CORRIGIDO - nunca mais null e passa no CHECK
+      tipo: getTipo(),
       titulo,
       mensagem,
       conteudo: mensagem,
@@ -71,15 +69,18 @@ export default function AvisosBoard({ me, avisos }) {
 
   function iniciarEdicao(a) {
     setEditando(a.id); setTitulo(a.titulo); setMensagem(a.mensagem || a.conteudo);
-    setImagemUrl(a.imagem_url || ""); setVideoUrl(a.video_url || a.video_url || "");
+    setImagemUrl(a.imagem_url || ""); setVideoUrl(a.video_url || a.link_youtube || "");
     setLinkUrl(a.link_url || a.link_externo || ""); setArquivoUrl(a.arquivo_url || "");
     if (a.data_evento) { const d = new Date(a.data_evento); setDataEvento(d.toISOString().slice(0,10)); setHoraEvento(d.toTimeString().slice(0,5)); }
     window.scrollTo(0,0);
   }
 
+  // Se for modo só formulário e não pode postar, não mostra nada
+  if (modoFormApenas &&!podePostar) return null;
+
   return (
     <div className="bg-white border border-line rounded-sm p-4 mb-6">
-      <div className="text-sm font-medium text-ink mb-3">Comunicações</div>
+      <div className="text-sm font-medium text-ink mb-3">{modoFormApenas? "Publicar Comunicação" : "Comunicações"}</div>
       {podePostar && (
         <div className="border border-paperDeep p-3 rounded-sm mb-4 bg-[#faf9f6]">
           <input type="hidden" name="tipo" value={getTipo()} />
@@ -105,21 +106,24 @@ export default function AvisosBoard({ me, avisos }) {
           </div>
         </div>
       )}
-      <div className="space-y-3">
-        {avisos?.map(a => (
-          <div key={a.id} className="border-b pb-3">
-            <div className="flex justify-between">
-              <span className="font-medium text-sm">{a.titulo} {a.data_evento && <span className="text-xs text-gray-500">- {new Date(a.data_evento).toLocaleString('pt-BR')}</span>}</span>
-              {podePostar && <span className="flex gap-2"><button onClick={()=>iniciarEdicao(a)} className="text-xs text-blue-600">Editar</button><button onClick={()=>excluir(a.id)} className="text-xs text-red-600">Excluir</button></span>}
+      {/* LISTA SÓ APARECE QUANDO NÃO FOR MODO FORM APENAS */}
+      {!modoFormApenas && (
+        <div className="space-y-3">
+          {avisos?.map(a => (
+            <div key={a.id} className="border-b pb-3">
+              <div className="flex justify-between">
+                <span className="font-medium text-sm">{a.titulo} {a.data_evento && <span className="text-xs text-gray-500">- {new Date(a.data_evento).toLocaleString('pt-BR')}</span>}</span>
+                {podePostar && <span className="flex gap-2"><button onClick={()=>iniciarEdicao(a)} className="text-xs text-blue-600">Editar</button><button onClick={()=>excluir(a.id)} className="text-xs text-red-600">Excluir</button></span>}
+              </div>
+              <div className="text-sm whitespace-pre-wrap">{a.mensagem || a.conteudo}</div>
+              {a.imagem_url && <img src={a.imagem_url} className="mt-2 max-h-48 border" />}
+              {a.arquivo_url && <a href={a.arquivo_url} target="_blank" className="text-xs text-blue-600 underline mt-1 block">📎 Baixar anexo</a>}
+              {a.video_url && <a href={a.video_url} target="_blank" className="text-xs text-blue-600 underline block">▶️ Vídeo</a>}
+              {a.link_url && <a href={a.link_url} target="_blank" className="text-xs text-blue-600 underline block">🔗 {a.link_url}</a>}
             </div>
-            <div className="text-sm whitespace-pre-wrap">{a.mensagem || a.conteudo}</div>
-            {a.imagem_url && <img src={a.imagem_url} className="mt-2 max-h-48 border" />}
-            {a.arquivo_url && <a href={a.arquivo_url} target="_blank" className="text-xs text-blue-600 underline mt-1 block">📎 Baixar anexo</a>}
-            {a.video_url && <a href={a.video_url} target="_blank" className="text-xs text-blue-600 underline block">▶️ Vídeo</a>}
-            {a.link_url && <a href={a.link_url} target="_blank" className="text-xs text-blue-600 underline block">🔗 {a.link_url}</a>}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
