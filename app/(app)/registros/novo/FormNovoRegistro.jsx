@@ -9,7 +9,6 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
   const [msg, setMsg] = useState('')
   const [carregando, setCarregando] = useState(null)
 
-  // BLINDAGEM ANTI-CRASH
   const safeEu = eu || {}
   const safeDiaconos = Array.isArray(diaconos) ? diaconos : []
   const safeTodos = Array.isArray(todosDiaconos) ? todosDiaconos : []
@@ -19,7 +18,6 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
   
   const oficio = (safeEu.oficio || '').toLowerCase()
   const isPastor = oficio === 'pastor'
-
   const getNome = (id) => safeTodos.find(d=>d.id===id)?.nome || 'Diácono'
 
   const totalDizimo = itens.filter(i=>i.tipo==='dizimo').reduce((s,i)=>s+(Number(i.valor)||0),0)
@@ -38,23 +36,13 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
         <h1 className="font-bold text-lg mb-4">Liberar Diáconos</h1>
         <p className="text-sm text-gray-600 mb-4">Clique para liberar o revezamento de qualquer diácono. Vale só para o próximo culto.</p>
         {safeBloqueados.length===0 && safeLiberados.length===0 ? <p className="bg-green-100 p-3 rounded">Nenhum diácono bloqueado no momento.</p> : null}
-        
         {safeBloqueados.map(id=>(
           <div key={id} className="flex justify-between items-center border p-3 rounded mb-2 bg-white">
             <span>{getNome(id)} - bloqueado</span>
-            <button 
-              disabled={carregando===id}
-              onClick={async()=>{ 
-                setCarregando(id)
-                try{
-                  await liberarDiacono(id)
-                  window.location.reload()
-                }catch(e){
-                  alert(e.message)
-                  setCarregando(null)
-                }
-              }} 
-              className="bg-blue-600 text-white px-3 py-1 rounded font-bold disabled:opacity-50">
+            <button disabled={carregando===id} onClick={async()=>{ 
+              setCarregando(id)
+              try{ await liberarDiacono(id); window.location.reload() }catch(e){ alert(e.message); setCarregando(null) }
+            }} className="bg-blue-600 text-white px-3 py-1 rounded font-bold disabled:opacity-50">
               {carregando===id ? 'Liberando...' : 'Liberar'}
             </button>
           </div>
@@ -62,19 +50,10 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
         {safeLiberados.map(id=>(
           <div key={id} className="flex justify-between items-center border p-3 rounded mb-2 bg-blue-50 border-blue-200">
             <span>{getNome(id)} - Liberado</span>
-            <button 
-              disabled={carregando===id}
-              onClick={async()=>{ 
-                setCarregando(id)
-                try{
-                  await bloquearDiacono(id)
-                  window.location.reload()
-                }catch(e){
-                  alert(e.message)
-                  setCarregando(null)
-                }
-              }} 
-              className="bg-gray-500 text-white px-3 py-1 rounded font-bold disabled:opacity-50">
+            <button disabled={carregando===id} onClick={async()=>{ 
+              setCarregando(id)
+              try{ await bloquearDiacono(id); window.location.reload() }catch(e){ alert(e.message); setCarregando(null) }
+            }} className="bg-gray-500 text-white px-3 py-1 rounded font-bold disabled:opacity-50">
               {carregando===id ? '...' : 'Bloquear de novo'}
             </button>
           </div>
@@ -90,14 +69,11 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
       fd.set('itens', JSON.stringify(itens))
       try{ await criarRegistros(fd) }catch(e){ showMsg(e.message) }
     }} className="p-6 max-w-2xl mx-auto space-y-4">
-
       {msg && <div className="bg-red-600 text-white p-3 rounded font-bold text-center animate-pulse">{msg}</div>}
-
       <div>
         <label className="block font-bold mb-2">Data do Culto</label>
         <input type="date" name="data_culto" value={data} onChange={e=>setData(e.target.value)} required className="border p-3 rounded w-full" />
       </div>
-
       <div>
         <label className="block font-bold mb-2">2º Diácono</label>
         <select name="segundo_diacono_id" value={segundo} onChange={e=>setSegundo(e.target.value)} required className="border p-3 rounded w-full bg-gray-100">
@@ -108,7 +84,6 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
           })}
         </select>
       </div>
-
       {itens.map((it,i)=>(
         <div key={i} className="flex gap-2">
           <select value={it.tipo} onChange={e=>{const n=[...itens]; n[i].tipo=e.target.value; setItens(n)}} className="border p-2 rounded bg-gray-100">
@@ -118,20 +93,12 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
           <input type="number" step="0.01" placeholder="0,00" value={it.valor} onChange={e=>{const n=[...itens]; n[i].valor=e.target.value; setItens(n)}} className="border p-2 rounded w-24" />
         </div>
       ))}
-
       <button type="button" onClick={()=>setItens([...itens,{tipo:'oferta',membro_nome:'',valor:''}])} className="text-blue-600 font-bold">+ Adicionar linha</button>
-
       <div className="bg-gray-100 p-4 rounded border font-bold space-y-1">
         <div className="flex justify-between"><span>Dízimos:</span><span>R$ {totalDizimo.toFixed(2)}</span></div>
         <div className="flex justify-between"><span>Ofertas:</span><span>R$ {totalOferta.toFixed(2)}</span></div>
         <div className="flex justify-between border-t pt-2 mt-2 text-green-800 text-lg"><span>TOTAL GERAL:</span><span>R$ {totalGeral.toFixed(2)}</span></div>
       </div>
-
-      <button className="bg-green-700 text-white w-full py-3 rounded font-bold">Salvar Registro</button>
-    </form>
-  )
-}
-
       <button className="bg-green-700 text-white w-full py-3 rounded font-bold">Salvar Registro</button>
     </form>
   )
