@@ -23,14 +23,13 @@ export default async function DashboardPage() {
     { data: eventosHoje },
   ] = await Promise.all([
     isAdmin(user)
- ? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
     isAdmin(user)
- ? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
     supabaseAdmin.from("users").select("*").eq("igreja_id", igrejaId),
     supabaseAdmin.from("avisos").select("*").eq("igreja_id", igrejaId).order("created_at", { ascending: false }).limit(10),
-    // NOVO: eventos de hoje com hora ordenada
     supabaseAdmin.from("events").select("*").eq("igreja_id", igrejaId).eq("data", hoje).or(`visibilidade.eq.todos,visibilidade.eq.conselho,criado_por.eq.${user.id}`).order("hora", { ascending: true }),
   ]);
 
@@ -101,7 +100,10 @@ export default async function DashboardPage() {
       <h2 className="text-xl font-serif text-ink mb-1">Início</h2>
       <p className="text-xs text-gray-500 mb-4">{officeLabel(user)} · {church.nome}</p>
 
-      {/* NOVO BLOCO: EVENTOS DE HOJE COM HORA */}
+      {/* COMUNICAÇÕES NO TOPO - SÓ APARECE SE TIVER AVISOS */}
+      <AvisosBoard me={user} avisos={avisos || []} />
+
+      {/* EVENTOS DE HOJE COM HORA */}
       {eventosHoje?.length > 0 && (
         <div className="bg-white border-l-4 border-l-[#1E5631] border border-line rounded-sm p-4 mb-6">
           <div className="text-sm font-medium text-ink mb-2">📌 Hoje - {new Date().toLocaleDateString('pt-BR', {timeZone: 'America/Recife'})}</div>
@@ -136,7 +138,6 @@ export default async function DashboardPage() {
       )}
 
       <LeadershipBoards users={users || []} church={church} />
-      <AvisosBoard me={user} avisos={avisos || []} />
     </div>
   );
 }
