@@ -2,6 +2,8 @@ import { getSessionUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import FormNovo from "./FormNovoRegistro"
 
+export const dynamic = 'force-dynamic'
+
 export default async function NovoPage() {
   try {
     const eu = await getSessionUser()
@@ -9,7 +11,11 @@ export default async function NovoPage() {
       return <div className="p-6">Sessão expirada. Faça login novamente.</div>
     }
 
-    const { data: users } = await supabaseAdmin.from('users').select('id,nome,oficio,funcao').limit(100)
+    // PEGA IGREJA DO LOGADO
+    const { data: euCompleto } = await supabaseAdmin.from('users').select('id,igreja_id,nome,oficio,funcao').eq('id', eu.id).single()
+    const igrejaId = euCompleto?.igreja_id || eu?.igreja_id
+
+    const { data: users } = await supabaseAdmin.from('users').select('id,nome,oficio,funcao,igreja_id').eq('igreja_id', igrejaId).limit(100)
 
     const diaconosValidos = (users || []).filter(u => {
       const oficio = (u.oficio || '').toLowerCase()
@@ -26,14 +32,13 @@ export default async function NovoPage() {
 
     let ultimo = null
     try {
-      const res = await supabaseAdmin.from('records').select('data_culto, primeiro_diacono_id, segundo_diacono_id').order('data_culto', { ascending: false }).limit(1)
+      const res = await supabaseAdmin.from('records').select('data_culto, primeiro_diacono_id, segundo_diacono_id').eq('igreja_id', igrejaId).order('data_culto', { ascending: false }).limit(1)
       ultimo = res.data?.[0] || null
     } catch {}
 
-    // LÊ QUEM O PASTOR LIBEROU - se não existir tabela, não quebra
     let idsLiberados = []
     try {
-      const { data: liberados } = await supabaseAdmin.from('liberacoes_diaconos').select('diacono_id')
+      const { data: liberados } = await supabaseAdmin.from('liberacoes_diaconos').select('diacono_id').eq('igreja_id', igrejaId)
       idsLiberados = (liberados || []).map(l => l.diacono_id).filter(Boolean)
     } catch { idsLiberados = [] }
 
@@ -42,12 +47,12 @@ export default async function NovoPage() {
 
     let datasBloqueadas = []
     try {
-      const { data: datas } = await supabaseAdmin.from('records').select('data_culto')
+      const { data: datas } = await supabaseAdmin.from('records').select('data_culto').eq('igreja_id', igrejaId)
       datasBloqueadas = datas?.map(d => d.data_culto) || []
     } catch {}
 
     return <FormNovo
-      eu={eu}
+      eu={{...eu, igreja_id: igrejaId}}
       diaconos={diaconosParaEscolher || []}
       todosDiaconos={diaconosValidos || []}
       bloqueadosIds={bloqueadosIds || []}
