@@ -20,10 +20,10 @@ export default async function DashboardPage() {
     { data: avisos },
   ] = await Promise.all([
     isAdmin(user)
-     ? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+    ? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
     isAdmin(user)
-     ? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+    ? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
     supabaseAdmin.from("records").select("id, data_culto, status").eq("igreja_id", igrejaId).neq("status", "validado").order("data_culto", { ascending: false }),
     supabaseAdmin.from("users").select("*").eq("igreja_id", igrejaId),
@@ -42,47 +42,60 @@ export default async function DashboardPage() {
 
   let resumoFinanceiro = null;
   if (podeVerFinanceiro) {
-    const [{ data: records }, { data: lancamentos }, { data: financas }] = await Promise.all([
-      supabaseAdmin.from("records").select("id, valor, data_culto, status, tipo").eq("igreja_id", igrejaId).eq("status","validado"),
+    const [{ data: recordsRaw }, { data: lancamentosRaw }, { data: financas }] = await Promise.all([
+      supabaseAdmin.from("records").select("id, valor, data_culto, status, tipo, igreja_id, deleted_at").eq("igreja_id", igrejaId),
       supabaseAdmin.from("lancamentos").select("*").eq("igreja_id", igrejaId),
       supabaseAdmin.from("financas").select("*").eq("igreja_id", igrejaId).maybeSingle(),
     ]);
 
+    // --- TRAVA DE EXCLUSÃO: SE FOI APAGADO NÃO ENTRA NA SOMA ---
+    const records = (recordsRaw||[]).filter(r=>{
+      if(r.deleted_at) return false
+      const s = String(r.status||'').toLowerCase()
+      if(s === 'excluido' || s === 'apagado' || s === 'cancelado') return false
+      return s === 'validado' // SÓ VALIDADO ENTRA NO RESUMO
+    })
+
+    const lancamentos = (lancamentosRaw||[]).filter(l=>{
+      if(l.deleted_at) return false
+      const s = String(l.status||'').toLowerCase()
+      return s!== 'excluido' && s!== 'apagado' && s!== 'cancelado'
+    })
+
     const mesAtual = today().slice(0, 7); // YYYY-MM
 
-    // --- CORREÇÃO: ENTRADAS DIRETO DOS DÍZIMOS/OFERTAS VALIDADOS DO MÊS ---
-    const entradasDizimosOfertasMes = (records||[]).filter(r=>{
-      const d = (r.data_culto||'').slice(0,7)
+    const entradasDizimosOfertasMes = records.filter(r=>{
+      const d = String(r.data_culto||'').slice(0,7)
       return d === mesAtual
     }).reduce((s,r)=> s + Number(r.valor||0), 0)
 
-    const entradasTesourariaMes = (lancamentos||[]).filter(l=>{
-      const d = (l.data||l.data_lancamento||'').slice(0,7)
+    const entradasTesourariaMes = lancamentos.filter(l=>{
+      const d = String(l.data||l.data_lancamento||'').slice(0,7)
       const tipo = String(l.tipo||'').toLowerCase()
-      return d === mesAtual && tipo.includes('entrada')
-    }).reduce((s,l)=> s + Number(l.valor||0), 0)
+      return d === mesAtual && (tipo.includes('entrada') || tipo === 'credito')
+    }).reduce((s,l)=> s + Number(l.valor||l.valor_total||0), 0)
 
-    const saidasMes = (lancamentos||[]).filter(l=>{
-      const d = (l.data||l.data_lancamento||'').slice(0,7)
+    const saidasMes = lancamentos.filter(l=>{
+      const d = String(l.data||l.data_lancamento||'').slice(0,7)
       const tipo = String(l.tipo||'').toLowerCase()
-      return d === mesAtual && tipo.includes('saida')
-    }).reduce((s,l)=> s + Number(l.valor||0), 0)
+      return d === mesAtual && (tipo.includes('saida') || tipo === 'debito' || tipo === 'despesa')
+    }).reduce((s,l)=> s + Number(l.valor||l.valor_total||0), 0)
 
     const entradasMes = entradasDizimosOfertasMes + entradasTesourariaMes
 
-    // SALDO ANTERIOR: saldo inicial + tudo antes deste mês
-    const entradasAnteriores = (records||[]).filter(r=> (r.data_culto||'').slice(0,7) < mesAtual).reduce((s,r)=>s+Number(r.valor||0),0)
-    const entradasTesAnteriores = (lancamentos||[]).filter(l=>{
-      const tipo = String(l.tipo||'').toLowerCase()
-      return (l.data||l.data_lancamento||'').slice(0,7) < mesAtual && tipo.includes('entrada')
-    }).reduce((s,l)=>s+Number(l.valor||0),0)
-    const saidasAnteriores = (lancamentos||[]).filter(l=>{
-      const tipo = String(l.tipo||'').toLowerCase()
-      return (l.data||l.data_lancamento||'').slice(0,7) < mesAtual && tipo.includes('saida')
-    }).reduce((s,l)=>s+Number(l.valor||0),0)
+    // SALDO ANTERIOR: saldo inicial + tudo antes deste mês (também respeitando exclusão)
+    const entradasAnteriores = records.filter(r=> String(r.data_culto||'').slice(0,7) < mesAtual).reduce((s,r)=>s+Number(r.valor||0),0)
+    const entradasTesAnteriores = lancamentos.filter(l=> String(l.data||l.data_lancamento||'').slice(0,7) < mesAtual && String(l.tipo||'').toLowerCase().includes('entrada')).reduce((s,l)=>s+Number(l.valor||0),0)
+    const saidasAnteriores = lancamentos.filter(l=> String(l.data||l.data_lancamento||'').slice(0,7) < mesAtual && String(l.tipo||'').toLowerCase().includes('saida')).reduce((s,l)=>s+Number(l.valor||0),0)
 
     const saldoInicial = Number(financas?.saldo_inicial_valor || financas?.saldo_inicial || 0)
     const saldoMesAnterior = saldoInicial + entradasAnteriores + entradasTesAnteriores - saidasAnteriores
+
+    // Mantém ledger original para não quebrar nada, mas usa nosso cálculo corrigido
+    try {
+      const { data: allRecords } = await supabaseAdmin.from("records").select("*, record_items(*)").eq("igreja_id", igrejaId)
+      const ledger = computeLedgerRealizado(allRecords, lancamentosRaw, financas);
+    } catch {}
 
     resumoFinanceiro = { entradasMes, saidasMes, saldoAtual: saldoMesAnterior + entradasMes - saidasMes };
   }
