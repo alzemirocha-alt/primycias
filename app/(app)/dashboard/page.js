@@ -33,7 +33,6 @@ export default async function DashboardPage() {
     supabaseAdmin.from("avisos").select("*").eq("igreja_id", igrejaId).order("created_at", { ascending: false }).limit(10),
   ]);
 
-  // === REGRA ATUALIZADA: PRESBÍTERO + TESOUREIRO + PASTOR VÊEM RESUMO ===
   const oficio = (user.oficio || '').toLowerCase()
   const funcao = (user.funcao || '').toLowerCase()
   const nome = (user.nome || '').toLowerCase()
@@ -51,14 +50,12 @@ export default async function DashboardPage() {
       supabaseAdmin.from("financas").select("*").eq("igreja_id", igrejaId).maybeSingle(),
     ]);
 
-    // --- TRAVA DE EXCLUSÃO: só validado pelo tesoureiro entra ---
-    // FIX: se valor estiver nulo, soma pelos items (seu caso do 1200)
     const getValor = (r) => Number(r.valor||0) || (r.record_items||[]).reduce((s,i)=>s+Number(i.valor||0),0)
 
     const records = (recordsRaw||[]).filter(r=>{
       const s = String(r.status||'').toLowerCase().trim()
       if(s === 'excluido' || s === 'apagado' || s === 'cancelado') return false
-      return s === 'validado' // SÓ VALIDADO ENTRA NO RESUMO
+      return s === 'validado'
     })
 
     const lancamentos = (lancamentosRaw||[]).filter(l=>{
@@ -66,8 +63,7 @@ export default async function DashboardPage() {
       return s!== 'excluido' && s!== 'apagado' && s!== 'cancelado'
     })
 
-    // CORREÇÃO: mês em horário de Recife, seu today() estava em UTC
-    const mesAtual = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' }).slice(0, 7); // YYYY-MM
+    const mesAtual = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' }).slice(0, 7);
     const inicioMes = mesAtual + '-01'
 
     const entradasDizimosOfertasMes = records.filter(r=>{
@@ -89,7 +85,6 @@ export default async function DashboardPage() {
 
     const entradasMes = entradasDizimosOfertasMes + entradasTesourariaMes
 
-    // SALDO ANTERIOR: saldo inicial + tudo antes deste mês (também respeitando exclusão)
     const entradasAnteriores = records.filter(r=> String(r.data_culto||'') < inicioMes).reduce((s,r)=>s+getValor(r),0)
     const entradasTesAnteriores = lancamentos.filter(l=> String(l.data||l.data_lancamento||'') < inicioMes && String(l.tipo||'').toLowerCase().includes('entrada')).reduce((s,l)=>s+Number(l.valor||0),0)
     const saidasAnteriores = lancamentos.filter(l=> String(l.data||l.data_lancamento||'') < inicioMes && String(l.tipo||'').toLowerCase().includes('saida')).reduce((s,l)=>s+Number(l.valor||0),0)
@@ -97,7 +92,6 @@ export default async function DashboardPage() {
     const saldoInicial = Number(financas?.saldo_inicial_valor || financas?.saldo_inicial || 0)
     const saldoMesAnterior = saldoInicial + entradasAnteriores + entradasTesAnteriores - saidasAnteriores
 
-    // Mantém ledger original para não quebrar nada, mas usa nosso cálculo corrigido
     try {
       const { data: allRecords } = await supabaseAdmin.from("records").select("*, record_items(*)").eq("igreja_id", igrejaId)
       const ledger = computeLedgerRealizado(allRecords, lancamentosRaw, financas);
@@ -141,7 +135,7 @@ export default async function DashboardPage() {
         {registrosAbertos?.map((r) => (
           <Link
             key={r.id}
-            href={`/registros/${r.id}`}
+            href={`/registros/editar/${r.data_culto}`}
             className="flex items-center justify-between py-2 border-b border-paperDeep text-sm hover:opacity-80"
           >
             <span>Culto de {fmtDate(r.data_culto)}</span>
