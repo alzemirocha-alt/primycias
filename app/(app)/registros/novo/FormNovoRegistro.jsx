@@ -1,45 +1,57 @@
-"use client";
-import { useState } from "react";
-import { criarRegistroCultoAction } from "../actions";
+"use client"
+import { useState } from "react"
+import { criarRegistros } from "../actions"
 
-export default function FormNovoRegistro({ diaconos }){
-  const [linhas, setLinhas] = useState([{ nome: "", valor: "", tipo: "dizimo" }]);
+export default function FormNovoRegistro({ diaconos }) {
+  const [itens, setItens] = useState([{ tipo: 'dizimo', membro_nome: '', valor: '' }])
+  const [dataCulto, setDataCulto] = useState(new Date().toISOString().slice(0,10))
+  const [segundo, setSegundo] = useState('')
 
-  const addLinha = () => setLinhas([...linhas, { nome: "", valor: "", tipo: "dizimo" }]);
-  const update = (i, campo, val) => {
-    const n = [...linhas]; n[i][campo] = val; setLinhas(n);
-  };
-  const remove = (i) => setLinhas(linhas.filter((_,idx)=> idx!==i));
+  function addLinha() { setItens([...itens, { tipo: 'oferta', membro_nome: '', valor: '' }]) }
+  function update(i, campo, val) { const c = [...itens]; c[i][campo]=val; setItens(c) }
+
+  const totalDizimo = itens.filter(x=>x.tipo==='dizimo').reduce((s,x)=>s+Number(x.valor||0),0)
+  const totalOferta = itens.filter(x=>x.tipo==='oferta').reduce((s,x)=>s+Number(x.valor||0),0)
+  const totalGeral = totalDizimo + totalOferta
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-xl font-bold mb-4">Lançar Registro do Culto</h1>
-      <form action={criarRegistroCultoAction} className="bg-white p-4 rounded shadow space-y-4">
-        <input type="hidden" name="linhas_json" value={JSON.stringify(linhas)} />
+    <form action={async (fd) => {
+      fd.set('data_culto', dataCulto)
+      fd.set('segundo_diacono_id', segundo)
+      fd.set('itens', JSON.stringify(itens))
+      await criarRegistros(fd)
+    }} className="p-4 max-w-2xl mx-auto space-y-4 bg-white rounded shadow">
+      <h1 className="font-bold">Novo Registro - {dataCulto}</h1>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div><label className="text-sm">Data do Culto</label><input type="date" name="data_culto" defaultValue={new Date().toISOString().split('T')[0]} required className="w-full border p-2 rounded" /></div>
-          <div><label className="text-sm">2º Diácono conferente do dia</label>
-            <select name="segundoDiaconoId" required className="w-full border p-2 rounded">
-              <option value="">Selecione</option>{diaconos.map(d=><option key={d.id} value={d.id}>{d.nome}</option>)}
+      <input type="date" value={dataCulto} onChange={e=>setDataCulto(e.target.value)} className="border p-2 w-full rounded" required />
+
+      <select value={segundo} onChange={e=>setSegundo(e.target.value)} className="border p-2 w-full rounded" required>
+        <option value="">Selecione o 2o Diacono</option>
+        {diaconos?.map(d=> <option key={d.id} value={d.id}>{d.nome}</option>)}
+      </select>
+
+      <div className="border rounded">
+        <div className="grid grid-cols-3 bg-green-800 text-white p-2 text-sm font-bold"><div>Tipo</div><div>Nome</div><div>Valor</div></div>
+        {itens.map((it, i) => (
+          <div key={i} className="grid grid-cols-3 gap-2 p-2 border-b">
+            <select value={it.tipo} onChange={e=>update(i,'tipo',e.target.value)} className="border p-1 rounded">
+              <option value="dizimo">Dizimo</option><option value="oferta">Oferta</option>
             </select>
-          </div>
-        </div>
-
-        <hr />
-        <h2 className="font-bold">Dízimos e Ofertas do dia</h2>
-        {linhas.map((l, i)=>(
-          <div key={i} className="grid grid-cols-12 gap-2 items-end border p-2 rounded bg-gray-50">
-            <div className="col-span-5"><label className="text-xs">Nome Membro (texto livre)</label><input value={l.nome} onChange={e=>update(i,"nome",e.target.value)} placeholder="Nome" required className="w-full border p-2 rounded" /></div>
-            <div className="col-span-3"><label className="text-xs">Valor</label><input value={l.valor} onChange={e=>update(i,"valor",e.target.value)} type="number" step="0.01" required className="w-full border p-2 rounded" /></div>
-            <div className="col-span-3"><label className="text-xs">Tipo</label><select value={l.tipo} onChange={e=>update(i,"tipo",e.target.value)} className="w-full border p-2 rounded"><option value="dizimo">Dízimo</option><option value="oferta">Oferta</option></select></div>
-            <div className="col-span-1"><button type="button" onClick={()=>remove(i)} className="text-red-500">X</button></div>
+            <input value={it.membro_nome} onChange={e=>update(i,'membro_nome',e.target.value)} placeholder="Nome" className="border p-1 rounded" />
+            <input type="number" step="0.01" value={it.valor} onChange={e=>update(i,'valor',e.target.value)} placeholder="0,00" className="border p-1 rounded" />
           </div>
         ))}
-        <button type="button" onClick={addLinha} className="w-full border border-dashed p-2 rounded text-blue-600">+ Adicionar outra pessoa / oferta</button>
+      </div>
 
-        <button type="submit" className="w-full bg-blue-600 text-white p-3 rounded font-bold">Lançar Tudo do Culto</button>
-      </form>
-    </div>
+      <button type="button" onClick={addLinha} className="bg-gray-200 w-full p-2 rounded">+ Adicionar linha</button>
+
+      <div className="bg-gray-100 p-3 rounded font-bold text-sm">
+        <p>Total Dizimos: R$ {totalDizimo.toFixed(2)}</p>
+        <p>Total Ofertas: R$ {totalOferta.toFixed(2)}</p>
+        <p className="text-base border-t pt-1">TOTAL GERAL: R$ {totalGeral.toFixed(2)}</p>
+      </div>
+
+      <button className="bg-green-700 text-white w-full p-3 rounded font-bold">Salvar e Enviar p/ 2o Diacono</button>
+    </form>
   )
 }
