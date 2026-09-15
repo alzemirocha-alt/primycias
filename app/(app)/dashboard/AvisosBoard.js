@@ -15,7 +15,11 @@ export default function AvisosBoard({ me, avisos }) {
   const [editando, setEditando] = useState(null);
 
   const oficio = (me?.oficio || '').toLowerCase();
+  // seu original já libera Pastor e Secretário do Conselho nos mesmos moldes - preservado
   const podePostar = oficio === 'pastor' || me?.funcao === 'secretario_conselho' || (me?.funcao||'').includes('secret');
+
+  // FIX: tipo fixo que faltava e causava o erro NOT NULL
+  const tipo = "lideranca";
 
   async function uploadArquivo(e) {
     const file = e.target.files[0]; if (!file) return;
@@ -33,7 +37,22 @@ export default function AvisosBoard({ me, avisos }) {
     setLoading(true);
     const dataHora = dataEvento? (horaEvento? `${dataEvento}T${horaEvento}:00` : `${dataEvento}T19:00:00`) : null;
     const method = editando? "PUT" : "POST";
-    const body = { id: editando, titulo, mensagem, imagem_url: imagemUrl, video_url: videoUrl, link_url: linkUrl, arquivo_url: arquivoUrl, data_evento: dataHora, integrar_calendario: integrar &&!!dataHora };
+    const body = {
+      id: editando,
+      tipo, // << AQUI CORRIGIDO - nunca mais null
+      titulo,
+      mensagem,
+      conteudo: mensagem, // compatível com seu avisos-actions.js antigo
+      imagem_url: imagemUrl,
+      video_url: videoUrl,
+      link_url: linkUrl,
+      arquivo_url: arquivoUrl,
+      link_youtube: videoUrl,
+      link_externo: linkUrl,
+      data_evento: dataHora,
+      integrar_calendario: integrar &&!!dataHora,
+      integrar_com_agenda: integrar &&!!dataHora
+    };
     const res = await fetch("/api/avisos", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setLoading(false);
     if (res.ok) location.reload(); else alert("Erro: " + await res.text());
@@ -47,8 +66,8 @@ export default function AvisosBoard({ me, avisos }) {
 
   function iniciarEdicao(a) {
     setEditando(a.id); setTitulo(a.titulo); setMensagem(a.mensagem || a.conteudo);
-    setImagemUrl(a.imagem_url || ""); setVideoUrl(a.video_url || "");
-    setLinkUrl(a.link_url || ""); setArquivoUrl(a.arquivo_url || "");
+    setImagemUrl(a.imagem_url || ""); setVideoUrl(a.video_url || a.video_url || "");
+    setLinkUrl(a.link_url || a.link_externo || ""); setArquivoUrl(a.arquivo_url || "");
     if (a.data_evento) { const d = new Date(a.data_evento); setDataEvento(d.toISOString().slice(0,10)); setHoraEvento(d.toTimeString().slice(0,5)); }
     window.scrollTo(0,0);
   }
@@ -58,6 +77,8 @@ export default function AvisosBoard({ me, avisos }) {
       <div className="text-sm font-medium text-ink mb-3">Avisos da Liderança</div>
       {podePostar && (
         <div className="border border-paperDeep p-3 rounded-sm mb-4 bg-[#faf9f6]">
+          {/* name="tipo" exigido - escondido mas enviado */}
+          <input type="hidden" name="tipo" value={tipo} />
           <input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Título" className="w-full border p-2 text-sm mb-2" />
           <textarea value={mensagem} onChange={e=>setMensagem(e.target.value)} placeholder="Texto do aviso..." className="w-full border p-2 text-sm mb-2 h-20" />
           <div className="grid grid-cols-2 gap-2 mb-2">
