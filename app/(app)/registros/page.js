@@ -1,117 +1,110 @@
-import Link from "next/link"
-import { getSessionUser } from "@/lib/auth"
-import { supabaseAdmin } from "@/lib/supabaseAdmin"
-import { revalidatePath } from "next/cache"
+'use client'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
-async function confirmarSegundo(formData) {
-  "use server"
-  const me = await getSessionUser()
-  const id = formData.get("id")
-  await supabaseAdmin.from("records").update({
-    diacono2_nome: me.nome,
-    diacono2_at: new Date().toISOString(),
-    status: "aguardando_tesoureiro"
-  }).eq("id", id)
-  revalidatePath("/registros")
-}
+export default function RegistrosPage() {
+  const supabase = createClient()
+  const [regs, setRegs] = useState([])
+  const [eu, setEu] = useState(null)
 
-async function validarTesoureiro(formData) {
-  "use server"
-  const me = await getSessionUser()
-  const id = formData.get("id")
-  await supabaseAdmin.from("records").update({
-    tesoureiro_nome: me.nome,
-    tesoureiro_at: new Date().toISOString(),
-    status: "aguardando_pastor"
-  }).eq("id", id)
-  revalidatePath("/registros")
-}
+  useEffect(() => { carregar() }, [])
 
-async function reportarErro(formData) {
-  "use server"
-  const id = formData.get("id")
-  const motivo = formData.get("motivo")
-  await supabaseAdmin.from("records").update({
-    status: "erro_reportado",
-    motivo_erro: motivo
-  }).eq("id", id)
-  revalidatePath("/registros")
-}
+  async function carregar() {
+    const cpf = localStorage.getItem('cpf')
+    const { data: user } = await supabase.from('users').select('*').eq('cpf', cpf).single()
+    setEu(user)
 
-export default async function RegistrosPage() {
-  const me = await getSessionUser()
-  const { data: records } = await supabaseAdmin
-    .from("records")
-    .select("*, record_items(*)")
-    .eq("igreja_id", me.igreja_id)
-    .order("created_at", { ascending: false })
+    let query = supabase.from('records').select('*, criador:criado_por(nome), segundo:segundo_diacono_id(nome)').order('created_at', { ascending: false })
+    
+    const { data } = await query
+    let filtrados = data || []
+
+    // REGRA DE VISIBILIDADE QUE VOCÊ PEDIU
+    if (user.oficio === 'pastor') {
+      // Pastor só vê o que já foi aprovado pelo tesoureiro
+      filtrados = filtrados.filter(r => r.status === 'validado')
+    } else if (user.oficio === 'tesoureiro') {
+      // Tesoureiro vê o que está aguardando ele + o que ele mesmo lançou/confirmou
+      filtrados = filtrados.filter(r => r.status === 'aguardando_tesoureiro' || r.criado_por === user.id || r.segundo_diacono_id === user.id)
+    } else if (user.oficio === 'diacono') {
+      // Diácono só vê se ele está envolvido OU se está aguardando 2º diácono pra ele confirmar
+      filtrados = filtrados.filter(r => r.criado_por === user.id || r.segundo_diacono_id === user.id || r.status === 'aguardando_segundo_diacono' || r.status === 'devolvido_com_erro')
+    } else {
+      // Presbítero não vê nada
+      filtrados = []
+    }
+    setRegs(filtrados)
+  }
+
+  async function confirmar(id, criado_por) {
+    if (eu.id === criado_por) return alert('Quem lançou não pode confirmar!')
+    await supabase.from('records').update({ segundo_diacono_id: eu.id, status: 'aguardando_tesoureiro' }).eq('id', id)
+    carregar()
+  }
+  async function validar(id) {
+    await supabase.from('records').update({ status: 'validado', validado_por: eu.id }).eq('id', id)
+    carregar()
+  }
+  async function devolver(id) {
+    const motivo = prompt('Motivo do erro:')
+    if (!motivo) return
+    await supabase.from('records').update({ status: 'devolvido_com_erro', motivo_devolucao: motivo, segundo_diacono_id: null }).eq('id', id)
+    carregar()
+  }
+  async function excluirDefinitivo(id) {
+    if (!confirm('Pastor, excluir DEFINITIVAMENTE esse registro?')) return
+    await supabase.from('records').delete().eq('id', id)
+    carregar()
+  }
+  async function reenviar(id) {
+    await supabase.from('records').update({ status: 'aguardando_segundo_diacono', motivo_devolucao: null }).eq('id', id)
+    carregar()
+  }
+
+  if (!eu) return <div className="p-6">Carregando...</div>
 
   return (
-    <div style={{ padding: 20, maxWidth: 800 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ fontSize: 20, fontWeight: 'bold' }}>Dízimos e Ofertas - {records?.length || 0}</h2>
-        {me.oficio === 'diacono' && (
-          <Link href="/registros/novo" style={{ background: '#1a4d2e', color: 'white', padding: '10px 15px', borderRadius: 6, textDecoration: 'none' }}>
-            + Lançar registro
-          </Link>
-        )}
-      </div>
+    <div className="p-4 max-w-2xl mx-auto space-y-4">
+      <h1 className="font-bold">Olá {eu.nome} ({eu.oficio}) - Você vê {regs.length} registros</h1>
 
-      <div style={{ marginTop: 20 }}>
-        {records?.map((r) => {
-          const total = r.record_items?.reduce((s, i) => s + Number(i.valor), 0) || 0
-          return (
-            <div key={r.id} style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16, marginBottom: 16, background: 'white' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <b>{r.data_culto} - R$ {total.toFixed(2)}</b>
-                <span style={{ background: '#eee', padding: '2px 8px', borderRadius: 10, fontSize: 12 }}>{r.status}</span>
-              </div>
+      {regs.map(r => (
+        <div key={r.id} className="bg-white p-4 rounded shadow border-l-4 border-l-green-700">
+          {/* DETALHE SEMPRE ABERTO QUE VOCÊ PEDIU */}
+          <div className="flex justify-between"><b>{r.data} - R$ {r.valor}</b><span className="text-xs bg-gray-100 px-2 rounded">{r.status}</span></div>
+          <div className="mt-3 bg-gray-50 p-3 rounded text-sm">
+            <p><b>Tipo:</b> {r.tipo}</p>
+            <p><b>1º Diácono (Lançou):</b> {r.criador?.nome}</p>
+            <p><b>2º Diácono (Confirmou):</b> {r.segundo?.nome || 'Aguardando confirmação'}</p>
+            <p><b>Status atual:</b> {r.status}</p>
+            {r.motivo_devolucao && <p className="text-red-600"><b>Erro apontado pelo Tesoureiro:</b> {r.motivo_devolucao}</p>}
+          </div>
 
-              {r.record_items?.map((it) => (
-                <div key={it.id} style={{ marginTop: 4, fontSize: 14 }}>- {it.tipo}: {it.nome} - R$ {it.valor}</div>
-              ))}
+          {/* 1º DIÁCONO - se foi devolvido */}
+          {r.status === 'devolvido_com_erro' && r.criado_por === eu.id && (
+            <button onClick={() => reenviar(r.id)} className="bg-yellow-600 text-white w-full p-2 mt-3 rounded">Corrigir e Reenviar</button>
+          )}
 
-              {/* LINHA DO TEMPO QUE VOCÊ PEDIU */}
-              <div style={{ marginTop: 12, padding: 10, background: '#f9f9f9', borderRadius: 8, fontSize: 13 }}>
-                <div>✅ <b>Lançado por:</b> {r.diacono1_nome || 'Diácono 1'} em {new Date(r.diacono1_at || r.created_at).toLocaleString('pt-BR')}</div>
-                
-                {r.diacono2_nome ? (
-                  <div>✅ <b>Confirmado por (2º diácono):</b> {r.diacono2_nome} em {new Date(r.diacono2_at).toLocaleString('pt-BR')}</div>
-                ) : (
-                  <div>⏳ <b>Aguardando confirmação do 2º diácono</b></div>
-                )}
+          {/* 2º DIÁCONO - só se não foi quem lançou */}
+          {r.status === 'aguardando_segundo_diacono' && eu.oficio === 'diacono' && eu.id !== r.criado_por && (
+            <button onClick={() => confirmar(r.id, r.criado_por)} className="bg-green-700 text-white w-full p-2 mt-3 rounded">Confirmar como 2º Diácono</button>
+          )}
 
-                {r.tesoureiro_nome && <div>✅ <b>Validado por Tesoureiro:</b> {r.tesoureiro_nome} em {new Date(r.tesoureiro_at).toLocaleString('pt-BR')}</div>}
-                {r.motivo_erro && <div style={{ color: 'red' }}>❌ <b>Erro reportado:</b> {r.motivo_erro}</div>}
-              </div>
-
-              {/* BOTÕES DE AÇÃO */}
-              <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-                {r.status === 'aguardando_segundo' && me.oficio === 'diacono' && (
-                  <form action={confirmarSegundo}>
-                    <input type="hidden" name="id" value={r.id} />
-                    <button style={{ background: '#1a4d2e', color: 'white', padding: '8px 12px', borderRadius: 6, border: 0 }}>Confirmar como 2º Diácono</button>
-                  </form>
-                )}
-
-                {r.status === 'aguardando_tesoureiro' && me.oficio === 'tesoureiro' && (
-                  <>
-                    <form action={validarTesoureiro}>
-                      <input type="hidden" name="id" value={r.id} />
-                      <button style={{ background: '#1a4d2e', color: 'white', padding: '8px 12px', borderRadius: 6, border: 0 }}>Validar</button>
-                    </form>
-                    <form action={reportarErro} style={{ display: 'flex', gap: 4 }}>
-                      <input type="hidden" name="id" value={r.id} />
-                      <input name="motivo" placeholder="Motivo do erro" required style={{ padding: 6, border: '1px solid #ccc', borderRadius: 6 }} />
-                      <button style={{ background: '#c0392b', color: 'white', padding: '8px 12px', borderRadius: 6, border: 0 }}>Reportar Erro</button>
-                    </form>
-                  </>
-                )}
-              </div>
+          {/* TESOUREIRO - Valida ou Devolve */}
+          {r.status === 'aguardando_tesoureiro' && eu.oficio === 'tesoureiro' && (
+            <div className="flex gap-2 mt-3">
+              <button onClick={() => validar(r.id)} className="bg-blue-700 text-white flex-1 p-2 rounded">✓ Validar</button>
+              <button onClick={() => devolver(r.id)} className="bg-red-600 text-white flex-1 p-2 rounded">✕ Devolver com Erro</button>
             </div>
-          )
-        })}
-      </div>
+          )}
+
+          {/* PASTOR - Só vê e pode excluir depois de validado */}
+          {eu.oficio === 'pastor' && r.status === 'validado' && (
+            <button onClick={() => excluirDefinitivo(r.id)} className="bg-black text-white w-full p-2 mt-3 rounded">🗑️ Excluir Definitivamente (Pastor)</button>
+          )}
+        </div>
+      ))}
+
+      {regs.length === 0 && <p className="text-center mt-10 text-gray-500">Nenhum registro para você neste momento. (Diáconos não envolvidos não veem nada)</p>}
     </div>
   )
 }
