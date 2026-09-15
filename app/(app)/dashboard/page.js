@@ -13,21 +13,25 @@ export default async function DashboardPage() {
   const user = await getSessionUser();
   const church = await getChurch(user.igreja_id);
   const igrejaId = user.igreja_id;
+  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' }); // YYYY-MM-DD
 
   const [
     { count: pendentesUsuarios },
     { count: pendentesSenha },
     { data: users },
     { data: avisos },
+    { data: eventosHoje },
   ] = await Promise.all([
     isAdmin(user)
-  ? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+ ? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
     isAdmin(user)
-  ? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+ ? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
     supabaseAdmin.from("users").select("*").eq("igreja_id", igrejaId),
     supabaseAdmin.from("avisos").select("*").eq("igreja_id", igrejaId).order("created_at", { ascending: false }).limit(10),
+    // NOVO: eventos de hoje com hora ordenada
+    supabaseAdmin.from("events").select("*").eq("igreja_id", igrejaId).eq("data", hoje).or(`visibilidade.eq.todos,visibilidade.eq.conselho,criado_por.eq.${user.id}`).order("hora", { ascending: true }),
   ]);
 
   const oficio = (user.oficio || '').toLowerCase()
@@ -95,7 +99,23 @@ export default async function DashboardPage() {
   return (
     <div>
       <h2 className="text-xl font-serif text-ink mb-1">Início</h2>
-      <p className="text-xs text-gray-500 mb-6">{officeLabel(user)} · {church.nome}</p>
+      <p className="text-xs text-gray-500 mb-4">{officeLabel(user)} · {church.nome}</p>
+
+      {/* NOVO BLOCO: EVENTOS DE HOJE COM HORA */}
+      {eventosHoje?.length > 0 && (
+        <div className="bg-white border-l-4 border-l-[#1E5631] border border-line rounded-sm p-4 mb-6">
+          <div className="text-sm font-medium text-ink mb-2">📌 Hoje - {new Date().toLocaleDateString('pt-BR', {timeZone: 'America/Recife'})}</div>
+          <div className="space-y-1.5">
+            {eventosHoje.map(ev => (
+              <div key={ev.id} className="flex gap-3 text-sm items-center">
+                <span className="font-mono font-bold text-[#1E5631] min-w-[45px]">{(ev.hora||'--:--').slice(0,5)}</span>
+                <span>{ev.titulo}</span>
+                {ev.visibilidade!== 'pessoal' && <span className="text-[10px] bg-[#1E5631] text-white px-1.5 py-0.5 rounded uppercase">{ev.visibilidade}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <BirthdayBanners me={user} users={users || []} />
 
