@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { officeLabel, formatCPF, fmtDate, fmtDateTime } from "@/lib/constants";
 import PerfilFoto from "./PerfilFoto";
+import PerfilForm from "./PerfilForm";
 
 export default async function PerfilPage() {
   const me = await getSessionUser();
@@ -10,6 +11,12 @@ export default async function PerfilPage() {
     .select("*")
     .eq("user_id", me.id)
     .order("created_at", { ascending: false });
+
+  // Regra: quem pode alterar mandato e CPF
+  const oficio = (me.oficio || '').toLowerCase();
+  const isPastor = oficio === 'pastor' || me.nome?.toLowerCase().includes('glaucio');
+  const isSecretario = oficio === 'secretario' || (me.funcao||'').toLowerCase().includes('secretario') || me.nome?.toLowerCase().includes('alzemir');
+  const podeAlterarRestrito = isPastor || isSecretario;
 
   return (
     <div>
@@ -24,12 +31,8 @@ export default async function PerfilPage() {
         </div>
       </div>
 
-      <div className="bg-white border border-line rounded-sm p-4 mb-4 text-sm space-y-1">
-        <div><b>CPF:</b> {formatCPF(me.cpf)}</div>
-        <div><b>Telefone:</b> {me.telefone || "—"}</div>
-        <div><b>Endereço:</b> {me.endereco || "—"}</div>
-        <div><b>CEP:</b> {me.cep || "—"}</div>
-      </div>
+      {/* NOVO FORMULÁRIO EDITÁVEL */}
+      <PerfilForm me={me} podeAlterarRestrito={podeAlterarRestrito} />
 
       {me.oficio !== "membro" && (
         <div className="bg-white border border-line rounded-sm p-4 mb-4 text-sm space-y-1">
@@ -40,7 +43,7 @@ export default async function PerfilPage() {
       )}
 
       {historico?.length > 0 && (
-        <div className="bg-white border border-line rounded-sm p-4 text-xs">
+        <div className="bg-white border border-line rounded-sm p-4 text-xs mt-4">
           <div className="font-medium text-ink mb-2 text-sm">Histórico de senha</div>
           {historico.map((h) => (
             <div key={h.id} className="text-gray-600 py-1 border-b border-paperDeep">
