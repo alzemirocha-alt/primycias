@@ -1,113 +1,114 @@
 "use client";
-
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Btn, Field, Input, Select } from "@/components/ui";
-import { isAdmin } from "@/lib/constants";
+import { useState } from "react";
 import { criarEventoAction, excluirEventoAction } from "./actions";
-
-const WEEKDAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
-const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+import { isAdmin } from "@/lib/constants";
 
 export default function CalendarClient({ me, events }) {
-  const router = useRouter();
-  const now = new Date();
-  const [cursor, setCursor] = useState({ y: now.getFullYear(), m: now.getMonth() });
-  const [modalDay, setModalDay] = useState(null);
-  const [titulo, setTitulo] = useState("");
-  const [visibilidade, setVisibilidade] = useState("pessoal");
-  const [isPending, startTransition] = useTransition();
+  const [mes, setMes] = useState(new Date());
+  const [diaSel, setDiaSel] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const first = new Date(cursor.y, cursor.m, 1);
-  const startOffset = first.getDay();
-  const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
-  const cells = [...Array(startOffset).fill(null), ...Array(daysInMonth).keys()].map((d) => (d === null ? null : d + 1));
+  const ano = mes.getFullYear();
+  const m = mes.getMonth();
+  const diasNoMes = new Date(ano, m + 1, 0).getDate();
+  const primeiroDia = new Date(ano, m, 1).getDay();
 
-  const dayISO = (d) => `${cursor.y}-${String(cursor.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-  const eventsFor = (iso) => events.filter((e) => e.data === iso);
-  const today = new Date().toISOString().slice(0, 10);
+  // agrupa por data
+  const porDia = {};
+  events.forEach(ev => {
+    const key = ev.data; // YYYY-MM-DD
+    if (!porDia[key]) porDia[key] = [];
+    porDia[key].push(ev);
+  });
+  // ordena cada dia por hora
+  Object.keys(porDia).forEach(k => {
+    porDia[k].sort((a,b) => (a.hora||'00:00').localeCompare(b.hora||'00:00'));
+  });
 
-  const addEvent = () => {
-    if (!titulo || !modalDay) return;
-    startTransition(async () => {
-      await criarEventoAction(dayISO(modalDay), titulo, visibilidade);
-      setTitulo(""); setModalDay(null);
-      router.refresh();
-    });
-  };
-  const removeEvent = (id) => startTransition(async () => { await excluirEventoAction(id); router.refresh(); });
+  const dataStrSelecionada = diaSel? `${ano}-${String(m+1).padStart(2,'0')}-${String(diaSel).padStart(2,'0')}` : null;
+
+  async function handleCriar(e) {
+    e.preventDefault();
+    setLoading(true);
+    const fd = new FormData(e.target);
+    const data = fd.get("data");
+    const titulo = fd.get("titulo");
+    const hora = fd.get("hora");
+    const vis = fd.get("visibilidade") || "pessoal";
+    try {
+      await criarEventoAction(data, titulo, vis, hora);
+      e.target.reset();
+      setDiaSel(null);
+    } catch(err){ alert(err.message); }
+    setLoading(false);
+  }
 
   return (
-    <div>
+    <>
       <h2 className="text-xl font-serif text-ink mb-1">Calendário de Atividades</h2>
-      <p className="text-xs text-gray-500 mb-5">Sua agenda pessoal. {isAdmin(me) && "Como Pastor/Secretário, você também pode criar eventos para todos."}</p>
+      <p className="text-xs text-gray-500 mb-5">Toque no dia para adicionar com horário</p>
 
       <div className="bg-white border border-line rounded-sm p-4">
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={() => setCursor((c) => (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }))}>←</button>
-          <div className="text-sm font-medium text-ink">{MONTHS[cursor.m]} {cursor.y}</div>
-          <button onClick={() => setCursor((c) => (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }))}>→</button>
+        <div className="flex justify-between items-center mb-4">
+          <button onClick={()=>setMes(new Date(ano, m-1, 1))} className="px-3 py-1 border rounded">←</button>
+          <div className="font-medium capitalize">{mes.toLocaleDateString('pt-BR',{month:'long', year:'numeric'})}</div>
+          <button onClick={()=>setMes(new Date(ano, m+1, 1))} className="px-3 py-1 border rounded">→</button>
         </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-[11px] mb-1 text-gray-500">
-          {WEEKDAYS.map((w, i) => <div key={i}>{w}</div>)}
-        </div>
+        <div className="grid grid-cols-7 text-[11px] text-gray-500 text-center mb-2"><div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div></div>
         <div className="grid grid-cols-7 gap-1">
-          {cells.map((d, idx) => {
-            if (d === null) return <div key={idx} />;
-            const iso = dayISO(d);
-            const evs = eventsFor(iso);
-            const isToday = iso === today;
+          {Array.from({length: primeiroDia}).map((_,i)=><div key={'v'+i}></div>)}
+          {Array.from({length: diasNoMes}).map((_,i)=>{
+            const d=i+1;
+            const key = `${ano}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const evs = porDia[key]||[];
             return (
-              <button
-                key={idx}
-                onClick={() => setModalDay(d)}
-                className="text-left p-1.5 align-top rounded-sm"
-                style={{ minHeight: 56, border: `1px solid ${isToday ? "#1E5631" : "#E8EAE5"}`, background: isToday ? "#E9F2EC" : "#fff" }}
-              >
-                <div className="text-[11px]" style={{ color: isToday ? "#1E5631" : "#9AA39C" }}>{d}</div>
-                {evs.slice(0, 2).map((e) => (
-                  <div key={e.id} className="text-[10px] truncate px-1 mb-0.5 rounded-sm" style={{ background: e.visibilidade === "todos" ? "#E7E9E5" : "#F5F6F3" }}>
-                    {e.titulo}
-                  </div>
-                ))}
+              <button key={d} onClick={()=>setDiaSel(d)} className={`border rounded-sm min-h-[58px] p-1 text-left text-xs ${diaSel===d?'border-ink ring-1':''} ${evs.length?'bg-[#1E5631]/5':''}`}>
+                <div className="font-medium">{d}</div>
+                {evs.slice(0,2).map(ev=><div key={ev.id} className="truncate text-[10px] mt-0.5">{(ev.hora||'').slice(0,5)} {ev.titulo}</div>)}
+                {evs.length>2 && <div className="text-[9px] text-gray-500">+{evs.length-2}</div>}
               </button>
             );
           })}
         </div>
       </div>
 
-      {modalDay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="max-w-sm w-full bg-paper rounded-sm p-6">
-            <h3 className="text-base font-serif text-ink mb-3">{modalDay} de {MONTHS[cursor.m]}</h3>
-            {eventsFor(dayISO(modalDay)).map((e) => (
-              <div key={e.id} className="flex items-center justify-between text-sm py-1.5 border-b border-paperDeep">
-                <span>{e.titulo} {e.visibilidade === "todos" && <span className="text-xs text-gray-500">(todos)</span>}</span>
-                {(e.criado_por === me.id || isAdmin(me)) && (
-                  <button onClick={() => removeEvent(e.id)} className="text-xs text-rust">Remover</button>
-                )}
+      {diaSel && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={()=>setDiaSel(null)}>
+          <div className="bg-white w-full sm:max-w-md rounded-t sm:rounded p-4 max-h-[90vh] overflow-auto" onClick={e=>e.stopPropagation()}>
+            <div className="font-serif text-base mb-3">{new Date(dataStrSelecionada+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long', day:'2-digit', month:'long'})}</div>
+
+            <div className="space-y-2 mb-4">
+              {(porDia[dataStrSelecionada]||[]).map(ev=>(
+                <div key={ev.id} className="flex justify-between items-center border-b py-2 text-sm">
+                  <div><span className="font-mono font-bold">{(ev.hora||'--:--').slice(0,5)}</span> - {ev.titulo} {ev.visibilidade!=='pessoal' && <span className="ml-1 text-[10px] bg-ink text-white px-1 rounded">{ev.visibilidade}</span>}</div>
+                  <button onClick={async()=>{ if(confirm('Excluir?')) await excluirEventoAction(ev.id); }} className="text-xs text-red-600">Excluir</button>
+                </div>
+              ))}
+              {!porDia[dataStrSelecionada]?.length && <div className="text-xs text-gray-500">Sem compromissos - adicione abaixo com hora</div>}
+            </div>
+
+            <form onSubmit={handleCriar} className="space-y-3 border-t pt-3">
+              <div className="text-sm font-medium">Novo compromisso</div>
+              <input name="titulo" required placeholder="Ex: Reunião do conselho" className="w-full border rounded p-2 text-sm" />
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs">Data<input name="data" type="date" defaultValue={dataStrSelecionada} required className="w-full border rounded p-2 mt-1 text-sm" /></label>
+                <label className="text-xs">Hora<input name="hora" type="time" required className="w-full border rounded p-2 mt-1 text-sm" /></label>
               </div>
-            ))}
-            <div className="mt-3">
-              <Field label="Novo compromisso">
-                <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Reunião do conselho" />
-              </Field>
               {isAdmin(me) && (
-                <Field label="Visibilidade">
-                  <Select value={visibilidade} onChange={(e) => setVisibilidade(e.target.value)}>
-                    <option value="pessoal">Apenas para mim</option>
-                    <option value="todos">Para todos</option>
-                  </Select>
-                </Field>
+                <select name="visibilidade" className="w-full border rounded p-2 text-sm">
+                  <option value="pessoal">Só para mim</option>
+                  <option value="todos">Todos (aparece na Início)</option>
+                  <option value="conselho">Conselho (oficial)</option>
+                </select>
               )}
-            </div>
-            <div className="flex gap-2 mt-2">
-              <Btn disabled={isPending} onClick={addEvent}>Adicionar</Btn>
-              <Btn kind="ghost" onClick={() => setModalDay(null)}>Fechar</Btn>
-            </div>
+              <div className="flex gap-2">
+                <button disabled={loading} className="bg-[#1E5631] text-white px-4 py-2 rounded text-sm flex-1">{loading?'Salvando...':'Adicionar'}</button>
+                <button type="button" onClick={()=>setDiaSel(null)} className="border px-4 py-2 rounded text-sm">Fechar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
