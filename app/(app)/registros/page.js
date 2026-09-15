@@ -28,7 +28,10 @@ export default async function RegistrosPage() {
 
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-6">
-      <h1 className="font-bold">Ola {eu.nome} ({eu.oficio} - {eu.funcao}) - {Object.keys(grupos).length} cultos</h1>
+     <div className="flex justify-between items-center mb-4">
+  <h1 className="font-bold">Ola {eu.nome} ({eu.oficio}) - {Object.keys(grupos).length} cultos</h1>
+  <a href="/registros/novo" className="bg-green-700 text-white px-4 py-2 rounded font-bold">+ Novo Registro</a>
+</div>
 
       {Object.entries(grupos).map(([dataCulto, lista]) => {
         const totalDizimo = lista.filter(x => (x.tipo||'').toLowerCase().includes('dizimo')).reduce((s,x) => s + Number(x.valor||0), 0)
