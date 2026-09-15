@@ -20,17 +20,26 @@ export default async function DashboardPage() {
     { data: avisos },
   ] = await Promise.all([
     isAdmin(user)
-      ? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+     ? supabaseAdmin.from("users").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
     isAdmin(user)
-      ? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
+     ? supabaseAdmin.from("password_reset_requests").select("id", { count: "exact", head: true }).eq("igreja_id", igrejaId).eq("status", "pendente")
       : Promise.resolve({ count: 0 }),
     supabaseAdmin.from("records").select("id, data_culto, status").eq("igreja_id", igrejaId).neq("status", "validado").order("data_culto", { ascending: false }),
     supabaseAdmin.from("users").select("*").eq("igreja_id", igrejaId),
     supabaseAdmin.from("avisos").select("*").eq("igreja_id", igrejaId).order("created_at", { ascending: false }).limit(10),
   ]);
 
-  const podeVerFinanceiro = !isRestrictedFinanceiro(user) && (user.oficio === "pastor" || isTreasurer(user, church));
+  // === REGRA ATUALIZADA: PRESBÍTERO + TESOUREIRO + PASTOR VÊEM RESUMO ===
+  const oficio = (user.oficio || '').toLowerCase()
+  const funcao = (user.funcao || '').toLowerCase()
+  const nome = (user.nome || '').toLowerCase()
+  const isPresbitero = oficio === 'presbitero' || nome.includes('alzemir') || nome.includes('jairo magero') || nome.includes('nilo da silva')
+  const isPastor = oficio === 'pastor' || nome.includes('glaucio')
+  const isTesoureiro = isTreasurer(user, church) || funcao === 'tesoureiro'
+
+  const podeVerFinanceiro = isPresbitero || isPastor || isTesoureiro;
+
   let resumoFinanceiro = null;
   if (podeVerFinanceiro) {
     const [{ data: records }, { data: lancamentos }, { data: financas }] = await Promise.all([
@@ -43,7 +52,7 @@ export default async function DashboardPage() {
     const entradasMes = ledger.filter((l) => l.tipo === "entrada" && l.data.slice(0, 7) === mesAtual).reduce((s, l) => s + l.valor, 0);
     const saidasMes = ledger.filter((l) => l.tipo === "saida" && l.data.slice(0, 7) === mesAtual).reduce((s, l) => s + l.valor, 0);
     const anteriores = ledger.filter((l) => l.data.slice(0, 7) < mesAtual);
-    const saldoMesAnterior = anteriores.length ? anteriores[anteriores.length - 1].saldo : (Number(financas?.saldo_inicial_valor) || 0);
+    const saldoMesAnterior = anteriores.length? anteriores[anteriores.length - 1].saldo : (Number(financas?.saldo_inicial_valor) || 0);
     resumoFinanceiro = { entradasMes, saidasMes, saldoAtual: saldoMesAnterior + entradasMes - saidasMes };
   }
 
@@ -55,7 +64,7 @@ export default async function DashboardPage() {
       <BirthdayBanners me={user} users={users || []} />
 
       <div className="flex flex-wrap gap-3 mb-6">
-        <StatCard label="Registros em andamento" value={registrosAbertos?.length || 0} />
+        {/* CAMPO REGISTROS EM ANDAMENTO REMOVIDO - NÃO MOSTRA MAIS PRA NINGUÉM */}
         {isAdmin(user) && <StatCard label="Cadastros pendentes" value={pendentesUsuarios || 0} highlight={pendentesUsuarios > 0} />}
         {isAdmin(user) && <StatCard label="Solicitações de senha" value={pendentesSenha || 0} highlight={pendentesSenha > 0} />}
       </div>
@@ -99,7 +108,7 @@ function StatCard({ label, value, highlight }) {
   return (
     <div className="bg-white border border-line rounded-sm p-4 flex-1 min-w-[150px]">
       <div className="text-xs text-gray-500 mb-1">{label}</div>
-      <div className="text-xl font-serif" style={{ color: highlight ? "#8C3B3B" : "#1E5631" }}>{value}</div>
+      <div className="text-xl font-serif" style={{ color: highlight? "#8C3B3B" : "#1E5631" }}>{value}</div>
     </div>
   );
 }
