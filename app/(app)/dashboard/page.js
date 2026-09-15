@@ -43,16 +43,47 @@ export default async function DashboardPage() {
   let resumoFinanceiro = null;
   if (podeVerFinanceiro) {
     const [{ data: records }, { data: lancamentos }, { data: financas }] = await Promise.all([
-      supabaseAdmin.from("records").select("*, record_items(*)").eq("igreja_id", igrejaId),
+      supabaseAdmin.from("records").select("id, valor, data_culto, status, tipo").eq("igreja_id", igrejaId).eq("status","validado"),
       supabaseAdmin.from("lancamentos").select("*").eq("igreja_id", igrejaId),
       supabaseAdmin.from("financas").select("*").eq("igreja_id", igrejaId).maybeSingle(),
     ]);
-    const ledger = computeLedgerRealizado(records, lancamentos, financas);
-    const mesAtual = today().slice(0, 7);
-    const entradasMes = ledger.filter((l) => l.tipo === "entrada" && l.data.slice(0, 7) === mesAtual).reduce((s, l) => s + l.valor, 0);
-    const saidasMes = ledger.filter((l) => l.tipo === "saida" && l.data.slice(0, 7) === mesAtual).reduce((s, l) => s + l.valor, 0);
-    const anteriores = ledger.filter((l) => l.data.slice(0, 7) < mesAtual);
-    const saldoMesAnterior = anteriores.length? anteriores[anteriores.length - 1].saldo : (Number(financas?.saldo_inicial_valor) || 0);
+
+    const mesAtual = today().slice(0, 7); // YYYY-MM
+
+    // --- CORREÇÃO: ENTRADAS DIRETO DOS DÍZIMOS/OFERTAS VALIDADOS DO MÊS ---
+    const entradasDizimosOfertasMes = (records||[]).filter(r=>{
+      const d = (r.data_culto||'').slice(0,7)
+      return d === mesAtual
+    }).reduce((s,r)=> s + Number(r.valor||0), 0)
+
+    const entradasTesourariaMes = (lancamentos||[]).filter(l=>{
+      const d = (l.data||l.data_lancamento||'').slice(0,7)
+      const tipo = String(l.tipo||'').toLowerCase()
+      return d === mesAtual && tipo.includes('entrada')
+    }).reduce((s,l)=> s + Number(l.valor||0), 0)
+
+    const saidasMes = (lancamentos||[]).filter(l=>{
+      const d = (l.data||l.data_lancamento||'').slice(0,7)
+      const tipo = String(l.tipo||'').toLowerCase()
+      return d === mesAtual && tipo.includes('saida')
+    }).reduce((s,l)=> s + Number(l.valor||0), 0)
+
+    const entradasMes = entradasDizimosOfertasMes + entradasTesourariaMes
+
+    // SALDO ANTERIOR: saldo inicial + tudo antes deste mês
+    const entradasAnteriores = (records||[]).filter(r=> (r.data_culto||'').slice(0,7) < mesAtual).reduce((s,r)=>s+Number(r.valor||0),0)
+    const entradasTesAnteriores = (lancamentos||[]).filter(l=>{
+      const tipo = String(l.tipo||'').toLowerCase()
+      return (l.data||l.data_lancamento||'').slice(0,7) < mesAtual && tipo.includes('entrada')
+    }).reduce((s,l)=>s+Number(l.valor||0),0)
+    const saidasAnteriores = (lancamentos||[]).filter(l=>{
+      const tipo = String(l.tipo||'').toLowerCase()
+      return (l.data||l.data_lancamento||'').slice(0,7) < mesAtual && tipo.includes('saida')
+    }).reduce((s,l)=>s+Number(l.valor||0),0)
+
+    const saldoInicial = Number(financas?.saldo_inicial_valor || financas?.saldo_inicial || 0)
+    const saldoMesAnterior = saldoInicial + entradasAnteriores + entradasTesAnteriores - saidasAnteriores
+
     resumoFinanceiro = { entradasMes, saidasMes, saldoAtual: saldoMesAnterior + entradasMes - saidasMes };
   }
 
@@ -64,7 +95,6 @@ export default async function DashboardPage() {
       <BirthdayBanners me={user} users={users || []} />
 
       <div className="flex flex-wrap gap-3 mb-6">
-        {/* CAMPO REGISTROS EM ANDAMENTO REMOVIDO - NÃO MOSTRA MAIS PRA NINGUÉM */}
         {isAdmin(user) && <StatCard label="Cadastros pendentes" value={pendentesUsuarios || 0} highlight={pendentesUsuarios > 0} />}
         {isAdmin(user) && <StatCard label="Solicitações de senha" value={pendentesSenha || 0} highlight={pendentesSenha > 0} />}
       </div>
