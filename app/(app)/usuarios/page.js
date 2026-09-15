@@ -4,6 +4,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdmin } from "@/lib/constants";
 import UsersClient from "./UsersClient";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function UsuariosPage() {
   const me = await getSessionUser();
   if (!isAdmin(me)) redirect("/dashboard");
@@ -12,11 +15,11 @@ export default async function UsuariosPage() {
   const [{ data: users }, { data: resetRequests }] = await Promise.all([
     supabaseAdmin.from("users").select("*").eq("igreja_id", me.igreja_id).order("nome"),
     supabaseAdmin
-      .from("password_reset_requests")
-      .select("*, users(nome)")
-      .eq("igreja_id", me.igreja_id)
-      .eq("status", "pendente")
-      .order("created_at", { ascending: false }),
+     .from("password_reset_requests")
+     .select("*, users(nome)")
+     .eq("igreja_id", me.igreja_id)
+     .eq("status", "pendente")
+     .order("created_at", { ascending: false }),
   ]);
 
   return (
