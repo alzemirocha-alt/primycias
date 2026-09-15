@@ -75,3 +75,16 @@ export async function excluirRegistro(id) {
   await supabaseAdmin.from('records').delete().eq('data_culto', data.data_culto)
   revalidatePath('/registros')
 }
+export async function atualizarRegistros(data_culto, itens) {
+  for (const it of itens) {
+    await supabaseAdmin.from('records').update({
+      tipo: it.tipo,
+      membro_nome: it.membro_nome,
+      valor: Number(it.valor),
+      status: 'aguardando_segundo_diacono',
+      motivo_erro: null
+    }).eq('id', it.id)
+  }
+  revalidatePath('/registros')
+  redirect('/registros')
+}
