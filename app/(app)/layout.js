@@ -30,15 +30,13 @@ export default async function AppLayout({ children }) {
   const funcaoPresb = (user.funcao_presbitero || '').toLowerCase()
   const nome = (user.nome || '').toLowerCase()
   const isTesoureiro = funcao === 'tesoureiro' || oficio === 'tesoureiro' || funcao === 'tesoureiro_junta'
-  const isPastor = oficio === 'pastor'
-  const isSecretarioConselho = funcaoPresb === 'secretario_conselho'
   const isPresbitero = oficio === 'presbitero' || funcaoPresb!== '' || nome.includes('alzemir') || nome.includes('jairo magero') || nome.includes('nilo da silva')
-  const isPresbiteroPuro = isPresbitero &&!isTesoureiro &&!isPastor &&!isSecretarioConselho
+  const isPresbiteroPuro = isPresbitero &&!isTesoureiro
 
   const nav = [
     { href: "/dashboard", label: "Início" },
   ...(isAdmin(user)? [{ href: "/usuarios", label: "Usuários" }] : []),
-    // SÓ MOSTRA SE NÃO FOR PRESBÍTERO PURO
+    // SÓ MOSTRA SE NÃO FOR PRESBÍTERO PURO (secretário do conselho continua sem ver)
   ...(!isPresbiteroPuro? [{ href: "/registros", label: "Dízimos e Ofertas" }] : []),
   ...(!isPresbiteroPuro? [{ href: "/relatorios", label: "Relatórios" }] : []),
     { href: "/calendario", label: "Agenda" },
