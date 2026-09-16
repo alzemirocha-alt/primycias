@@ -26,22 +26,25 @@ export default async function AppLayout({ children }) {
 
   // === REGRA: PRESBÍTERO NÃO VÊ DÍZIMO E RELATÓRIO ===
   const oficio = (user.oficio || '').toLowerCase()
-  const funcao = (user.funcao || '').toLowerCase()
+  const funcao = (user.funcao_diacono || user.funcao || '').toLowerCase()
+  const funcaoPresb = (user.funcao_presbitero || '').toLowerCase()
   const nome = (user.nome || '').toLowerCase()
-  const isTesoureiro = funcao === 'tesoureiro' || oficio === 'tesoureiro'
-  const isPresbitero = oficio === 'presbitero' || nome.includes('alzemir') || nome.includes('jairo magero') || nome.includes('nilo da silva')
-  const isPresbiteroPuro = isPresbitero &&!isTesoureiro
+  const isTesoureiro = funcao === 'tesoureiro' || oficio === 'tesoureiro' || funcao === 'tesoureiro_junta'
+  const isPastor = oficio === 'pastor'
+  const isSecretarioConselho = funcaoPresb === 'secretario_conselho'
+  const isPresbitero = oficio === 'presbitero' || funcaoPresb!== '' || nome.includes('alzemir') || nome.includes('jairo magero') || nome.includes('nilo da silva')
+  const isPresbiteroPuro = isPresbitero &&!isTesoureiro &&!isPastor &&!isSecretarioConselho
 
   const nav = [
     { href: "/dashboard", label: "Início" },
-   ...(isAdmin(user)? [{ href: "/usuarios", label: "Usuários" }] : []),
+  ...(isAdmin(user)? [{ href: "/usuarios", label: "Usuários" }] : []),
     // SÓ MOSTRA SE NÃO FOR PRESBÍTERO PURO
-   ...(!isPresbiteroPuro? [{ href: "/registros", label: "Dízimos e Ofertas" }] : []),
-   ...(!isPresbiteroPuro? [{ href: "/relatorios", label: "Relatórios" }] : []),
-    { href: "/calendario", label: "Calendário" },
-   ...(canAccessTesouraria(user, church)? [{ href: "/tesouraria", label: "Tesouraria" }] : []),
-   ...(canAccessTesouraria(user, church)? [{ href: `/igreja/${user.igreja_id}/orcamento-anual`, label: "Orçamento Anual" }] : []),
-   ...(isAdmin(user)? [{ href: "/igreja", label: "Dados da Igreja" }] : []),
+  ...(!isPresbiteroPuro? [{ href: "/registros", label: "Dízimos e Ofertas" }] : []),
+  ...(!isPresbiteroPuro? [{ href: "/relatorios", label: "Relatórios" }] : []),
+    { href: "/calendario", label: "Agenda" },
+  ...(canAccessTesouraria(user, church)? [{ href: "/tesouraria", label: "Tesouraria" }] : []),
+  ...(canAccessTesouraria(user, church)? [{ href: `/igreja/${user.igreja_id}/orcamento-anual`, label: "Orçamento Anual" }] : []),
+  ...(isAdmin(user)? [{ href: "/igreja", label: "Dados da Igreja" }] : []),
     { href: "/perfil", label: "Meus dados" },
   ];
 
