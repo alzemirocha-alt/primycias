@@ -36,11 +36,19 @@ export default async function NovoPage() {
       ultimo = res.data?.[0] || null
     } catch {}
 
+    // CORRIGIDO: TOLERANTE COM OU SEM igreja_id na tabela liberacoes_diaconos
     let idsLiberados = []
     try {
-      const { data: liberados } = await supabaseAdmin.from('liberacoes_diaconos').select('diacono_id').eq('igreja_id', igrejaId)
+      const { data: liberados, error } = await supabaseAdmin.from('liberacoes_diaconos').select('diacono_id').eq('igreja_id', igrejaId)
+      if (error) throw error
       idsLiberados = (liberados || []).map(l => l.diacono_id).filter(Boolean)
-    } catch { idsLiberados = [] }
+    } catch {
+      // Fallback para tabela antiga sem igreja_id
+      try {
+        const { data: liberados2 } = await supabaseAdmin.from('liberacoes_diaconos').select('diacono_id')
+        idsLiberados = (liberados2 || []).map(l => l.diacono_id).filter(Boolean)
+      } catch { idsLiberados = [] }
+    }
 
     let bloqueadosIds = ultimo? [ultimo.primeiro_diacono_id, ultimo.segundo_diacono_id].filter(Boolean) : []
     bloqueadosIds = bloqueadosIds.filter(id =>!idsLiberados.includes(id))
