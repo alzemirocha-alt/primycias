@@ -71,12 +71,12 @@ export async function criarLancamentoAction(payload) {
 
 async function hasLiberacaoData(igrejaId, data) {
   const { data: reqs } = await supabaseAdmin
-   .from("approval_requests")
-   .select("id")
-   .eq("igreja_id", igrejaId)
-   .eq("tipo", "liberacao_data_lancamento")
-   .eq("status", "liberado")
-   .contains("dados", { data });
+  .from("approval_requests")
+  .select("id")
+  .eq("igreja_id", igrejaId)
+  .eq("tipo", "liberacao_data_lancamento")
+  .eq("status", "liberado")
+  .contains("dados", { data });
   return (reqs || []).length > 0;
 }
 
@@ -197,17 +197,17 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
     throw new Error("Apenas Pastor.");
   }
   const { data: reqRow } = await supabaseAdmin
-   .from("approval_requests")
-   .select("*")
-   .eq("id", requestId)
-   .eq("igreja_id", me.igreja_id)
-   .maybeSingle();
+  .from("approval_requests")
+  .select("*")
+  .eq("id", requestId)
+  .eq("igreja_id", me.igreja_id)
+  .maybeSingle();
   if (!reqRow) return;
 
   await supabaseAdmin
-   .from("approval_requests")
-   .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
-   .eq("id", requestId);
+  .from("approval_requests")
+  .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
+  .eq("id", requestId);
 
   if (liberar && reqRow.tipo === "liberacao_saldo_inicial") {
     const { data: fin } = await supabaseAdmin.from("financas").select("id").eq("igreja_id", me.igreja_id).maybeSingle();
@@ -218,19 +218,30 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
   revalidatePath("/usuarios");
 }
 
-// -------------------- Recibo de Dizimista/Ofertante - NOVO - CORRIGIDO --------------------
+// -------------------- Recibo de Dizimista/Ofertante - CORRIGIDO SEM records!inner --------------------
 
 export async function buscarDizimistaOfertanteAction(nomeBusca) {
   const { me } = await requireTesouraria();
   if (!nomeBusca || nomeBusca.trim().length < 2) throw new Error("Digite pelo menos 2 letras.");
 
+  const { data: recsValidados } = await supabaseAdmin
+  .from("records")
+  .select("id, data_culto")
+  .eq("igreja_id", me.igreja_id)
+  .eq("status", "validado")
+  .limit(3000);
+
+  const ids = (recsValidados || []).map(r => r.id);
+  if (ids.length === 0) return [];
+
+  const mapaData = new Map((recsValidados || []).map(r => [r.id, r.data_culto]));
+
   const { data: itens, error } = await supabaseAdmin
-   .from("record_items")
-   .select("membro_nome, records!inner(igreja_id, status, data_culto)")
-   .eq("records.igreja_id", me.igreja_id)
-   .eq("records.status", "validado")
-   .ilike("membro_nome", `%${nomeBusca.trim()}%`)
-   .limit(200);
+  .from("record_items")
+  .select("membro_nome, record_id")
+  .in("record_id", ids)
+  .ilike("membro_nome", `%${nomeBusca.trim()}%`)
+  .limit(300);
 
   if (error) throw new Error("Erro ao buscar: " + error.message);
 
@@ -239,13 +250,12 @@ export async function buscarDizimistaOfertanteAction(nomeBusca) {
     if (!i.membro_nome) return;
     const key = i.membro_nome.trim().toLowerCase();
     if (!nomesMap.has(key)) {
-      nomesMap.set(key, { nome: i.membro_nome.trim(), total_contribuicoes: 0, ultimo_culto: i.records?.data_culto || null });
+      nomesMap.set(key, { nome: i.membro_nome.trim(), total_contribuicoes: 0, ultimo_culto: mapaData.get(i.record_id) || null });
     }
     const entry = nomesMap.get(key);
     entry.total_contribuicoes++;
-    if (i.records?.data_culto && (!entry.ultimo_culto || i.records.data_culto > entry.ultimo_culto)) {
-      entry.ultimo_culto = i.records.data_culto;
-    }
+    const dt = mapaData.get(i.record_id);
+    if (dt && (!entry.ultimo_culto || dt > entry.ultimo_culto)) entry.ultimo_culto = dt;
   });
 
   return Array.from(nomesMap.values()).slice(0, 15);
@@ -260,24 +270,33 @@ export async function obterContribuicoesMesAction(nomeSelecionado, mesAno) {
   const inicio = new Date(ano, mes - 1, 1).toISOString().slice(0, 10);
   const fim = new Date(ano, mes, 0).toISOString().slice(0, 10);
 
-  const { data: itens, error } = await supabaseAdmin
-   .from("record_items")
-   .select("membro_nome, tipo, valor, records!inner(igreja_id, status, data_culto)")
-   .eq("records.igreja_id", me.igreja_id)
-   .eq("records.status", "validado")
-   .ilike("membro_nome", nomeSelecionado.trim())
-   .gte("records.data_culto", inicio)
-   .lte("records.data_culto", fim);
+  const { data: recs } = await supabaseAdmin
+  .from("records")
+  .select("id, data_culto")
+  .eq("igreja_id", me.igreja_id)
+  .eq("status", "validado")
+  .gte("data_culto", inicio)
+  .lte("data_culto", fim);
 
-  if (error) throw new Error("Erro ao carregar contribuições: " + error.message);
+  const ids = (recs || []).map(r => r.id);
+  if (ids.length === 0) return { contribuicoes: [], total: 0, periodo: { inicio, fim, mesAno } };
+
+  const mapaData = new Map((recs || []).map(r => [r.id, r.data_culto]));
+
+  const { data: itens, error } = await supabaseAdmin
+  .from("record_items")
+  .select("membro_nome, tipo, valor, record_id")
+  .in("record_id", ids)
+  .ilike("membro_nome", nomeSelecionado.trim());
+
+  if (error) throw new Error("Erro: " + error.message);
 
   const contribuicoes = (itens || []).map(i => ({
-    data: i.records.data_culto,
+    data: mapaData.get(i.record_id),
     tipo: i.tipo,
     valor: Number(i.valor),
-  })).sort((a,b) => a.data < b.data? -1 : 1);
+  })).sort((a,b) => (a.data < b.data? -1 : 1));
 
   const total = contribuicoes.reduce((s, c) => s + c.valor, 0);
-
   return { contribuicoes, total, periodo: { inicio, fim, mesAno } };
 }
