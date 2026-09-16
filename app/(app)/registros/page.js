@@ -2,13 +2,23 @@ import { getSessionUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import RegistroBotoes from "./RegistroBotoes"
 
+export const dynamic = 'force-dynamic'
+
 function fmt(d) { if(!d) return '-'; return new Date(d).toLocaleString('pt-BR', { timeZone: 'America/Recife', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) }
 function formatTipo(t) { if(!t) return '-'; const l=t.toLowerCase(); if(l.includes('dizimo')) return 'Dízimo'; if(l.includes('oferta')) return 'Oferta'; return t }
 
 export default async function RegistrosPage() {
   const eu = await getSessionUser()
   if (!eu) return <div className="p-6">Faça login</div>
-  const { data } = await supabaseAdmin.from('records').select('*').order('data_culto', { ascending: false })
+
+  // FILTRO ESSENCIAL - só pega da sua igreja
+  let igreja_id = eu?.igreja_id
+  if(!igreja_id){
+    const { data: perfil } = await supabaseAdmin.from('users').select('igreja_id').eq('id', eu.id).single()
+    igreja_id = perfil?.igreja_id
+  }
+
+  const { data } = await supabaseAdmin.from('records').select('*').eq('igreja_id', igreja_id).order('data_culto', { ascending: false })
   const regsAll = data || []
 
   // DETECÇÃO ROBUSTA DE CARGOS (ofício = diácono, função = tesoureiro)
@@ -47,8 +57,7 @@ export default async function RegistrosPage() {
   }
 
   // --- FILTRO DE MÊS ATUAL PARA TELA DÍZIMOS E OFERTAS ---
-  // Pega mês/ano atual em Recife
-  const agoraRecifeStr = new Date().toLocaleString('en-CA', { timeZone: 'America/Recife', year: 'numeric', month: '2-digit' }) // "2026-09"
+  const agoraRecifeStr = new Date().toLocaleString('en-CA', { timeZone: 'America/Recife', year: 'numeric', month: '2-digit' })
   const [anoAtual, mesAtual] = agoraRecifeStr.split('-').map(Number)
 
   const regsDoMes = regsFiltrados.filter(r=>{
