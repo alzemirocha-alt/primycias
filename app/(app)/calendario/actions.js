@@ -1,97 +1,78 @@
-import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth";
+"use server";
+
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSessionUser } from "@/lib/auth";
+import { isAdmin } from "@/lib/constants";
+import { revalidatePath } from "next/cache";
 
-export async function POST(req) {
-  const user = await getSessionUser();
-  if (!user) return new NextResponse("Não autenticado", { status: 401 });
-  const body = await req.json();
-
-  let tipoFinal = "texto";
-  if (body.imagem_url) tipoFinal = "imagem";
-  else if (body.video_url) tipoFinal = "video";
-  else if (body.link_url) tipoFinal = "link";
-  else if (body.tipo && ["texto","imagem","link","video"].includes(body.tipo)) tipoFinal = body.tipo;
+export async function criarEventoAction(data, titulo, visibilidade, hora = null) {
+  const me = await getSessionUser();
+  const vis = isAdmin(me) ? visibilidade : "pessoal";
 
   const payload = {
-    igreja_id: user.igreja_id,
-    tipo: tipoFinal,
-    titulo: body.titulo,
-    mensagem: body.mensagem,
-    conteudo: body.mensagem,
-    imagem_url: body.imagem_url || null,
-    video_url: body.video_url || null,
-    link_url: body.link_url || null,
-    arquivo_url: body.arquivo_url || null,
-    data_evento: body.data_evento || null,
-    autor_id: user.id,
-    user_id: user.id,
-    created_by: user.id,
+    igreja_id: me.igreja_id,
+    data,
+    titulo,
+    criado_por: me.id,
+    criado_por_nome: me.nome,
+    visibilidade: vis,
   };
 
-  const { data, error } = await supabaseAdmin.from("avisos").insert(payload).select().single();
-  if (error) return new NextResponse(error.message, { status: 400 });
-
-  // INTEGRAÇÃO COM AGENDA - COMPATÍVEL COM SUA TABELA events
-  if ((body.integrar_calendario || body.integrar_com_agenda) && body.data_evento) {
+  if (hora) {
+    payload.hora = hora;
     try {
-      const dataStr = String(body.data_evento).slice(0,10);
-      const horaStr = String(body.data_evento).includes("T") ? String(body.data_evento).slice(11,16) : "19:00";
-
-      const payloadAgenda = {
-        igreja_id: user.igreja_id,
-        data: dataStr,
-        titulo: body.titulo,
-        criado_por: user.id,
-        criado_por_nome: user.nome,
-        visibilidade: "todos",
-        hora: horaStr,
-        data_evento: new Date(`${dataStr}T${horaStr}:00-03:00`).toISOString(),
-      };
-
-      const { error: errEvents } = await supabaseAdmin.from("events").insert(payloadAgenda);
-      
-      if (errEvents) {
-        console.error("ERRO AGENDA:", errEvents);
-        return NextResponse.json({ aviso: data, erro_agenda: errEvents.message }, { status: 201 });
-      }
-    } catch (e) {
-      console.error("Erro integração agenda:", e);
-    }
+      payload.data_evento = new Date(`${data}T${hora}:00-03:00`).toISOString();
+    } catch {}
   }
-  return NextResponse.json(data);
+
+  const { error } = await supabaseAdmin.from("events").insert(payload);
+  
+  if (error && error.message.includes("hora")) {
+    delete payload.hora;
+    delete payload.data_evento;
+    await supabaseAdmin.from("events").insert(payload);
+  }
+
+  revalidatePath("/calendario");
+  revalidatePath("/");
 }
 
-export async function DELETE(req) {
-  const user = await getSessionUser();
-  if (!user) return new NextResponse("Não autenticado", { status: 401 });
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-  await supabaseAdmin.from("avisos").delete().eq("id", id);
-  return NextResponse.json({ ok: true });
+export async function excluirEventoAction(id) {
+  const me = await getSessionUser();
+  const { data: ev } = await supabaseAdmin
+    .from("events")
+    .select("*")
+    .eq("id", id)
+    .eq("igreja_id", me.igreja_id)
+    .maybeSingle();
+  
+  if (!ev) {
+    const { data: ev2 } = await supabaseAdmin.from("eventos").select("*").eq("id", id).maybeSingle();
+    if (!ev2) return;
+    if (ev2.criado_por !== me.id && !isAdmin(me)) throw new Error("Sem permissão para excluir este evento.");
+    await supabaseAdmin.from("eventos").delete().eq("id", id);
+  } else {
+    if (ev.criado_por !== me.id && !isAdmin(me)) throw new Error("Sem permissão para excluir este evento.");
+    await supabaseAdmin.from("events").delete().eq("id", id);
+  }
+  
+  revalidatePath("/calendario");
+  revalidatePath("/");
 }
 
-export async function PUT(req) {
-  const user = await getSessionUser();
-  if (!user) return new NextResponse("Não autenticado", { status: 401 });
-  const body = await req.json();
-  let tipoFinal = "texto";
-  if (body.imagem_url) tipoFinal = "imagem";
-  else if (body.video_url) tipoFinal = "video";
-  else if (body.link_url) tipoFinal = "link";
-  else if (body.tipo && ["texto","imagem","link","video"].includes(body.tipo)) tipoFinal = body.tipo;
+export async function adicionarEventoAction(formData) {
+  const titulo = String(formData.get("titulo") || "").trim();
+  const data = formData.get("data");
+  const hora = formData.get("hora");
+  const oficial = formData.get("oficial") === "on";
+  
+  if (!titulo || !data || !hora) throw new Error("Preencha título, data e hora");
+  
+  const visibilidade = oficial ? "conselho" : "pessoal";
+  await criarEventoAction(data, titulo, visibilidade, hora);
+}
 
-  const { data, error } = await supabaseAdmin.from("avisos").update({
-    tipo: tipoFinal,
-    titulo: body.titulo,
-    mensagem: body.mensagem,
-    conteudo: body.mensagem,
-    imagem_url: body.imagem_url,
-    video_url: body.video_url,
-    link_url: body.link_url,
-    arquivo_url: body.arquivo_url,
-    data_evento: body.data_evento,
-  }).eq("id", body.id).select().single();
-  if (error) return new NextResponse(error.message, { status: 400 });
-  return NextResponse.json(data);
+// CORRIGIDO - ANTES ERA const, AGORA É async function
+export async function removerEventoAction(id) {
+  return excluirEventoAction(id);
 }
