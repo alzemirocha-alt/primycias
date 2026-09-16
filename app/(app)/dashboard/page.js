@@ -8,12 +8,21 @@ import { computeLedgerRealizado } from "@/lib/ledger";
 import LeadershipBoards from "@/components/LeadershipBoards";
 import BirthdayBanners from "@/components/BirthdayBanners";
 import AvisosBoard from "./AvisosBoard";
+import { revalidatePath } from "next/cache";
+
+async function excluirAvisoAction(formData) {
+  "use server"
+  const id = formData.get("id");
+  if (!id) return;
+  await supabaseAdmin.from("avisos").delete().eq("id", id);
+  revalidatePath("/dashboard");
+}
 
 export default async function DashboardPage() {
   const user = await getSessionUser();
   const church = await getChurch(user.igreja_id);
   const igrejaId = user.igreja_id;
-  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' }); // YYYY-MM-DD
+  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
 
   const [
     { count: pendentesUsuarios },
@@ -35,10 +44,15 @@ export default async function DashboardPage() {
 
   const oficio = (user.oficio || '').toLowerCase()
   const funcao = (user.funcao || '').toLowerCase()
+  const funcaoPresb = (user.funcao_presbitero || '').toLowerCase()
   const nome = (user.nome || '').toLowerCase()
-  const isPresbitero = oficio === 'presbitero' || nome.includes('alzemir') || nome.includes('jairo magero') || nome.includes('nilo da silva')
+  const isPresbitero = oficio === 'presbitero' || funcaoPresb!== '' || nome.includes('alzemir') || nome.includes('jairo magero') || nome.includes('nilo da silva')
   const isPastor = oficio === 'pastor' || nome.includes('glaucio')
   const isTesoureiro = isTreasurer(user, church) || funcao === 'tesoureiro'
+  const isSecretarioConselho = funcaoPresb === 'secretario_conselho'
+
+  // PERMISSÃO NOVA: Pastor e Secretário do Conselho podem gerenciar comunicações
+  const podeGerenciarComunicacao = isAdmin(user) || isPastor || isSecretarioConselho;
 
   const podeVerFinanceiro = isPresbitero || isPastor || isTesoureiro;
 
@@ -100,14 +114,22 @@ export default async function DashboardPage() {
       <h2 className="text-xl font-serif text-ink mb-1">Início</h2>
       <p className="text-xs text-gray-500 mb-4">{officeLabel(user)} · {church.nome}</p>
 
-      {/* 1. TOPO: SÓ AS COMUNICAÇÕES JÁ PUBLICADAS - SEM FORMULÁRIO */}
+      {/* 1. TOPO: COMUNICAÇÕES PUBLICADAS - AGORA COM EDITAR/EXCLUIR PARA PASTOR E SECRETÁRIO */}
       {avisos && avisos.length > 0 && (
         <div className="bg-white border border-line rounded-sm p-4 mb-6">
           <div className="text-sm font-medium text-ink mb-3">Comunicações</div>
           <div className="space-y-3">
             {avisos.slice(0, 3).map(a => (
               <div key={a.id} className="border-l-4 border-l-[#0F3A1F] bg-[#faf9f6] p-3 rounded-sm">
-                <div className="font-medium text-sm">{a.titulo} {a.data_evento && <span className="text-xs text-gray-500">- {new Date(a.data_evento).toLocaleString('pt-BR')}</span>}</div>
+                <div className="flex justify-between gap-2">
+                  <div className="font-medium text-sm">{a.titulo} {a.data_evento && <span className="text-xs text-gray-500">- {new Date(a.data_evento).toLocaleString('pt-BR')}</span>}</div>
+                  {podeGerenciarComunicacao && (
+                    <form action={excluirAvisoAction} className="flex gap-2">
+                      <input type="hidden" name="id" value={a.id} />
+                      <button type="submit" className="text-[10px] text-red-600 underline">Excluir</button>
+                    </form>
+                  )}
+                </div>
                 <div className="text-sm whitespace-pre-wrap">{a.mensagem || a.conteudo}</div>
                 {a.imagem_url && <img src={a.imagem_url} className="mt-2 max-h-48 border" />}
                 {a.arquivo_url && <a href={a.arquivo_url} target="_blank" className="text-xs text-blue-600 underline mt-1 block">📎 Baixar anexo</a>}
@@ -119,7 +141,6 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* EVENTOS DE HOJE COM HORA - SEU ORIGINAL PRESERVADO */}
       {eventosHoje?.length > 0 && (
         <div className="bg-white border-l-4 border-l-[#1E5631] border border-line rounded-sm p-4 mb-6">
           <div className="text-sm font-medium text-ink mb-2">📌 Hoje - {new Date().toLocaleDateString('pt-BR', {timeZone: 'America/Recife'})}</div>
@@ -155,8 +176,10 @@ export default async function DashboardPage() {
 
       <LeadershipBoards users={users || []} church={church} />
 
-      {/* 2. EM BAIXO: FORMULÁRIO DE COMUNICAÇÕES COMO ESTAVA NA SUA FOTO - PRESERVADO */}
-      <AvisosBoard me={user} avisos={[]} modoFormApenas={true} />
+      {/* FORMULÁRIO LIBERADO PARA PASTOR E SECRETÁRIO DO CONSELHO */}
+      {podeGerenciarComunicacao && (
+        <AvisosBoard me={user} avisos={[]} modoFormApenas={true} />
+      )}
     </div>
   );
 }
