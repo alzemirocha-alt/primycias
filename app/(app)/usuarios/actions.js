@@ -85,7 +85,7 @@ export async function decidePasswordResetAction(requestId, liberar) {
   revalidatePath("/usuarios");
 }
 
-export const FUNCOES_UNICAS = ["presidente_junta","vice_presidente_junta","secretario_junta","tesoureiro_junta","presidente_conselho","vice_presidente_conselho","secretario_conselho","tesoureiro_igreja"];
+const FUNCOES_UNICAS = ["presidente_junta","vice_presidente_junta","secretario_junta","tesoureiro_junta","presidente_conselho","vice_presidente_conselho","secretario_conselho","tesoureiro_igreja"];
 const MAPA_FUNCOES = {
   "presidente da junta diaconal":"presidente_junta",
   "vice-presidente da junta diaconal":"vice_presidente_junta",
