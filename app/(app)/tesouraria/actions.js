@@ -59,7 +59,7 @@ export async function criarLancamentoAction(payload) {
     igreja_id: me.igreja_id,
     tipo, data: dt, historico, valor: Number(valor), categoria: categoria || null,
     recorrente:!!recorrente, frequencia: recorrente? frequencia : null,
-    data_fim_recorrencia: recorrente? data_fim_recorrencia : null, // NOVO
+    data_fim_recorrencia: recorrente? data_fim_recorrencia : null,
     serie_id: serieId,
     status: "rascunho", criado_por: me.id, criado_por_nome: me.nome,
   }));
@@ -96,7 +96,6 @@ async function addEvento(lancamentoId, nome, acao) {
   await supabaseAdmin.from("lancamento_eventos").insert({ lancamento_id: lancamentoId, nome, acao });
 }
 
-// Busca um lançamento garantindo que pertence à igreja de quem está agindo.
 async function getLancamentoScoped(id, igrejaId) {
   const { data } = await supabaseAdmin.from("lancamentos").select("*").eq("id", id).eq("igreja_id", igrejaId).maybeSingle();
   return data;
@@ -217,4 +216,68 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
   revalidatePath("/tesouraria/fluxo");
   revalidatePath("/tesouraria/lancamentos");
   revalidatePath("/usuarios");
+}
+
+// -------------------- Recibo de Dizimista/Ofertante - NOVO - CORRIGIDO --------------------
+
+export async function buscarDizimistaOfertanteAction(nomeBusca) {
+  const { me } = await requireTesouraria();
+  if (!nomeBusca || nomeBusca.trim().length < 2) throw new Error("Digite pelo menos 2 letras.");
+
+  const { data: itens, error } = await supabaseAdmin
+   .from("record_items")
+   .select("membro_nome, records!inner(igreja_id, status, data_culto)")
+   .eq("records.igreja_id", me.igreja_id)
+   .eq("records.status", "validado")
+   .ilike("membro_nome", `%${nomeBusca.trim()}%`)
+   .limit(200);
+
+  if (error) throw new Error("Erro ao buscar: " + error.message);
+
+  const nomesMap = new Map();
+  (itens || []).forEach(i => {
+    if (!i.membro_nome) return;
+    const key = i.membro_nome.trim().toLowerCase();
+    if (!nomesMap.has(key)) {
+      nomesMap.set(key, { nome: i.membro_nome.trim(), total_contribuicoes: 0, ultimo_culto: i.records?.data_culto || null });
+    }
+    const entry = nomesMap.get(key);
+    entry.total_contribuicoes++;
+    if (i.records?.data_culto && (!entry.ultimo_culto || i.records.data_culto > entry.ultimo_culto)) {
+      entry.ultimo_culto = i.records.data_culto;
+    }
+  });
+
+  return Array.from(nomesMap.values()).slice(0, 15);
+}
+
+export async function obterContribuicoesMesAction(nomeSelecionado, mesAno) {
+  const { me } = await requireTesouraria();
+  if (!nomeSelecionado) throw new Error("Selecione uma pessoa.");
+  if (!mesAno) throw new Error("Selecione mês/ano.");
+
+  const [ano, mes] = mesAno.split("-").map(Number);
+  const inicio = new Date(ano, mes - 1, 1).toISOString().slice(0, 10);
+  const fim = new Date(ano, mes, 0).toISOString().slice(0, 10);
+
+  const { data: itens, error } = await supabaseAdmin
+   .from("record_items")
+   .select("membro_nome, tipo, valor, records!inner(igreja_id, status, data_culto)")
+   .eq("records.igreja_id", me.igreja_id)
+   .eq("records.status", "validado")
+   .ilike("membro_nome", nomeSelecionado.trim())
+   .gte("records.data_culto", inicio)
+   .lte("records.data_culto", fim);
+
+  if (error) throw new Error("Erro ao carregar contribuições: " + error.message);
+
+  const contribuicoes = (itens || []).map(i => ({
+    data: i.records.data_culto,
+    tipo: i.tipo,
+    valor: Number(i.valor),
+  })).sort((a,b) => a.data < b.data? -1 : 1);
+
+  const total = contribuicoes.reduce((s, c) => s + c.valor, 0);
+
+  return { contribuicoes, total, periodo: { inicio, fim, mesAno } };
 }
