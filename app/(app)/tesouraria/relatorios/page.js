@@ -1,14 +1,25 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Btn, Field, Input, Tag } from "@/components/ui";
+import { Btn, Field, Input } from "@/components/ui";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import { buscarDizimistaOfertanteAction, obterContribuicoesMesAction } from "../actions";
-import { brl, fmtDate } from "@/lib/constants";
 
 function reportLink(path, params) {
   return `${path}?${new URLSearchParams(params).toString()}`;
 }
+// fallbacks locais caso constants não tenha
+function fmtDateLocal(v){ try{ return new Date(v+'T12:00:00').toLocaleDateString('pt-BR')}catch{ return v } }
+function brlLocal(v){ return Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) }
+
+// tenta usar os do constants, se não existir usa local
+let brl = brlLocal;
+let fmtDate = fmtDateLocal;
+try {
+  const c = require("@/lib/constants");
+  if (c.brl) brl = c.brl;
+  if (c.fmtDate) fmtDate = c.fmtDate;
+} catch {}
 
 export default function RelatoriosTesourariaPage() {
   const [de, setDe] = useState("");
@@ -54,8 +65,8 @@ export default function RelatoriosTesourariaPage() {
         </div>
       </div>
 
-      {/* BLOCO NOVO - RECIBO DE DIZIMISTA/OFERTANTE */}
-      <ReciboDizimistaOfertante de={de} ate={ate} />
+      {/* RECIBO DE DIZIMISTA/OFERTANTE - NOVA ROTINA */}
+      <ReciboDizimistaOfertante />
 
       <div className="bg-white border border-line rounded-sm p-4 mt-4">
         <div className="text-sm font-medium mb-1">Recibo de Pagamento</div>
@@ -77,7 +88,7 @@ export default function RelatoriosTesourariaPage() {
   );
 }
 
-function ReciboDizimistaOfertante({ de, ate }) {
+function ReciboDizimistaOfertante() {
   const [nomeBusca, setNomeBusca] = useState("");
   const [resultados, setResultados] = useState([]);
   const [selecionado, setSelecionado] = useState(null);
@@ -116,7 +127,7 @@ function ReciboDizimistaOfertante({ de, ate }) {
       <div className="flex flex-wrap gap-2 items-end mb-3">
         <div className="flex-1 min-w-[200px]">
           <Field label="Nome da pessoa">
-            <Input value={nomeBusca} onChange={(e) => setNomeBusca(e.target.value)} placeholder="Digite o nome" onKeyDown={(e)=> e.key==='Enter' && buscar()} />
+            <Input value={nomeBusca} onChange={(e) => setNomeBusca(e.target.value)} placeholder="Digite o nome e clique em Buscar" onKeyDown={(e)=> e.key==='Enter' && buscar()} />
           </Field>
         </div>
         <Btn disabled={isPending || !nomeBusca} onClick={buscar}>Buscar</Btn>
@@ -127,8 +138,8 @@ function ReciboDizimistaOfertante({ de, ate }) {
           <div className="text-xs text-gray-500 p-2">Encontramos {resultados.length} pessoa(s) com registros validados. Selecione apenas 1 por recibo:</div>
           {resultados.map((p, i) => (
             <div key={i} className={`flex justify-between items-center p-2 text-sm cursor-pointer border-b hover:bg-gray-50 ${selecionado?.nome===p.nome?'bg-[#E9EFE7]':''}`} onClick={()=>{ setSelecionado(p); setContribuicoes(null); }}>
-              <span><b>{p.nome}</b> <span className="text-xs text-gray-500">· {p.total_contribuicoes} contribuições · último: {p.ultimo_culto? fmtDate(p.ultimo_culto) : '-'}</span></span>
-              {selecionado?.nome===p.nome && <Tag tone="sage">Selecionado</Tag>}
+              <span><b>{p.nome}</b> <span className="text-xs text-gray-500">· {p.total_contribuicoes} contrib. · último: {p.ultimo_culto? fmtDate(p.ultimo_culto) : '-'}</span></span>
+              {selecionado?.nome===p.nome && <span className="text-xs bg-green-700 text-white px-2 py-0.5 rounded">Selecionado</span>}
             </div>
           ))}
         </div>
@@ -158,17 +169,13 @@ function ReciboDizimistaOfertante({ de, ate }) {
         </div>
       )}
 
-      {msg && <div className="text-xs text-rust mb-3">{msg}</div>}
+      {msg && <div className="text-xs text-red-700 mb-3">{msg}</div>}
 
-      <div className="flex gap-2">
-        <a 
-          href={selecionado && contribuicoes && contribuicoes.contribuicoes.length>0 ? reportLink("/api/reports/recibo-dizimista", { nome: selecionado.nome, mesAno, de: contribuicoes.periodo.inicio, ate: contribuicoes.periodo.fim }) : "#"} 
-          target="_blank" 
-          rel="noreferrer"
-        >
+      <div className="flex gap-2 items-center">
+        <a href={selecionado && contribuicoes && contribuicoes.contribuicoes.length>0 ? reportLink("/api/reports/recibo-dizimista", { nome: selecionado.nome, mesAno, de: contribuicoes.periodo.inicio, ate: contribuicoes.periodo.fim }) : "#"} target="_blank" rel="noreferrer">
           <Btn kind="gold" disabled={!selecionado || !contribuicoes || contribuicoes.contribuicoes.length===0}>Emitir recibo</Btn>
         </a>
-        <span className="text-xs text-gray-500 self-center">Busca apenas registros validados pelo Tesoureiro</span>
+        <span className="text-xs text-gray-500">Busca apenas registros validados pelo Tesoureiro</span>
       </div>
     </div>
   );
