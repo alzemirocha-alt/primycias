@@ -15,7 +15,10 @@ export default function AvisosBoard({ me, avisos, modoFormApenas = false }) {
   const [editando, setEditando] = useState(null);
 
   const oficio = (me?.oficio || '').toLowerCase();
-  const podePostar = oficio === 'pastor' || me?.funcao === 'secretario_conselho' || (me?.funcao||'').includes('secret');
+  const fPresb = (me?.funcao_presbitero || '').toLowerCase();
+  const fDiac = (me?.funcao_diacono || '').toLowerCase();
+  const fGeral = (me?.funcao || '').toLowerCase();
+  const podePostar = oficio === 'pastor' || fPresb === 'secretario_conselho' || fPresb.includes('secretario') || fGeral === 'secretario_conselho' || fGeral.includes('secret') || fDiac === 'presidente_junta' || oficio.includes('admin');
 
   const getTipo = () => {
     if (imagemUrl) return "imagem";
