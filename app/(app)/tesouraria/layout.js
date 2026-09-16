@@ -11,7 +11,7 @@ export default async function TesourariaLayout({ children }) {
   return (
     <div>
       <h2 className="text-xl font-serif text-ink mb-1">Controle Financeiro da Tesouraria</h2>
-      <p className="text-xs text-gray-500 mb-4">Exclusivo do Tesoureiro da Igreja, Pastor e Secretário do Conselho.</p>
+      <p className="text-xs text-gray-500 mb-4">Exclusivo do Tesoureiro da Igreja e Pastor.</p>
       <TesourariaSubNav />
       <div className="mt-4">{children}</div>
     </div>
