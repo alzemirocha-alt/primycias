@@ -71,12 +71,12 @@ export async function criarLancamentoAction(payload) {
 
 async function hasLiberacaoData(igrejaId, data) {
   const { data: reqs } = await supabaseAdmin
- .from("approval_requests")
- .select("id")
- .eq("igreja_id", igrejaId)
- .eq("tipo", "liberacao_data_lancamento")
- .eq("status", "liberado")
- .contains("dados", { data });
+.from("approval_requests")
+.select("id")
+.eq("igreja_id", igrejaId)
+.eq("tipo", "liberacao_data_lancamento")
+.eq("status", "liberado")
+.contains("dados", { data });
   return (reqs || []).length > 0;
 }
 
@@ -197,17 +197,17 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
     throw new Error("Apenas Pastor.");
   }
   const { data: reqRow } = await supabaseAdmin
- .from("approval_requests")
- .select("*")
- .eq("id", requestId)
- .eq("igreja_id", me.igreja_id)
- .maybeSingle();
+.from("approval_requests")
+.select("*")
+.eq("id", requestId)
+.eq("igreja_id", me.igreja_id)
+.maybeSingle();
   if (!reqRow) return;
 
   await supabaseAdmin
- .from("approval_requests")
- .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
- .eq("id", requestId);
+.from("approval_requests")
+.update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
+.eq("id", requestId);
 
   if (liberar && reqRow.tipo === "liberacao_saldo_inicial") {
     const { data: fin } = await supabaseAdmin.from("financas").select("id").eq("igreja_id", me.igreja_id).maybeSingle();
@@ -218,19 +218,19 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
   revalidatePath("/usuarios");
 }
 
-// -------------------- Recibo de Dizimista/Ofertante - CORRIGIDO PRO SEU SCHEMA REAL --------------------
+// -------------------- Recibo de Dizimista/Ofertante - CORRIGIDO --------------------
 
 export async function buscarDizimistaOfertanteAction(nomeBusca) {
   const { me } = await requireTesouraria();
   if (!nomeBusca || nomeBusca.trim().length < 2) return [];
 
   const { data, error } = await supabaseAdmin
-   .from("records")
-   .select("membro_nome, data_culto, valor")
-   .eq("igreja_id", me.igreja_id)
-   .eq("status", "validado")
-   .ilike("membro_nome", `%${nomeBusca.trim()}%`)
-   .limit(300);
+  .from("records")
+  .select("membro_nome, data_culto, valor")
+  .eq("igreja_id", me.igreja_id)
+  .eq("status", "validado")
+  .ilike("membro_nome", `%${nomeBusca.trim()}%`)
+  .limit(300);
 
   if (error) throw new Error("Erro ao buscar: " + error.message);
   if (!data || data.length === 0) return [];
@@ -264,14 +264,14 @@ export async function obterContribuicoesMesAction(nomeSelecionado, mesAno) {
   const fim = new Date(ano, mes, 0).toISOString().slice(0, 10);
 
   const { data, error } = await supabaseAdmin
-   .from("records")
-   .select("membro_nome, tipo, valor, data_culto")
-   .eq("igreja_id", me.igreja_id)
-   .eq("status", "validado")
-   .ilike("membro_nome", nomeSelecionado.trim())
-   .gte("data_culto", inicio)
-   .lte("data_culto", fim)
-   .order("data_culto", { ascending: true });
+  .from("records")
+  .select("membro_nome, tipo, valor, data_culto")
+  .eq("igreja_id", me.igreja_id)
+  .eq("status", "validado")
+  .ilike("membro_nome", `%${nomeSelecionado.trim()}%`) // CORREÇÃO: adicionado % para pegar "Lucivaldo "
+  .gte("data_culto", inicio)
+  .lte("data_culto", fim)
+  .order("data_culto", { ascending: true });
 
   if (error) throw new Error("Erro ao carregar: " + error.message);
 
