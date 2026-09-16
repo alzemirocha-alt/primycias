@@ -65,6 +65,7 @@ function NovoLancamentoForm({ onCreated }) {
   const [categoria, setCategoria] = useState("");
   const [recorrente, setRecorrente] = useState(false);
   const [frequencia, setFrequencia] = useState("mensal");
+  const [dataFimRecorrencia, setDataFimRecorrencia] = useState(""); // NOVO
   const [erro, setErro] = useState("");
   const [bloqueadoPorData, setBloqueadoPorData] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -74,10 +75,21 @@ function NovoLancamentoForm({ onCreated }) {
   const submit = () => {
     setErro(""); setBloqueadoPorData(false);
     if (!historico || !valor) { setErro("Preencha histórico e valor."); return; }
+    if (recorrente && !dataFimRecorrencia) { setErro("Informe a data final da recorrência."); return; }
+    if (recorrente && dataFimRecorrencia && dataFimRecorrencia <= data) { setErro("Data final deve ser após a data inicial."); return; }
     startTransition(async () => {
       try {
-        await criarLancamentoAction({ tipo, data, historico, valor, categoria, recorrente, frequencia });
-        setHistorico(""); setValor("");
+        await criarLancamentoAction({ 
+          tipo, 
+          data, 
+          historico, 
+          valor, 
+          categoria, 
+          recorrente, 
+          frequencia,
+          data_fim_recorrencia: recorrente ? dataFimRecorrencia : null // NOVO
+        });
+        setHistorico(""); setValor(""); setDataFimRecorrencia("");
         onCreated();
       } catch (e) {
         setErro(e.message);
@@ -127,11 +139,16 @@ function NovoLancamentoForm({ onCreated }) {
         Lançamento recorrente
       </label>
       {recorrente && (
-        <Field label="Frequência">
-          <Select value={frequencia} onChange={(e) => setFrequencia(e.target.value)}>
-            {Object.entries(FREQUENCIAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </Select>
-        </Field>
+        <div className="grid sm:grid-cols-2 gap-3 mb-2">
+          <Field label="Frequência">
+            <Select value={frequencia} onChange={(e) => setFrequencia(e.target.value)}>
+              {Object.entries(FREQUENCIAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </Select>
+          </Field>
+          <Field label="Data final da recorrência *">
+            <Input type="date" value={dataFimRecorrencia} onChange={(e) => setDataFimRecorrencia(e.target.value)} />
+          </Field>
+        </div>
       )}
       {erro && <div className="text-xs text-rust mb-2">{erro}</div>}
       {bloqueadoPorData && (
@@ -158,7 +175,7 @@ function LancamentoCard({ l, me, run, isPending }) {
       <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
         <div className="text-sm">
           <b style={{ color: l.tipo === "entrada" ? "#3F7A52" : "#8C3B3B" }}>{l.tipo === "entrada" ? "Entrada" : "Saída"}</b>
-          {" · "}{fmtDate(l.data)} {l.data > today() && <Tag tone="gold">futuro</Tag>} {l.recorrente && <Tag>recorrente · {FREQUENCIAS[l.frequencia]}</Tag>}
+          {" · "}{fmtDate(l.data)} {l.data > today() && <Tag tone="gold">futuro</Tag>} {l.recorrente && <Tag>recorrente · {FREQUENCIAS[l.frequencia]} até {l.data_fim_recorrencia ? fmtDate(l.data_fim_recorrencia) : '—'}</Tag>}
         </div>
         <div className="flex items-center gap-2">
           <Tag tone={TAG_TONE[l.status]}>{LANCAMENTO_STATUS_LABEL[l.status]}</Tag>
