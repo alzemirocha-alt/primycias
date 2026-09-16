@@ -8,8 +8,8 @@ export default async function FluxoPage() {
   const church = await getChurch(me.igreja_id);
 
   const [{ data: records }, { data: lancamentos }, { data: financas }] = await Promise.all([
-    supabaseAdmin.from("records").select("*, record_items(*)").eq("igreja_id", me.igreja_id),
-    supabaseAdmin.from("lancamentos").select("*").eq("igreja_id", me.igreja_id),
+    supabaseAdmin.from("records").select("*, record_items(*)").eq("igreja_id", me.igreja_id).eq("status", "validado").order("data_culto", { ascending: true }),
+    supabaseAdmin.from("lancamentos").select("*").eq("igreja_id", me.igreja_id).order("data", { ascending: true }),
     supabaseAdmin.from("financas").select("*").eq("igreja_id", me.igreja_id).maybeSingle(),
   ]);
 
