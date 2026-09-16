@@ -32,36 +32,38 @@ export async function POST(req) {
   const { data, error } = await supabaseAdmin.from("avisos").insert(payload).select().single();
   if (error) return new NextResponse(error.message, { status: 400 });
 
-  // INTEGRAÇÃO COM AGENDA (tabela events) - CORRIGIDO
+  // INTEGRAÇÃO COM AGENDA (tabela events) - CORRIGIDO PARA SUA TABELA
   if ((body.integrar_calendario || body.integrar_com_agenda) && body.data_evento) {
     try {
-      // body.data_evento vem como "2026-05-20T19:00:00" - separa data e hora
-      const dt = new Date(body.data_evento);
-      const data = body.data_evento.slice(0,10); // YYYY-MM-DD
-      const hora = body.data_evento.includes("T") ? body.data_evento.slice(11,16) : "19:00";
+      const dataStr = String(body.data_evento).slice(0,10); // YYYY-MM-DD
+      const horaStr = String(body.data_evento).includes("T") ? String(body.data_evento).slice(11,16) : "19:00";
 
-      // Tabela principal usada no dashboard/calendario
+      // Seu events usa: igreja_id, data, titulo, criado_por, criado_por_nome, visibilidade, hora, data_evento
+      // NÃO tem coluna descricao - por isso antes não integrava
       await supabaseAdmin.from("events").insert({
         igreja_id: user.igreja_id,
+        data: dataStr,
         titulo: body.titulo,
-        descricao: body.mensagem,
-        data: data,
-        hora: hora,
+        criado_por: user.id,
+        criado_por_nome: user.nome,
         visibilidade: "todos",
-        criado_por: user.id
+        hora: horaStr,
+        data_evento: new Date(`${dataStr}T${horaStr}:00-03:00`).toISOString(),
       });
 
-      // Mantém compatibilidade com tabela eventos antiga se existir
-      await supabaseAdmin.from("eventos").insert({
-        igreja_id: user.igreja_id,
-        titulo: body.titulo,
-        descricao: body.mensagem,
-        data_evento: body.data_evento,
-        criado_por: user.id
-      });
+      // Compatibilidade com tabela eventos antiga (se existir)
+      try {
+        await supabaseAdmin.from("eventos").insert({
+          igreja_id: user.igreja_id,
+          titulo: body.titulo,
+          descricao: body.mensagem,
+          data_evento: body.data_evento,
+          criado_por: user.id
+        });
+      } catch {}
+      
     } catch (e) {
       console.error("Erro ao integrar com agenda:", e);
-      // não bloqueia o aviso se falhar a agenda
     }
   }
   return NextResponse.json(data);
