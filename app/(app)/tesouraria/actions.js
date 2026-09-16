@@ -21,7 +21,7 @@ function isPastor(u) {
 
 export async function criarLancamentoAction(payload) {
   const { me } = await requireTesouraria();
-  const { tipo, data, historico, valor, categoria, recorrente, frequencia, ocorrencias } = payload;
+  const { tipo, data, historico, valor, categoria, recorrente, frequencia, data_fim_recorrencia } = payload;
 
   if (data < today()) {
     const dentro90 = daysBetween(data, today()) <= 90;
@@ -33,22 +33,34 @@ export async function criarLancamentoAction(payload) {
     }
   }
 
-  const serieId = recorrente ? randomUUID() : null;
+  if (recorrente &&!data_fim_recorrencia) {
+    throw new Error("Informe a data final da recorrência.");
+  }
+
+  const serieId = recorrente? randomUUID() : null;
   const datas = [data];
-  if (recorrente) {
+
+  if (recorrente && data_fim_recorrencia) {
     let d = new Date(data + "T00:00:00");
-    for (let i = 1; i < 12; i++) {
+    const fim = new Date(data_fim_recorrencia + "T00:00:00");
+
+    while (true) {
       if (frequencia === "semanal") d.setDate(d.getDate() + 7);
+      else if (frequencia === "quinzenal") d.setDate(d.getDate() + 15);
       else if (frequencia === "mensal") d.setMonth(d.getMonth() + 1);
       else d.setFullYear(d.getFullYear() + 1);
+
+      if (d > fim) break;
       datas.push(d.toISOString().slice(0, 10));
     }
   }
 
-  const rows = datas.slice(0, ocorrencias || (recorrente ? 12 : 1)).map((dt) => ({
+  const rows = datas.map((dt) => ({
     igreja_id: me.igreja_id,
     tipo, data: dt, historico, valor: Number(valor), categoria: categoria || null,
-    recorrente: !!recorrente, frequencia: recorrente ? frequencia : null, serie_id: serieId,
+    recorrente:!!recorrente, frequencia: recorrente? frequencia : null,
+    data_fim_recorrencia: recorrente? data_fim_recorrencia : null, // NOVO
+    serie_id: serieId,
     status: "rascunho", criado_por: me.id, criado_por_nome: me.nome,
   }));
 
@@ -59,12 +71,12 @@ export async function criarLancamentoAction(payload) {
 
 async function hasLiberacaoData(igrejaId, data) {
   const { data: reqs } = await supabaseAdmin
-    .from("approval_requests")
-    .select("id")
-    .eq("igreja_id", igrejaId)
-    .eq("tipo", "liberacao_data_lancamento")
-    .eq("status", "liberado")
-    .contains("dados", { data });
+   .from("approval_requests")
+   .select("id")
+   .eq("igreja_id", igrejaId)
+   .eq("tipo", "liberacao_data_lancamento")
+   .eq("status", "liberado")
+   .contains("dados", { data });
   return (reqs || []).length > 0;
 }
 
@@ -103,8 +115,8 @@ export async function reportarErroLancamentoAction(id, descricao) {
   const { me } = await requireTesouraria();
   const l = await getLancamentoScoped(id, me.igreja_id);
   if (!l) throw new Error("Lançamento não encontrado.");
-  const dentroPrazo = l.data_aprovacao ? daysBetween(l.data_aprovacao, today()) <= 30 : true;
-  if (!dentroPrazo && !isPastor(me)) {
+  const dentroPrazo = l.data_aprovacao? daysBetween(l.data_aprovacao, today()) <= 30 : true;
+  if (!dentroPrazo &&!isPastor(me)) {
     throw new Error("Prazo de 30 dias encerrado — só o Pastor pode alterar.");
   }
   await supabaseAdmin.from("lancamentos").update({ status: "erro_reportado", erro_descricao: descricao }).eq("id", id);
@@ -114,7 +126,7 @@ export async function reportarErroLancamentoAction(id, descricao) {
 
 export async function reabrirLancamentoAction(id) {
   const me = await getSessionUser();
-  if (me.oficio !== "pastor") throw new Error("Apenas o Pastor pode reabrir um lançamento aprovado.");
+  if (me.oficio!== "pastor") throw new Error("Apenas o Pastor pode reabrir um lançamento aprovado.");
   const l = await getLancamentoScoped(id, me.igreja_id);
   if (!l) throw new Error("Lançamento não encontrado.");
   await supabaseAdmin.from("lancamentos").update({ status: "rascunho" }).eq("id", id);
@@ -124,11 +136,11 @@ export async function reabrirLancamentoAction(id) {
 
 export async function liberarLancamentoAction(id, liberar) {
   const me = await getSessionUser();
-  if (me.oficio !== "pastor") throw new Error("Apenas o Pastor decide sobre erros reportados.");
+  if (me.oficio!== "pastor") throw new Error("Apenas o Pastor decide sobre erros reportados.");
   const l = await getLancamentoScoped(id, me.igreja_id);
   if (!l) throw new Error("Lançamento não encontrado.");
-  await supabaseAdmin.from("lancamentos").update({ status: liberar ? "rascunho" : "aprovado" }).eq("id", id);
-  await addEvento(id, me.nome, liberar ? "Liberou para edição" : "Negou a liberação");
+  await supabaseAdmin.from("lancamentos").update({ status: liberar? "rascunho" : "aprovado" }).eq("id", id);
+  await addEvento(id, me.nome, liberar? "Liberou para edição" : "Negou a liberação");
   revalidatePath("/tesouraria/lancamentos");
 }
 
@@ -146,7 +158,7 @@ export async function excluirLancamentoAction(id) {
   if (!l) return;
   const souCriador = l.criado_por === me.id;
   const podeExcluir = (l.status === "rascunho" && (souCriador || me.oficio === "pastor"))
-    || (me.oficio === "pastor" && l.status !== "rascunho");
+    || (me.oficio === "pastor" && l.status!== "rascunho");
   if (!podeExcluir) throw new Error("Você não tem permissão para excluir este lançamento.");
   await supabaseAdmin.from("lancamentos").delete().eq("id", id);
   revalidatePath("/tesouraria/lancamentos");
@@ -157,7 +169,7 @@ export async function excluirLancamentoAction(id) {
 export async function definirSaldoInicialAction(valor, data) {
   const { me } = await requireTesouraria();
   const { data: existing } = await supabaseAdmin.from("financas").select("*").eq("igreja_id", me.igreja_id).maybeSingle();
-  if (existing?.bloqueado && me.oficio !== "pastor") {
+  if (existing?.bloqueado && me.oficio!== "pastor") {
     throw new Error("Saldo inicial já confirmado — solicite liberação do Pastor.");
   }
   const payload = {
@@ -182,21 +194,21 @@ export async function solicitarLiberacaoSaldoAction() {
 
 export async function decidirSolicitacaoAction(requestId, liberar) {
   const me = await getSessionUser();
-  if (me.oficio !== "pastor") {
+  if (me.oficio!== "pastor") {
     throw new Error("Apenas Pastor.");
   }
   const { data: reqRow } = await supabaseAdmin
-    .from("approval_requests")
-    .select("*")
-    .eq("id", requestId)
-    .eq("igreja_id", me.igreja_id)
-    .maybeSingle();
+   .from("approval_requests")
+   .select("*")
+   .eq("id", requestId)
+   .eq("igreja_id", me.igreja_id)
+   .maybeSingle();
   if (!reqRow) return;
 
   await supabaseAdmin
-    .from("approval_requests")
-    .update({ status: liberar ? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
-    .eq("id", requestId);
+   .from("approval_requests")
+   .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
+   .eq("id", requestId);
 
   if (liberar && reqRow.tipo === "liberacao_saldo_inicial") {
     const { data: fin } = await supabaseAdmin.from("financas").select("id").eq("igreja_id", me.igreja_id).maybeSingle();
