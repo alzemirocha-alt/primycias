@@ -77,7 +77,7 @@ export async function criarRegistros(formData) {
     diacono1_at: agora(),
     status: 'aguardando_segundo_diacono',
     historico: hist,
-    igreja_id // FIX ESSENCIAL
+    igreja_id
   }))
 
   const { error } = await supabaseAdmin.from('records').insert(paraInserir)
@@ -191,6 +191,7 @@ export async function atualizarRegistros(data_culto_param, itens) {
   redirect('/registros')
 }
 
+// CORRIGIDO - TOLERANTE A TABELA COM OU SEM igreja_id
 export async function liberarDiacono(id){
   const eu = await getSessionUser()
   if((eu?.oficio||'').toLowerCase()!== 'pastor') throw new Error('Só pastor pode liberar')
@@ -199,8 +200,25 @@ export async function liberarDiacono(id){
     const { data: perfil } = await supabaseAdmin.from('users').select('igreja_id').eq('id', eu.id).single()
     igreja_id = perfil?.igreja_id
   }
-  const { error } = await supabaseAdmin.from('liberacoes_diaconos').upsert({ diacono_id: id, liberado_por: eu.id, liberado_em: new Date().toISOString(), igreja_id }, { onConflict: 'diacono_id' })
-  if(error) throw new Error("Erro ao liberar: " + error.message)
+
+  // Tenta com igreja_id primeiro, se falhar tenta sem
+  let { error } = await supabaseAdmin.from('liberacoes_diaconos').upsert({
+    diacono_id: id,
+    liberado_por: eu.id,
+    liberado_em: new Date().toISOString(),
+    igreja_id
+  }, { onConflict: 'diacono_id' })
+
+  if (error) {
+    // Fallback para tabela antiga sem igreja_id
+    const { error: err2 } = await supabaseAdmin.from('liberacoes_diaconos').upsert({
+      diacono_id: id,
+      liberado_por: eu.id,
+      liberado_em: new Date().toISOString()
+    }, { onConflict: 'diacono_id' })
+    if(err2) throw new Error("Erro ao liberar: " + err2.message)
+  }
+
   revalidatePath('/registros/novo')
   return true
 }
