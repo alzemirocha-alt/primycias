@@ -23,12 +23,12 @@ export async function approveUserAction(userId) {
   const me = await requireAdmin();
   const alvo = await requireSameChurch(me, userId);
   await supabaseAdmin
-   .from("users")
-   .update({
+  .from("users")
+  .update({
       status: "ativo",
       data_instalacao: alvo.data_instalacao || new Date().toISOString().slice(0, 10),
     })
-   .eq("id", userId);
+  .eq("id", userId);
   revalidatePath("/usuarios");
 }
 
@@ -53,10 +53,10 @@ export async function updateUserAction(userId, fields) {
       await supabaseAdmin.from("igrejas").update({ tesoureiro_user_id: userId }).eq("id", me.igreja_id);
     } else {
       await supabaseAdmin
-       .from("igrejas")
-       .update({ tesoureiro_user_id: null })
-       .eq("id", me.igreja_id)
-       .eq("tesoureiro_user_id", userId);
+      .from("igrejas")
+      .update({ tesoureiro_user_id: null })
+      .eq("id", me.igreja_id)
+      .eq("tesoureiro_user_id", userId);
     }
   }
   revalidatePath("/usuarios");
@@ -83,17 +83,17 @@ export async function setPasswordAction(userId, novaSenha, dataNascimento) {
 export async function decidePasswordResetAction(requestId, liberar) {
   const me = await requireAdmin();
   const { data: reqRow } = await supabaseAdmin
-   .from("password_reset_requests")
-   .select("*")
-   .eq("id", requestId)
-   .eq("igreja_id", me.igreja_id)
-   .maybeSingle();
+  .from("password_reset_requests")
+  .select("*")
+  .eq("id", requestId)
+  .eq("igreja_id", me.igreja_id)
+  .maybeSingle();
   if (!reqRow) return;
 
   await supabaseAdmin
-   .from("password_reset_requests")
-   .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
-   .eq("id", requestId);
+  .from("password_reset_requests")
+  .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
+  .eq("id", requestId);
 
   if (liberar) {
     await supabaseAdmin.from("users").update({ senha_hash: reqRow.nova_senha_hash }).eq("id", reqRow.user_id);
@@ -108,109 +108,146 @@ export async function decidePasswordResetAction(requestId, liberar) {
   revalidatePath("/usuarios");
 }
 
-// ===== NOVO: CRIAÇÃO COM TRAVA DE FUNÇÃO ÚNICA =====
+// ===== NOVO: CRIAÇÃO COM TRAVA DE FUNÇÃO ÚNICA - CORRIGIDO =====
 
-// Funções que só podem ter 1 pessoa por igreja
 export const FUNCOES_UNICAS = [
   "presidente_junta", "vice_presidente_junta", "secretario_junta", "tesoureiro_junta",
   "presidente_conselho", "vice_presidente_conselho", "secretario_conselho",
   "tesoureiro_igreja"
 ];
 
+// Mapa para converter o label do select para a chave interna
+const MAPA_FUNCOES = {
+  "presidente da junta diaconal": "presidente_junta",
+  "vice-presidente da junta diaconal": "vice_presidente_junta",
+  "vice presidente da junta diaconal": "vice_presidente_junta",
+  "secretario da junta diaconal": "secretario_junta",
+  "secretário da junta diaconal": "secretario_junta",
+  "tesoureiro da junta diaconal": "tesoureiro_junta",
+  "presidente do conselho": "presidente_conselho",
+  "vice-presidente do conselho": "vice_presidente_conselho",
+  "secretario do conselho": "secretario_conselho",
+  "secretário do conselho": "secretario_conselho",
+  "tesoureiro da igreja": "tesoureiro_igreja",
+};
+
+function normalizarFuncao(valor) {
+  if (!valor) return "";
+  const lower = String(valor).toLowerCase().trim();
+  return MAPA_FUNCOES[lower] || lower.replace(/ /g, "_").replace(/-/g, "_");
+}
+
+function parseDataMandato(valor) {
+  if (!valor) return null;
+  // Se já vier YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(valor)) return valor;
+  // Se vier ISO
+  const d = new Date(valor);
+  if (!isNaN(d.getTime()) && String(valor).length >= 8 &&!String(valor).includes("nov")) {
+    return d.toISOString().slice(0, 10);
+  }
+  // Se vier "6 de nov. de 2027" -> tenta extrair
+  return null; // deixa null para não quebrar, o usuário edita depois
+}
+
 export async function criarUsuarioAction(formData) {
-  const me = await requireAdmin();
+  try {
+    const me = await requireAdmin();
 
-  const nome = String(formData.get("nome")||"").trim();
-  const cpf = String(formData.get("cpf")||"").replace(/\D/g,"");
-  const cep = String(formData.get("cep")||"").trim();
-  const endereco = String(formData.get("endereco")||"").trim();
-  const telefone = String(formData.get("telefone")||"").trim();
-  const mandato = String(formData.get("mandato")||"").trim(); // vai para data_vencimento_mandato
-  const oficio = String(formData.get("oficio")||"").toLowerCase(); // diacono, presbitero, pastor, membro
-  const foto = String(formData.get("foto")||formData.get("foto_url")||"").trim() || null;
+    const nome = String(formData.get("nome") || "").trim();
+    const cpf = String(formData.get("cpf") || "").replace(/\D/g, "");
+    const cep = String(formData.get("cep") || "").trim();
+    const endereco = String(formData.get("endereco") || "").trim();
+    const telefone = String(formData.get("telefone") || "").trim();
+    const mandatoRaw = String(formData.get("mandato") || formData.get("data_vencimento_mandato") || "").trim();
+    const oficio = String(formData.get("oficio") || "").toLowerCase();
+    const foto = String(formData.get("foto") || formData.get("foto_url") || "").trim() || null;
 
-  // junta diaconal / conselho / tesoureiro vêm separados no form e unificamos
-  const funcaoConselho = String(formData.get("funcao_conselho")||"").toLowerCase();
-  const funcaoJunta = String(formData.get("funcao_junta")||"").toLowerCase();
-  const funcaoTesouraria = String(formData.get("funcao_tesouraria")||"").toLowerCase();
-  let funcaoFinal = String(formData.get("funcao")||funcaoConselho||funcaoJunta||funcaoTesouraria||"").toLowerCase();
+    const funcaoConselho = String(formData.get("funcao_conselho") || "").toLowerCase();
+    const funcaoJunta = String(formData.get("funcao_junta") || "").toLowerCase();
+    const funcaoTesouraria = String(formData.get("funcao_tesouraria") || "").toLowerCase();
+    let funcaoFinalRaw = String(formData.get("funcao") || funcaoConselho || funcaoJunta || funcaoTesouraria || "").toLowerCase();
+    let funcaoFinal = normalizarFuncao(funcaoFinalRaw);
 
-  if (!nome ||!cpf ||!oficio) throw new Error("Nome, CPF e Ofício são obrigatórios.");
-  if (cpf.length!== 11) throw new Error("CPF inválido.");
+    if (!nome ||!cpf ||!oficio) return { error: "Nome, CPF e Ofício são obrigatórios." };
+    if (cpf.length!== 11) return { error: "CPF inválido." };
 
-  // Verifica se função já está ocupada (regra: função só 1 por igreja, ofício pode repetir)
-  if (funcaoFinal && FUNCOES_UNICAS.includes(funcaoFinal)) {
+    // Verifica duplicidade de CPF
+    const { data: cpfExiste } = await supabaseAdmin.from("users").select("id,nome").eq("cpf", cpf).maybeSingle();
+    if (cpfExiste) return { error: `CPF já cadastrado para ${cpfExiste.nome}` };
+
+    // Verifica se função já está ocupada
+    if (funcaoFinal && FUNCOES_UNICAS.includes(funcaoFinal)) {
+      if (funcaoFinal === "tesoureiro_igreja") {
+        const { data: igreja } = await supabaseAdmin.from("igrejas").select("tesoureiro_user_id").eq("id", me.igreja_id).maybeSingle();
+        if (igreja?.tesoureiro_user_id) {
+          const { data: ocup } = await supabaseAdmin.from("users").select("nome").eq("id", igreja.tesoureiro_user_id).maybeSingle();
+          return { error: `Tesoureiro da Igreja já ocupado por ${ocup?.nome || "outro usuário"}. Remova a função dele primeiro.` };
+        }
+      } else {
+        const { data: ocupante } = await supabaseAdmin.from("users")
+        .select("id,nome,funcao,funcao_diacono,funcao_presbitero")
+        .eq("igreja_id", me.igreja_id)
+        .neq("status", "excluido")
+        .or(`funcao.eq.${funcaoFinal},funcao_diacono.eq.${funcaoFinal},funcao_presbitero.eq.${funcaoFinal}`)
+        .maybeSingle();
+        if (ocupante) {
+          return { error: `Função "${funcaoFinal.replace(/_/g, " ")}" já ocupada por ${ocupante.nome}. Edite o usuário atual e remova a função para liberar.` };
+        }
+      }
+    }
+
+    const senhaPadrao = cpf.slice(-4);
+    const erroSenha = validarSenha(senhaPadrao, null);
+    if (erroSenha) return { error: "Não foi possível gerar senha padrão: " + erroSenha };
+
+    const senhaHash = await hashPassword(senhaPadrao);
+    const dataVenc = parseDataMandato(mandatoRaw);
+
+    const novoUsuario = {
+      igreja_id: me.igreja_id,
+      nome,
+      cpf,
+      endereco: endereco? `${endereco}${cep? ` - CEP ${cep}` : ""}`.trim() : null,
+      telefone: telefone || null,
+      foto: foto || null,
+      oficio,
+      status: "ativo",
+      data_instalacao: new Date().toISOString().slice(0, 10),
+      data_vencimento_mandato: dataVenc,
+      senha_hash: senhaHash,
+    };
+
+    if (funcaoFinal) {
+      if (funcaoFinal.includes("junta")) novoUsuario.funcao_diacono = funcaoFinal;
+      else if (funcaoFinal.includes("conselho")) novoUsuario.funcao_presbitero = funcaoFinal;
+      else if (funcaoFinal === "tesoureiro_igreja") {
+        // será vinculado depois
+      } else {
+        novoUsuario.funcao_diacono = funcaoFinal;
+      }
+    }
+
+    const { data: criado, error } = await supabaseAdmin.from("users").insert(novoUsuario).select("id").single();
+    if (error) return { error: error.message };
+
     if (funcaoFinal === "tesoureiro_igreja") {
-      const { data: igreja } = await supabaseAdmin.from("igrejas").select("tesoureiro_user_id").eq("id", me.igreja_id).maybeSingle();
-      if (igreja?.tesoureiro_user_id) {
-        const { data: ocup } = await supabaseAdmin.from("users").select("nome").eq("id", igreja.tesoureiro_user_id).maybeSingle();
-        throw new Error(`Tesoureiro da Igreja já ocupado por ${ocup?.nome||"outro usuário"}. Remova a função dele primeiro para liberar.`);
-      }
-    } else {
-      const { data: ocupante } = await supabaseAdmin.from("users")
-       .select("id,nome,funcao,funcao_diacono,funcao_presbitero")
-       .eq("igreja_id", me.igreja_id)
-       .neq("status","excluido")
-       .or(`funcao.eq.${funcaoFinal},funcao_diacono.eq.${funcaoFinal},funcao_presbitero.eq.${funcaoFinal}`)
-       .maybeSingle();
-      if (ocupante) {
-        throw new Error(`Função "${funcaoFinal.replace(/_/g," ")}" já ocupada por ${ocupante.nome}. Para cadastrar outra pessoa, o Pastor ou Secretário deve editar o usuário atual e remover a função para liberar.`);
-      }
+      await supabaseAdmin.from("igrejas").update({ tesoureiro_user_id: criado.id }).eq("id", me.igreja_id);
     }
+
+    await supabaseAdmin.from("password_history").insert({
+      igreja_id: me.igreja_id,
+      user_id: criado.id,
+      acao: `Usuário criado - senha padrão ${senhaPadrao}`,
+      por_nome: me.nome,
+      por_cpf: me.cpf,
+    });
+
+    revalidatePath("/usuarios");
+    return { success: true, senha: senhaPadrao, id: criado.id };
+
+  } catch (e) {
+    console.error("ERRO criarUsuarioAction:", e);
+    return { error: e.message || "Erro interno ao criar usuário" };
   }
-
-  // Senha padrão 4 dígitos seguindo seu critério validarSenha - últimos 4 do CPF
-  const senhaPadrao = cpf.slice(-4);
-  const erroSenha = validarSenha(senhaPadrao, null);
-  if (erroSenha) throw new Error("Não foi possível gerar senha padrão: "+erroSenha);
-
-  const senhaHash = await hashPassword(senhaPadrao);
-
-  // Monta patch compatível com seu schema original
-  const novoUsuario = {
-    igreja_id: me.igreja_id,
-    nome,
-    cpf,
-    endereco: endereco || null,
-    telefone: telefone || null,
-    foto: foto || null,
-    oficio, // diacono, presbitero, pastor, membro
-    status: "ativo",
-    data_instalacao: new Date().toISOString().slice(0,10),
-    data_vencimento_mandato: mandato || null,
-    senha_hash: senhaHash,
-  };
-
-  // salva cep no endereco se seu schema não tem coluna cep separada
-  if (cep) novoUsuario.endereco = `${endereco} - CEP ${cep}`.trim();
-
-  // decide onde salvar a função baseado no ofício
-  if (funcaoFinal) {
-    if (funcaoFinal.includes("junta")) novoUsuario.funcao_diacono = funcaoFinal;
-    else if (funcaoFinal.includes("conselho")) novoUsuario.funcao_presbitero = funcaoFinal;
-    else novoUsuario.funcao_diacono = funcaoFinal; // fallback
-    // se for membro do conselho/junta (pode repetir) não entra na trava
-    if (funcaoFinal === "membro_conselho" || funcaoFinal === "membro_junta") {
-      // permite múltiplos, não faz checagem
-    }
-  }
-
-  const { data: criado, error } = await supabaseAdmin.from("users").insert(novoUsuario).select("id").single();
-  if (error) throw new Error(error.message);
-
-  // se for tesoureiro da igreja, vincula na tabela igrejas (mesma lógica do seu updateUserAction)
-  if (funcaoFinal === "tesoureiro_igreja") {
-    await supabaseAdmin.from("igrejas").update({ tesoureiro_user_id: criado.id }).eq("id", me.igreja_id);
-  }
-
-  await supabaseAdmin.from("password_history").insert({
-    igreja_id: me.igreja_id,
-    user_id: criado.id,
-    acao: `Usuário criado pelo administrador - senha padrão ${senhaPadrao}`,
-    por_nome: me.nome,
-    por_cpf: me.cpf,
-  });
-
-  revalidatePath("/usuarios");
-  return { success: true, senha: senhaPadrao, id: criado.id };
 }
