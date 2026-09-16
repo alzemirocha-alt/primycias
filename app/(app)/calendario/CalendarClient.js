@@ -45,7 +45,7 @@ export default function CalendarClient({ me, events }) {
 
   return (
     <>
-      <h2 className="text-xl font-serif text-ink mb-1">Calendário de Atividades</h2>
+      <h2 className="text-xl font-serif text-ink mb-1">Agenda</h2>
       <p className="text-xs text-gray-500 mb-5">Toque no dia para adicionar com horário</p>
 
       <div className="bg-white border border-line rounded-sm p-4">
