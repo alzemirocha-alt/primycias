@@ -7,6 +7,7 @@ import { isAdmin, isTreasurer, officeLabel, brl } from "@/lib/constants";
 import { computeLedgerRealizado } from "@/lib/ledger";
 import LeadershipBoards from "@/components/LeadershipBoards";
 import BirthdayBanners from "@/components/BirthdayBanners";
+import BoasVindas from "@/components/BoasVindas";
 import AvisosBoard from "./AvisosBoard";
 import { revalidatePath } from "next/cache";
 
@@ -114,6 +115,9 @@ export default async function DashboardPage() {
       <h2 className="text-xl font-serif text-ink mb-1">Início</h2>
       <p className="text-xs text-gray-500 mb-4">{officeLabel(user)} · {church.nome}</p>
 
+      <BoasVindas nome={user.nome} />
+      <BirthdayBanners me={user} users={users || []} />
+
       {/* 1. TOPO: COMUNICAÇÕES PUBLICADAS - AGORA COM EDITAR/EXCLUIR PARA PASTOR E SECRETÁRIO */}
       {avisos && avisos.length > 0 && (
         <div className="bg-white border border-line rounded-sm p-4 mb-6">
@@ -155,8 +159,6 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
-
-      <BirthdayBanners me={user} users={users || []} />
 
       <div className="flex flex-wrap gap-3 mb-6">
         {isAdmin(user) && <StatCard label="Cadastros pendentes" value={pendentesUsuarios || 0} highlight={pendentesUsuarios > 0} />}
