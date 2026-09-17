@@ -65,7 +65,7 @@ function NovoLancamentoForm({ onCreated }) {
   const [categoria, setCategoria] = useState("");
   const [recorrente, setRecorrente] = useState(false);
   const [frequencia, setFrequencia] = useState("mensal");
-  const [dataFimRecorrencia, setDataFimRecorrencia] = useState(""); // NOVO
+  const [dataFimRecorrencia, setDataFimRecorrencia] = useState("");
   const [erro, setErro] = useState("");
   const [bloqueadoPorData, setBloqueadoPorData] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -87,7 +87,7 @@ function NovoLancamentoForm({ onCreated }) {
           categoria, 
           recorrente, 
           frequencia,
-          data_fim_recorrencia: recorrente ? dataFimRecorrencia : null // NOVO
+          data_fim_recorrencia: recorrente ? dataFimRecorrencia : null
         });
         setHistorico(""); setValor(""); setDataFimRecorrencia("");
         onCreated();
@@ -164,7 +164,12 @@ function NovoLancamentoForm({ onCreated }) {
 function LancamentoCard({ l, me, run, isPending }) {
   const [erroTxt, setErroTxt] = useState("");
   const [confirmando, setConfirmando] = useState(false);
+  
+  // REGRAS CORRIGIDAS USANDO SUA ESTRUTURA REAL
   const soPastor = me.oficio === "pastor";
+  const isTesoureiroIgreja = me.funcao === "tesoureiro"; // REGRA: só funcao=tesoureiro fecha caixa / aprova
+  const isTesoureiroJunta = me.funcao_diacono === "tesoureiro_junta"; // Diácono tesoureiro da junta (não fecha caixa)
+  
   const souCriador = l.criado_por === me.id;
   const dentroPrazoErro = l.data_aprovacao ? daysBetween(l.data_aprovacao, today()) <= 30 : true;
 
