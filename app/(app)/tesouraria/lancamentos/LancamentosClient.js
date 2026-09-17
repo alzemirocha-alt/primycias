@@ -12,13 +12,15 @@ import {
   reabrirLancamentoAction, liberarLancamentoAction, excluirLancamentoAction,
   solicitarLiberacaoDataAction, decidirSolicitacaoAction,
 } from "../actions";
+import NovoCultoModal from "../_components/NovoCultoModal";
 
 const TAG_TONE = { rascunho: "neutral", aprovado: "sage", erro_reportado: "rust" };
 
-export default function LancamentosClient({ me, church, lancamentos, solicitacoes }) {
+export default function LancamentosClient({ me, church, lancamentos, solicitacoes, cultos = [] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [msg, setMsg] = useState("");
+  const [cultoSelecionado, setCultoSelecionado] = useState(null);
 
   const run = (fn) => startTransition(async () => {
     try { await fn(); router.refresh(); } catch (e) { setMsg(e.message); }
@@ -45,11 +47,15 @@ export default function LancamentosClient({ me, church, lancamentos, solicitacoe
         </div>
       )}
 
-      <NovoLancamentoForm onCreated={() => router.refresh()} />
+      <div className="flex justify-end mb-3">
+        <NovoCultoModal igrejaId={church.id} onCreated={(c) => { setCultoSelecionado(c.id); router.refresh(); }} />
+      </div>
+
+      <NovoLancamentoForm cultos={cultos} cultoSelecionado={cultoSelecionado} setCultoSelecionado={setCultoSelecionado} onCreated={() => router.refresh()} />
 
       <div className="mt-4 space-y-2">
         {lancamentos.map((l) => (
-          <LancamentoCard key={l.id} l={l} me={me} run={run} isPending={isPending} />
+          <LancamentoCard key={l.id} l={l} me={me} run={run} isPending={isPending} cultos={cultos} />
         ))}
         {lancamentos.length === 0 && <div className="text-sm text-gray-500">Nenhum lançamento ainda.</div>}
       </div>
@@ -57,7 +63,7 @@ export default function LancamentosClient({ me, church, lancamentos, solicitacoe
   );
 }
 
-function NovoLancamentoForm({ onCreated }) {
+function NovoLancamentoForm({ onCreated, cultos, cultoSelecionado, setCultoSelecionado }) {
   const [tipo, setTipo] = useState("entrada");
   const [data, setData] = useState(today());
   const [historico, setHistorico] = useState("");
@@ -75,6 +81,7 @@ function NovoLancamentoForm({ onCreated }) {
   const submit = () => {
     setErro(""); setBloqueadoPorData(false);
     if (!historico || !valor) { setErro("Preencha histórico e valor."); return; }
+    if (tipo === "entrada" && !cultoSelecionado) { setErro("Selecione o culto para esta entrada."); return; }
     if (recorrente && !dataFimRecorrencia) { setErro("Informe a data final da recorrência."); return; }
     if (recorrente && dataFimRecorrencia && dataFimRecorrencia <= data) { setErro("Data final deve ser após a data inicial."); return; }
     startTransition(async () => {
@@ -87,7 +94,8 @@ function NovoLancamentoForm({ onCreated }) {
           categoria, 
           recorrente, 
           frequencia,
-          data_fim_recorrencia: recorrente ? dataFimRecorrencia : null
+          data_fim_recorrencia: recorrente ? dataFimRecorrencia : null,
+          culto_id: tipo === "entrada" ? cultoSelecionado : null
         });
         setHistorico(""); setValor(""); setDataFimRecorrencia("");
         onCreated();
@@ -109,6 +117,18 @@ function NovoLancamentoForm({ onCreated }) {
   return (
     <div className="bg-white border border-line rounded-sm p-4">
       <div className="text-sm font-medium mb-3">Novo lançamento (imediato, futuro ou recorrente)</div>
+      
+      {tipo === "entrada" && (
+        <Field label="Culto (obrigatório para entradas)">
+          <Select value={cultoSelecionado || ""} onChange={(e) => setCultoSelecionado(e.target.value)}>
+            <option value="">Selecione o culto aberto...</option>
+            {cultos.filter(c => c.status !== 'fechado').map((c) => (
+              <option key={c.id} value={c.id}>{fmtDate(c.data)} - {c.periodo}</option>
+            ))}
+          </Select>
+        </Field>
+      )}
+
       <div className="grid sm:grid-cols-2 gap-3 mb-2">
         <Field label="Tipo">
           <Select value={tipo} onChange={(e) => { setTipo(e.target.value); setCategoria(""); }}>
@@ -161,26 +181,25 @@ function NovoLancamentoForm({ onCreated }) {
   );
 }
 
-function LancamentoCard({ l, me, run, isPending }) {
+function LancamentoCard({ l, me, run, isPending, cultos }) {
   const [erroTxt, setErroTxt] = useState("");
   const [confirmando, setConfirmando] = useState(false);
   
-  // REGRAS CORRIGIDAS USANDO SUA ESTRUTURA REAL
   const soPastor = me.oficio === "pastor";
-  const isTesoureiroIgreja = me.funcao === "tesoureiro"; // REGRA: só funcao=tesoureiro fecha caixa / aprova
-  const isTesoureiroJunta = me.funcao_diacono === "tesoureiro_junta"; // Diácono tesoureiro da junta (não fecha caixa)
+  const isTesoureiroIgreja = me.funcao === "tesoureiro";
+  const isTesoureiroJunta = me.funcao_diacono === "tesoureiro_junta";
   
   const souCriador = l.criado_por === me.id;
   const dentroPrazoErro = l.data_aprovacao ? daysBetween(l.data_aprovacao, today()) <= 30 : true;
-
   const podeExcluir = (l.status === "rascunho") || soPastor;
+  const cultoInfo = cultos?.find(c => c.id === l.culto_id);
 
   return (
     <div className="bg-white border border-line rounded-sm p-3">
       <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
         <div className="text-sm">
           <b style={{ color: l.tipo === "entrada" ? "#3F7A52" : "#8C3B3B" }}>{l.tipo === "entrada" ? "Entrada" : "Saída"}</b>
-          {" · "}{fmtDate(l.data)} {l.data > today() && <Tag tone="gold">futuro</Tag>} {l.recorrente && <Tag>recorrente · {FREQUENCIAS[l.frequencia]} até {l.data_fim_recorrencia ? fmtDate(l.data_fim_recorrencia) : '—'}</Tag>}
+          {" · "}{fmtDate(l.data)} {cultoInfo && <Tag>{cultoInfo.periodo}</Tag>} {l.data > today() && <Tag tone="gold">futuro</Tag>} {l.recorrente && <Tag>recorrente · {FREQUENCIAS[l.frequencia]} até {l.data_fim_recorrencia ? fmtDate(l.data_fim_recorrencia) : '—'}</Tag>}
         </div>
         <div className="flex items-center gap-2">
           <Tag tone={TAG_TONE[l.status]}>{LANCAMENTO_STATUS_LABEL[l.status]}</Tag>
