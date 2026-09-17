@@ -17,6 +17,20 @@ function isPastor(u) {
   return u.oficio === "pastor";
 }
 
+// NOVO: regra central do item 1.1
+function isTesoureiroIgreja(u) {
+  return u.funcao === "tesoureiro";
+}
+
+async function requireTesoureiroIgreja() {
+  const { me, church } = await requireTesouraria();
+  if (!isTesoureiroIgreja(me) &&!isPastor(me)) {
+    // Pastor também pode aprovar caso o tesoureiro não esteja, mas o Tesoureiro da Junta NÃO
+    throw new Error("Apenas o Tesoureiro da Igreja pode fazer isso.");
+  }
+  return { me, church };
+}
+
 // -------------------- Lançamentos --------------------
 
 export async function criarLancamentoAction(payload) {
@@ -102,7 +116,7 @@ async function getLancamentoScoped(id, igrejaId) {
 }
 
 export async function aprovarLancamentoAction(id) {
-  const { me } = await requireTesouraria();
+  const { me } = await requireTesoureiroIgreja(); // CORRIGIDO: só Tesoureiro da Igreja
   const l = await getLancamentoScoped(id, me.igreja_id);
   if (!l) throw new Error("Lançamento não encontrado.");
   await supabaseAdmin.from("lancamentos").update({ status: "aprovado", data_aprovacao: today() }).eq("id", id);
@@ -166,7 +180,7 @@ export async function excluirLancamentoAction(id) {
 // -------------------- Saldo inicial --------------------
 
 export async function definirSaldoInicialAction(valor, data) {
-  const { me } = await requireTesouraria();
+  const { me } = await requireTesoureiroIgreja(); // CORRIGIDO: só Tesoureiro da Igreja fecha caixa / define saldo
   const { data: existing } = await supabaseAdmin.from("financas").select("*").eq("igreja_id", me.igreja_id).maybeSingle();
   if (existing?.bloqueado && me.oficio!== "pastor") {
     throw new Error("Saldo inicial já confirmado — solicite liberação do Pastor.");
