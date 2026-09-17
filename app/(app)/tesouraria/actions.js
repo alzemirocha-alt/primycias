@@ -17,7 +17,7 @@ function isPastor(u) {
   return u.oficio === "pastor";
 }
 
-// NOVO: regra central do item 1.1
+// regra central do item 1.1 - VALIDADA com Gilson
 function isTesoureiroIgreja(u) {
   return u.funcao === "tesoureiro";
 }
@@ -25,7 +25,6 @@ function isTesoureiroIgreja(u) {
 async function requireTesoureiroIgreja() {
   const { me, church } = await requireTesouraria();
   if (!isTesoureiroIgreja(me) &&!isPastor(me)) {
-    // Pastor também pode aprovar caso o tesoureiro não esteja, mas o Tesoureiro da Junta NÃO
     throw new Error("Apenas o Tesoureiro da Igreja pode fazer isso.");
   }
   return { me, church };
@@ -85,12 +84,12 @@ export async function criarLancamentoAction(payload) {
 
 async function hasLiberacaoData(igrejaId, data) {
   const { data: reqs } = await supabaseAdmin
-   .from("approval_requests")
-   .select("id")
-   .eq("igreja_id", igrejaId)
-   .eq("tipo", "liberacao_data_lancamento")
-   .eq("status", "liberado")
-   .contains("dados", { data });
+  .from("approval_requests")
+  .select("id")
+  .eq("igreja_id", igrejaId)
+  .eq("tipo", "liberacao_data_lancamento")
+  .eq("status", "liberado")
+  .contains("dados", { data });
   return (reqs || []).length > 0;
 }
 
@@ -116,7 +115,7 @@ async function getLancamentoScoped(id, igrejaId) {
 }
 
 export async function aprovarLancamentoAction(id) {
-  const { me } = await requireTesoureiroIgreja(); // CORRIGIDO: só Tesoureiro da Igreja
+  const { me } = await requireTesoureiroIgreja();
   const l = await getLancamentoScoped(id, me.igreja_id);
   if (!l) throw new Error("Lançamento não encontrado.");
   await supabaseAdmin.from("lancamentos").update({ status: "aprovado", data_aprovacao: today() }).eq("id", id);
@@ -180,7 +179,7 @@ export async function excluirLancamentoAction(id) {
 // -------------------- Saldo inicial --------------------
 
 export async function definirSaldoInicialAction(valor, data) {
-  const { me } = await requireTesoureiroIgreja(); // CORRIGIDO: só Tesoureiro da Igreja fecha caixa / define saldo
+  const { me } = await requireTesoureiroIgreja();
   const { data: existing } = await supabaseAdmin.from("financas").select("*").eq("igreja_id", me.igreja_id).maybeSingle();
   if (existing?.bloqueado && me.oficio!== "pastor") {
     throw new Error("Saldo inicial já confirmado — solicite liberação do Pastor.");
@@ -203,7 +202,7 @@ export async function solicitarLiberacaoSaldoAction() {
   revalidatePath("/tesouraria/fluxo");
 }
 
-// -------------------- Decisões do Pastor sobre solicitações --------------------
+// -------------------- Decisões do Pastor --------------------
 
 export async function decidirSolicitacaoAction(requestId, liberar) {
   const me = await getSessionUser();
@@ -211,17 +210,17 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
     throw new Error("Apenas Pastor.");
   }
   const { data: reqRow } = await supabaseAdmin
-   .from("approval_requests")
-   .select("*")
-   .eq("id", requestId)
-   .eq("igreja_id", me.igreja_id)
-   .maybeSingle();
+  .from("approval_requests")
+  .select("*")
+  .eq("id", requestId)
+  .eq("igreja_id", me.igreja_id)
+  .maybeSingle();
   if (!reqRow) return;
 
   await supabaseAdmin
-   .from("approval_requests")
-   .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
-   .eq("id", requestId);
+  .from("approval_requests")
+  .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
+  .eq("id", requestId);
 
   if (liberar && reqRow.tipo === "liberacao_saldo_inicial") {
     const { data: fin } = await supabaseAdmin.from("financas").select("id").eq("igreja_id", me.igreja_id).maybeSingle();
@@ -232,19 +231,20 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
   revalidatePath("/usuarios");
 }
 
-// -------------------- Recibo de Dízimos e Ofertas --------------------
+// -------------------- Recibo de Dízimos e Ofertas - ATUALIZADO COM culto_id --------------------
 
 export async function buscarDizimistaOfertanteAction(nomeBusca) {
   const { me } = await requireTesouraria();
   if (!nomeBusca || nomeBusca.trim().length < 2) return [];
 
+  // Agora busca com JOIN em cultos para pegar a data real do culto
   const { data, error } = await supabaseAdmin
-   .from("records")
-   .select("membro_nome, data_culto, valor")
-   .eq("igreja_id", me.igreja_id)
-   .eq("status", "validado")
-   .ilike("membro_nome", `%${nomeBusca.trim()}%`)
-   .limit(300);
+  .from("records")
+  .select("membro_nome, valor, cultos!inner(data, periodo)")
+  .eq("igreja_id", me.igreja_id)
+  .eq("status", "validado")
+  .ilike("membro_nome", `%${nomeBusca.trim()}%`)
+  .limit(300);
 
   if (error) throw new Error("Erro ao buscar: " + error.message);
   if (!data || data.length === 0) return [];
@@ -255,13 +255,14 @@ export async function buscarDizimistaOfertanteAction(nomeBusca) {
     const nomeLimpo = r.membro_nome.trim();
     if (!nomeLimpo) return;
     const key = nomeLimpo.toLowerCase();
+    const dataCulto = r.cultos?.data || null;
     if (!mapa.has(key)) {
-      mapa.set(key, { nome: nomeLimpo, total_contribuicoes: 0, ultimo_culto: r.data_culto });
+      mapa.set(key, { nome: nomeLimpo, total_contribuicoes: 0, ultimo_culto: dataCulto });
     }
     const e = mapa.get(key);
     e.total_contribuicoes++;
-    if (r.data_culto && (!e.ultimo_culto || r.data_culto > e.ultimo_culto)) {
-      e.ultimo_culto = r.data_culto;
+    if (dataCulto && (!e.ultimo_culto || dataCulto > e.ultimo_culto)) {
+      e.ultimo_culto = dataCulto;
     }
   });
 
@@ -277,20 +278,21 @@ export async function obterContribuicoesMesAction(nomeSelecionado, mesAno) {
   const inicio = new Date(ano, mes - 1, 1).toISOString().slice(0, 10);
   const fim = new Date(ano, mes, 0).toISOString().slice(0, 10);
 
+  // Filtra por data do CULTO, não mais por data_culto solta
   const { data, error } = await supabaseAdmin
-   .from("records")
-   .select("membro_nome, tipo, valor, data_culto")
-   .eq("igreja_id", me.igreja_id)
-   .eq("status", "validado")
-   .ilike("membro_nome", `%${nomeSelecionado.trim()}%`)
-   .gte("data_culto", inicio)
-   .lte("data_culto", fim)
-   .order("data_culto", { ascending: true });
+  .from("records")
+  .select("membro_nome, tipo, valor, cultos!inner(data)")
+  .eq("igreja_id", me.igreja_id)
+  .eq("status", "validado")
+  .ilike("membro_nome", `%${nomeSelecionado.trim()}%`)
+  .gte("cultos.data", inicio)
+  .lte("cultos.data", fim)
+  .order("cultos(data)", { ascending: true });
 
   if (error) throw new Error("Erro ao carregar: " + error.message);
 
   const contribuicoes = (data || []).map(r => ({
-    data: r.data_culto,
+    data: r.cultos?.data,
     tipo: r.tipo,
     valor: Number(r.valor),
   }));
