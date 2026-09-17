@@ -11,7 +11,7 @@ export default async function NovoPage() {
       return <div className="p-6">Sessão expirada. Faça login novamente.</div>
     }
 
-    // PEGA IGREJA DO LOGADO - tolerante
+    // PEGA IGREJA DO LOGADO - preservado
     let igrejaId = eu?.igreja_id
     let euCompleto = null
     try {
@@ -28,7 +28,7 @@ export default async function NovoPage() {
 
     if(!igrejaId) return <div className="p-6">Usuário sem igreja_id vinculada.</div>
 
-    // USERS - tolerante com ou sem funcao_presbitero
+    // USERS - preservado
     let users = []
     try {
       const { data } = await supabaseAdmin.from('users').select('id,nome,oficio,funcao,funcao_presbitero,igreja_id').eq('igreja_id', igrejaId).limit(100)
@@ -40,7 +40,7 @@ export default async function NovoPage() {
       } catch { users = [] }
     }
 
-    // REGRA OFICIAL LIMPA - SÓ PASTOR LIBERA (aqui só filtra diáconos)
+    // REGRA OFICIAL LIMPA - preservado igual seu original
     const diaconosValidos = (users || []).filter(u => {
       const oficio = (u.oficio || '').toLowerCase().trim()
       const funcao = (u.funcao || '').toLowerCase().trim()
@@ -54,7 +54,7 @@ export default async function NovoPage() {
 
     const diaconosParaEscolher = diaconosValidos.filter(d => d.id!== eu.id)
 
-    // BUSCA CULTOS ABERTOS - NÃO QUEBRA SE TABELA VAZIA
+    // BUSCA CULTOS ABERTOS - preservado
     let cultosAbertos = []
     try {
       const { data, error } = await supabaseAdmin.from('cultos').select('id, data, periodo, status').eq('igreja_id', igrejaId).eq('status', 'aberto').order('data', { ascending: true }).order('periodo', { ascending: true })
@@ -70,7 +70,7 @@ export default async function NovoPage() {
       ultimo = res.data?.[0] || null
     } catch {}
 
-    // LIBERAÇÕES - tolerante
+    // LIBERAÇÕES - preservado
     let idsLiberados = []
     try {
       const { data: liberados, error } = await supabaseAdmin.from('liberacoes_diaconos').select('diacono_id').eq('igreja_id', igrejaId)
