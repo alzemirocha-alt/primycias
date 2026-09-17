@@ -1,7 +1,6 @@
 "use client"
 import { useState } from "react"
-import { criarRegistros, liberarDiacono, bloquearDiacono } from "../actions"
-import { supabaseAdmin } from "@/lib/supabaseAdmin" // se não tiver, usa action
+import { criarRegistros, liberarDiacono, bloquearDiacono, abrirCultoAction } from "../actions"
 
 export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloqueadosIds = [], datasBloqueadas = [], liberadosIds = [], cultosAbertos = [] }) {
   const [cultoId, setCultoId] = useState('')
@@ -30,7 +29,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
   const getNome = (id) => safeTodos.find(d=>d.id===id)?.nome || 'Diácono'
   const getCultoLabel = (c) => {
     const d = c.data? new Date(c.data + 'T12:00:00').toLocaleDateString('pt-BR') : ''
-    return `${d} - ${c.periodo === 'manha'? 'Manhã' : c.periodo === 'noite'? 'Noite' : c.periodo} - ${c.status}`
+    return `${d} - ${c.periodo === 'manha'? 'Manhã' : c.periodo === 'noite'? 'Noite' : c.periodo}`
   }
 
   const totalDizimo = itens.filter(i=>i.tipo==='dizimo').reduce((s,i)=>s+(Number(i.valor)||0),0)
@@ -46,13 +45,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
       fd.set('data', dataNova)
       fd.set('periodo', periodoNovo)
       fd.set('igreja_id', safeEu.igreja_id)
-      const res = await fetch('/api/cultos/abrir', { method: 'POST', body: fd })
-      // Fallback se não tiver API, usa action direta
-      if(!res.ok){
-        // tenta via action importada
-        const { abrirCultoAction } = await import('../actions')
-        await abrirCultoAction(fd)
-      }
+      await abrirCultoAction(fd)
       window.location.reload()
     } catch(e){ showMsg(e.message); setAbrindo(false) }
   }
@@ -109,7 +102,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
                 <option value="manha">Manhã</option>
                 <option value="noite">Noite</option>
               </select>
-              <button type="button" disabled={abrindo} onClick={abrirCulto} className="bg-[#1E5631] text-white px-4 rounded font-bold disabled:opacity-50">{abrindo?'Abrindo...':'Abrir Culto'}</button>
+              <button type="button" disabled={abrindo} onClick={abrirCulto} className="bg-[#1E5631] text-white px-4 rounded font-bold">{abrindo?'Abrindo...':'Abrir Culto'}</button>
             </div>
           </div>
         )}
