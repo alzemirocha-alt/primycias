@@ -1,35 +1,53 @@
 "use client";
 import { useState, useEffect } from "react";
 
-export default function BoasVindas({ nome }) {
-  const [visivel, setVisivel] = useState(false);
+export default function BoasVindas({ nome, cargo }) {
+  const [visivel, setVisivel] = useState(true);
+  const primeiroNome = nome? nome.split(" ")[0] : "";
 
   useEffect(() => {
-    const jaViuHoje = sessionStorage.getItem("boas_vindas_hoje");
-    const hoje = new Date().toDateString();
-    if (jaViuHoje!== hoje) {
-      setVisivel(true);
-      // some quando clicar em qualquer lugar
-      const fechar = () => {
-        setVisivel(false);
-        sessionStorage.setItem("boas_vindas_hoje", hoje);
-        document.removeEventListener("click", fechar);
-      };
-      setTimeout(() => document.addEventListener("click", fechar), 1000);
-    }
+    // some quando clicar em qualquer lugar - sempre que logar
+    const fechar = () => {
+      setVisivel(false);
+      document.removeEventListener("click", fechar);
+    };
+    // delay pra não fechar no clique que fez login
+    const t = setTimeout(() => document.addEventListener("click", fechar), 800);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("click", fechar);
+    };
   }, []);
 
   if (!visivel) return null;
 
   return (
-    <div className="bg-green-50 border-l-4 border-green-700 p-4 mb-4 rounded-r-lg animate-fade-in">
-      <p className="text-sm font-semibold text-green-900">Bem-vindo(a), {nome}! 🙏</p>
-      <p className="text-[13px] text-gray-700 mt-1 italic">
-        "Tudo quanto fizerdes, fazei-o de todo o coração, como para o Senhor e não para homens,
-        cientes de que recebereis do Senhor a recompensa da herança. A Cristo, o Senhor, é que estais servindo..."
-      </p>
-      <p className="text-xs font-bold text-green-800 mt-1">Colossenses 3:23-24</p>
-      <p className="text-[11px] text-gray-500 mt-2">Clique em qualquer lugar para continuar</p>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-sm shadow-2xl border border-line max-w-md w-full p-6 text-center"
+      >
+        <div className="text-3xl mb-2">🙏</div>
+        <p className="text-lg font-serif font-bold text-ink">
+          Bem vindo ao Primycias, {cargo} {primeiroNome}!
+        </p>
+
+        <div className="mt-4 pt-4 border-t border-line">
+          <p className="text-[13px] text-gray-700 italic leading-relaxed">
+            "Tudo quanto fizerdes, fazei-o de todo o coração, como para o Senhor e não para homens,
+            cientes de que recebereis do Senhor a recompensa da herança. A Cristo, o Senhor, é que estais servindo..."
+          </p>
+          <p className="text-xs font-bold text-green-800 mt-2">Colossenses 3:23-24</p>
+        </div>
+
+        <button
+          onClick={() => setVisivel(false)}
+          className="mt-5 px-6 py-2 bg-[#1E5631] text-white text-sm rounded-sm"
+        >
+          Continuar
+        </button>
+        <p className="text-[10px] text-gray-400 mt-2">clique em qualquer lugar para fechar</p>
+      </div>
     </div>
   );
 }
