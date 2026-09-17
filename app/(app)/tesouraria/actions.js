@@ -34,7 +34,19 @@ async function requireTesoureiroIgreja() {
 
 export async function criarLancamentoAction(payload) {
   const { me } = await requireTesouraria();
-  const { tipo, data, historico, valor, categoria, recorrente, frequencia, data_fim_recorrencia } = payload;
+  const { tipo, data, historico, valor, categoria, recorrente, frequencia, data_fim_recorrencia, culto_id } = payload;
+
+  // TRAVA NOVA: entrada precisa de culto
+  if (tipo === 'entrada' &&!culto_id) {
+    throw new Error("Entrada precisa estar vinculada a um culto aberto. Abra o culto primeiro.");
+  }
+
+  // Valida se culto pertence à igreja e está aberto
+  if (culto_id) {
+    const { data: culto } = await supabaseAdmin.from("cultos").select("id,status,igreja_id").eq("id", culto_id).maybeSingle();
+    if (!culto || culto.igreja_id!== me.igreja_id) throw new Error("Culto inválido.");
+    if (culto.status === 'fechado') throw new Error("Este culto já foi fechado. Abra um novo.");
+  }
 
   if (data < today()) {
     const dentro90 = daysBetween(data, today()) <= 90;
@@ -74,22 +86,23 @@ export async function criarLancamentoAction(payload) {
     recorrente:!!recorrente, frequencia: recorrente? frequencia : null,
     data_fim_recorrencia: recorrente? data_fim_recorrencia : null,
     serie_id: serieId,
+    culto_id: culto_id || null,
     status: "rascunho", criado_por: me.id, criado_por_nome: me.nome,
   }));
 
   const { error } = await supabaseAdmin.from("lancamentos").insert(rows);
-  if (error) throw new Error("Não foi possível criar o lançamento.");
+  if (error) throw new Error("Não foi possível criar o lançamento: " + error.message);
   revalidatePath("/tesouraria/lancamentos");
 }
 
 async function hasLiberacaoData(igrejaId, data) {
   const { data: reqs } = await supabaseAdmin
-  .from("approval_requests")
-  .select("id")
-  .eq("igreja_id", igrejaId)
-  .eq("tipo", "liberacao_data_lancamento")
-  .eq("status", "liberado")
-  .contains("dados", { data });
+ .from("approval_requests")
+ .select("id")
+ .eq("igreja_id", igrejaId)
+ .eq("tipo", "liberacao_data_lancamento")
+ .eq("status", "liberado")
+ .contains("dados", { data });
   return (reqs || []).length > 0;
 }
 
@@ -210,17 +223,17 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
     throw new Error("Apenas Pastor.");
   }
   const { data: reqRow } = await supabaseAdmin
-  .from("approval_requests")
-  .select("*")
-  .eq("id", requestId)
-  .eq("igreja_id", me.igreja_id)
-  .maybeSingle();
+ .from("approval_requests")
+ .select("*")
+ .eq("id", requestId)
+ .eq("igreja_id", me.igreja_id)
+ .maybeSingle();
   if (!reqRow) return;
 
   await supabaseAdmin
-  .from("approval_requests")
-  .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
-  .eq("id", requestId);
+ .from("approval_requests")
+ .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
+ .eq("id", requestId);
 
   if (liberar && reqRow.tipo === "liberacao_saldo_inicial") {
     const { data: fin } = await supabaseAdmin.from("financas").select("id").eq("igreja_id", me.igreja_id).maybeSingle();
@@ -237,14 +250,13 @@ export async function buscarDizimistaOfertanteAction(nomeBusca) {
   const { me } = await requireTesouraria();
   if (!nomeBusca || nomeBusca.trim().length < 2) return [];
 
-  // Agora busca com JOIN em cultos para pegar a data real do culto
   const { data, error } = await supabaseAdmin
-  .from("records")
-  .select("membro_nome, valor, cultos!inner(data, periodo)")
-  .eq("igreja_id", me.igreja_id)
-  .eq("status", "validado")
-  .ilike("membro_nome", `%${nomeBusca.trim()}%`)
-  .limit(300);
+ .from("records")
+ .select("membro_nome, valor, cultos!inner(data, periodo)")
+ .eq("igreja_id", me.igreja_id)
+ .eq("status", "validado")
+ .ilike("membro_nome", `%${nomeBusca.trim()}%`)
+ .limit(300);
 
   if (error) throw new Error("Erro ao buscar: " + error.message);
   if (!data || data.length === 0) return [];
@@ -278,16 +290,15 @@ export async function obterContribuicoesMesAction(nomeSelecionado, mesAno) {
   const inicio = new Date(ano, mes - 1, 1).toISOString().slice(0, 10);
   const fim = new Date(ano, mes, 0).toISOString().slice(0, 10);
 
-  // Filtra por data do CULTO, não mais por data_culto solta
   const { data, error } = await supabaseAdmin
-  .from("records")
-  .select("membro_nome, tipo, valor, cultos!inner(data)")
-  .eq("igreja_id", me.igreja_id)
-  .eq("status", "validado")
-  .ilike("membro_nome", `%${nomeSelecionado.trim()}%`)
-  .gte("cultos.data", inicio)
-  .lte("cultos.data", fim)
-  .order("cultos(data)", { ascending: true });
+ .from("records")
+ .select("membro_nome, tipo, valor, cultos!inner(data)")
+ .eq("igreja_id", me.igreja_id)
+ .eq("status", "validado")
+ .ilike("membro_nome", `%${nomeSelecionado.trim()}%`)
+ .gte("cultos.data", inicio)
+ .lte("cultos.data", fim)
+ .order("cultos(data)", { ascending: true });
 
   if (error) throw new Error("Erro ao carregar: " + error.message);
 
