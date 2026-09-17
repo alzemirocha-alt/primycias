@@ -3,7 +3,29 @@ import { destroySession } from "@/lib/auth";
 
 export async function POST(request) {
   await destroySession();
-  return NextResponse.redirect(new URL("/login", request.url));
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head><meta http-equiv="refresh" content="0; url=/login" /></head>
+      <body>
+        <script>
+          try {
+            Object.keys(sessionStorage).forEach(function(k){
+              if(k.startsWith('boas_vindas_')) sessionStorage.removeItem(k);
+            });
+            sessionStorage.removeItem('sessao_ativa_primycias');
+            sessionStorage.removeItem('boas_vindas_usuario');
+            sessionStorage.removeItem('boas_vindas_mostrada');
+          } catch(e) {}
+          window.location.replace('/login');
+        </script>
+        Saindo...
+      </body>
+    </html>
+  `;
+  return new Response(html, {
+    headers: { "Content-Type": "text/html" },
+  });
 }
 
 export async function GET(request) {
@@ -24,7 +46,7 @@ export async function GET(request) {
             sessionStorage.removeItem('boas_vindas_usuario');
             sessionStorage.removeItem('boas_vindas_mostrada');
           } catch(e) {}
-          window.location.href = '/login';
+          window.location.replace('/login');
         </script>
         Saindo...
       </body>
