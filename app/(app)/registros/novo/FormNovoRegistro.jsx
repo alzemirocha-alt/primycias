@@ -20,11 +20,9 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
   const safeCultos = Array.isArray(cultosAbertos)? cultosAbertos : []
 
   const oficio = (safeEu.oficio || '').toLowerCase().trim()
-  const funcaoPresb = (safeEu.funcao_presbitero || '').toLowerCase().trim()
+  // SÓ PASTOR LIBERA - REMOVIDO PRESBÍTERO E ADMIN
   const isPastor = oficio === 'pastor'
-  const isPresbitero = oficio === 'presbitero' || oficio === 'presbítero' || funcaoPresb!== ''
-  const isAdmin = safeEu?.is_admin
-  const podeLiberar = isPastor || isPresbitero || isAdmin
+  const podeLiberar = isPastor
 
   const getNome = (id) => safeTodos.find(d=>d.id===id)?.nome || 'Diácono'
   const getCultoLabel = (c) => {
@@ -55,7 +53,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
   if(podeLiberar){
     return (
       <div className="p-6 max-w-2xl mx-auto">
-        <h1 className="font-bold text-lg mb-4">Liberar Diáconos</h1>
+        <h1 className="font-bold text-lg mb-4">Liberar Diáconos - Pastor</h1>
         {safeBloqueados.map(id=>(
           <div key={id} className="flex justify-between items-center border p-3 rounded mb-2 bg-white">
             <span>{getNome(id)} - bloqueado</span>
@@ -68,7 +66,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
             <button disabled={carregando===id} onClick={async()=>{ setCarregando(id); try{ await bloquearDiacono(id); window.location.reload() }catch(e){ alert(e.message); setCarregando(null) } }} className="bg-gray-500 text-white px-3 py-1 rounded">Bloquear</button>
           </div>
         ))}
-        {safeBloqueados.length===0 && safeLiberados.length===0 && <p className="bg-green-100 p-3 rounded">Nenhum bloqueado.</p>}
+        {safeBloqueados.length===0 && safeLiberados.length===0 && <p className="bg-green-100 p-3 rounded">Nenhum bloqueado no momento.</p>}
       </div>
     )
   }
