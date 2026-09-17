@@ -71,7 +71,7 @@ export default async function DashboardPage() {
   let resumoFinanceiro = null;
   if (podeVerFinanceiro) {
     const [{ data: recordsRaw }, { data: lancamentosRaw }, { data: financas }] = await Promise.all([
-      supabaseAdmin.from("records").select("id, valor, data_culto, status, tipo, igreja_id, record_items(valor)").eq("igreja_id", igrejaId),
+      supabaseAdmin.from("records").select("id, valor, culto_id, status, tipo, igreja_id, cultos!inner(data), record_items(valor)")
       supabaseAdmin.from("lancamentos").select("*").eq("igreja_id", igrejaId),
       supabaseAdmin.from("financas").select("*").eq("igreja_id", igrejaId).maybeSingle(),
     ]);
