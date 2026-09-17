@@ -6,28 +6,40 @@ export default function BoasVindas({ nome, cargo }) {
   const primeiroNome = nome? nome.split(" ")[0] : "";
 
   useEffect(() => {
-    // só mostra se ainda NÃO mostrou nessa sessão de login
-    const jaMostrou = sessionStorage.getItem("boas_vindas_mostrada");
+    if (!nome) return;
+    const chaveUsuario = `boas_vindas_usuario`;
+    const chaveMostrou = `boas_vindas_mostrada_${nome}`;
+
+    const ultimoUsuario = sessionStorage.getItem(chaveUsuario);
+    const jaMostrou = sessionStorage.getItem(chaveMostrou);
+
+    // Se trocou de usuário na mesma aba (Alzemir -> Jairo), limpa e mostra de novo
+    if (ultimoUsuario && ultimoUsuario!== nome) {
+      sessionStorage.removeItem(`boas_vindas_mostrada_${ultimoUsuario}`);
+    }
+
     if (!jaMostrou) {
       setVisivel(true);
+      sessionStorage.setItem(chaveUsuario, nome);
     }
 
     const fechar = () => {
       setVisivel(false);
-      sessionStorage.setItem("boas_vindas_mostrada", "1");
+      sessionStorage.setItem(chaveMostrou, "1");
       document.removeEventListener("click", fechar);
     };
 
-    // delay pra não fechar no clique que fez login
     const t = setTimeout(() => {
-      if (!jaMostrou) document.addEventListener("click", fechar);
+      if (!sessionStorage.getItem(chaveMostrou)) {
+        document.addEventListener("click", fechar);
+      }
     }, 800);
 
     return () => {
       clearTimeout(t);
       document.removeEventListener("click", fechar);
     };
-  }, []);
+  }, [nome]);
 
   if (!visivel) return null;
 
@@ -53,7 +65,7 @@ export default function BoasVindas({ nome, cargo }) {
         <button
           onClick={() => {
             setVisivel(false);
-            sessionStorage.setItem("boas_vindas_mostrada", "1");
+            sessionStorage.setItem(`boas_vindas_mostrada_${nome}`, "1");
           }}
           className="mt-5 px-6 py-2 bg-[#1E5631] text-white text-sm rounded-sm"
         >
