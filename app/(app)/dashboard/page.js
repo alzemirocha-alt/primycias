@@ -57,6 +57,17 @@ export default async function DashboardPage() {
 
   const podeVerFinanceiro = isPresbitero || isPastor || isTesoureiro;
 
+  // AJUSTE: só ofício/cargo, sem função
+  const cargoSimples = (() => {
+    const o = (user.oficio || '').trim();
+    if (!o) return '';
+    const lower = o.toLowerCase();
+    if (lower === 'presbitero' || lower === 'presbítero') return 'Presbítero';
+    if (lower === 'pastor') return 'Pastor';
+    if (lower === 'diacono' || lower === 'diácono') return 'Diácono';
+    return o.charAt(0).toUpperCase() + o.slice(1);
+  })();
+
   let resumoFinanceiro = null;
   if (podeVerFinanceiro) {
     const [{ data: recordsRaw }, { data: lancamentosRaw }, { data: financas }] = await Promise.all([
@@ -115,7 +126,7 @@ export default async function DashboardPage() {
       <h2 className="text-xl font-serif text-ink mb-1">Início</h2>
       <p className="text-xs text-gray-500 mb-4">{officeLabel(user)} · {church.nome}</p>
 
-      <BoasVindas nome={user.nome} cargo={officeLabel(user)} />
+      <BoasVindas nome={user.nome} cargo={cargoSimples} />
       <BirthdayBanners me={user} users={users || []} />
 
       {/* 1. TOPO: COMUNICAÇÕES PUBLICADAS - AGORA COM EDITAR/EXCLUIR PARA PASTOR E SECRETÁRIO */}
