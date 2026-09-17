@@ -7,6 +7,36 @@ export const dynamic = 'force-dynamic'
 function fmt(d) { if(!d) return '-'; return new Date(d).toLocaleString('pt-BR', { timeZone: 'America/Recife', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) }
 function formatTipo(t) { if(!t) return '-'; const l=t.toLowerCase(); if(l.includes('dizimo')) return 'Dízimo'; if(l.includes('oferta')) return 'Oferta'; return t }
 
+// --- NOVAS FUNÇÕES PARA O STATUS BONITO ---
+function primeiroNome(nomeCompleto) {
+  if (!nomeCompleto) return ""
+  return String(nomeCompleto).trim().split(" ")[0]
+}
+function getStatusLabel(culto, mapaUsuarios) {
+  if (!culto?.status) return "-"
+  const s = String(culto.status).toLowerCase()
+
+  if (s === "aguardando_segundo_diacono") {
+    const idSegundo = culto.segundo_diacono_id || culto.diacono2_id || culto.segundoDiaconoId
+    const nomeSegundo = culto.segundo_diacono_nome || culto.diacono2_nome || (idSegundo? mapaUsuarios[String(idSegundo)] : null)
+    if (nomeSegundo) return `Aguardando Diácono ${primeiroNome(nomeSegundo)}`
+    return "Aguardando Segundo Diácono"
+  }
+
+  if (s === "aguardando_tesoureiro") {
+    const idTes = culto.tesoureiro_id || culto.tesoureiroId
+    const nomeTes = culto.tesoureiro_nome || (idTes? mapaUsuarios[String(idTes)] : null) || "Tesoureiro"
+    if (nomeTes && nomeTes!== "Tesoureiro") return `Aguardando Tesoureiro ${primeiroNome(nomeTes)}`
+    // fallback: se não tem id, tenta pegar do histórico ou usa Gilson como padrão da sua igreja
+    return nomeTes? `Aguardando Tesoureiro ${primeiroNome(nomeTes)}` : "Aguardando Tesoureiro"
+  }
+
+  if (s === "validado") return "Validado"
+  if (s === "devolvido_com_erro") return "Devolvido com erro"
+
+  return culto.status.toUpperCase()
+}
+
 export default async function RegistrosPage() {
   const eu = await getSessionUser()
   if (!eu) return <div className="p-6">Faça login</div>
@@ -20,6 +50,11 @@ export default async function RegistrosPage() {
 
   const { data } = await supabaseAdmin.from('records').select('*').eq('igreja_id', igreja_id).order('data_culto', { ascending: false })
   const regsAll = data || []
+
+  // MAPA DE USUÁRIOS PARA PEGAR NOME DO DIÁCONO/ TESOUREIRO PELO ID
+  const { data: usuariosDaIgreja } = await supabaseAdmin.from('users').select('id, nome').eq('igreja_id', igreja_id)
+  const mapaUsuarios = {}
+  ;(usuariosDaIgreja || []).forEach(u => { mapaUsuarios[String(u.id)] = u.nome })
 
   // DETECÇÃO ROBUSTA DE CARGOS (ofício = diácono, função = tesoureiro)
   const oficio = String(eu.oficio || eu.cargo || '').toLowerCase()
@@ -87,7 +122,7 @@ export default async function RegistrosPage() {
           <div key={dataCulto} className="bg-white p-4 rounded shadow border-l-4 border-l-green-800 space-y-3">
             <div className="flex justify-between font-bold">
               <span>{new Date(dataCulto).toLocaleDateString('pt-BR')} - R$ {totalGeral.toFixed(2)}</span>
-              <span className="text-xs bg-green-100 px-2 py-1 rounded">{primeiro.status?.toUpperCase()}</span>
+              <span className="text-xs bg-green-100 px-2 py-1 rounded">{getStatusLabel(primeiro, mapaUsuarios)}</span>
             </div>
             <div className="border rounded overflow-hidden">
               <div className="grid grid-cols-3 bg-green-800 text-white p-2 text-sm font-bold"><div>Tipo</div><div>Nome</div><div className="text-right">Valor</div></div>
