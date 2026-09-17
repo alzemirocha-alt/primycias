@@ -43,21 +43,19 @@ export default async function DashboardPage() {
     supabaseAdmin.from("events").select("*").eq("igreja_id", igrejaId).eq("data", hoje).or(`visibilidade.eq.todos,visibilidade.eq.conselho,criado_por.eq.${user.id}`).order("hora", { ascending: true }),
   ]);
 
-  const oficio = (user.oficio || '').toLowerCase()
-  const funcao = (user.funcao || '').toLowerCase()
-  const funcaoPresb = (user.funcao_presbitero || '').toLowerCase()
-  const nome = (user.nome || '').toLowerCase()
-  const isPresbitero = oficio === 'presbitero' || funcaoPresb!== '' || nome.includes('alzemir') || nome.includes('jairo magero') || nome.includes('nilo da silva')
-  const isPastor = oficio === 'pastor' || nome.includes('glaucio')
+  const oficio = (user.oficio || '').toLowerCase().trim()
+  const funcao = (user.funcao || '').toLowerCase().trim()
+  const funcaoPresb = (user.funcao_presbitero || '').toLowerCase().trim()
+
+  // REGRA OFICIAL LIMPA - SEM NOME
+  const isPresbitero = oficio === 'presbitero' || oficio === 'presbítero' || funcaoPresb!== ''
+  const isPastor = oficio === 'pastor'
   const isTesoureiro = isTreasurer(user, church) || funcao === 'tesoureiro'
   const isSecretarioConselho = funcaoPresb === 'secretario_conselho'
 
-  // PERMISSÃO NOVA: Pastor e Secretário do Conselho podem gerenciar comunicações
   const podeGerenciarComunicacao = isAdmin(user) || isPastor || isSecretarioConselho;
-
   const podeVerFinanceiro = isPresbitero || isPastor || isTesoureiro;
 
-  // AJUSTE: só ofício/cargo, sem função
   const cargoSimples = (() => {
     const o = (user.oficio || '').trim();
     if (!o) return '';
@@ -71,12 +69,13 @@ export default async function DashboardPage() {
   let resumoFinanceiro = null;
   if (podeVerFinanceiro) {
     const [{ data: recordsRaw }, { data: lancamentosRaw }, { data: financas }] = await Promise.all([
-      supabaseAdmin.from("records").select("id, valor, culto_id, status, tipo, igreja_id, cultos!inner(data), record_items(valor)")
+      supabaseAdmin.from("records").select("id, valor, culto_id, status, tipo, igreja_id, cultos(data), record_items(valor)").eq("igreja_id", igrejaId),
       supabaseAdmin.from("lancamentos").select("*").eq("igreja_id", igrejaId),
       supabaseAdmin.from("financas").select("*").eq("igreja_id", igrejaId).maybeSingle(),
     ]);
 
     const getValor = (r) => Number(r.valor||0) || (r.record_items||[]).reduce((s,i)=>s+Number(i.valor||0),0)
+    const getDataCulto = (r) => r.cultos?.data || r.data_culto || ""
 
     const records = (recordsRaw||[]).filter(r=>{
       const s = String(r.status||'').toLowerCase().trim()
@@ -92,7 +91,11 @@ export default async function DashboardPage() {
     const mesAtual = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' }).slice(0, 7);
     const inicioMes = mesAtual + '-01'
 
-    const entradasDizimosOfertasMes = records.filter(r=> String(r.data_culto||'') < inicioMes? false : String(r.data_culto||'') >= inicioMes).reduce((s,r)=> s + getValor(r), 0)
+    const entradasDizimosOfertasMes = records.filter(r=> {
+      const d = String(getDataCulto(r)||'')
+      return d >= inicioMes
+    }).reduce((s,r)=> s + getValor(r), 0)
+
     const entradasTesourariaMes = lancamentos.filter(l=>{
       const d = String(l.data||l.data_lancamento||'')
       const tipo = String(l.tipo||'').toLowerCase()
@@ -106,7 +109,10 @@ export default async function DashboardPage() {
     }).reduce((s,l)=> s + Number(l.valor||0), 0)
 
     const entradasMes = entradasDizimosOfertasMes + entradasTesourariaMes
-    const entradasAnteriores = records.filter(r=> String(r.data_culto||'') < inicioMes).reduce((s,r)=>s+getValor(r),0)
+    const entradasAnteriores = records.filter(r=> {
+      const d = String(getDataCulto(r)||'')
+      return d!== '' && d < inicioMes
+    }).reduce((s,r)=>s+getValor(r),0)
     const entradasTesAnteriores = lancamentos.filter(l=> String(l.data||l.data_lancamento||'') < inicioMes && String(l.tipo||'').toLowerCase().includes('entrada')).reduce((s,l)=>s+Number(l.valor||0),0)
     const saidasAnteriores = lancamentos.filter(l=> String(l.data||l.data_lancamento||'') < inicioMes && String(l.tipo||'').toLowerCase().includes('saida')).reduce((s,l)=>s+Number(l.valor||0),0)
 
@@ -114,7 +120,7 @@ export default async function DashboardPage() {
     const saldoMesAnterior = saldoInicial + entradasAnteriores + entradasTesAnteriores - saidasAnteriores
 
     try {
-      const { data: allRecords } = await supabaseAdmin.from("records").select("*, record_items(*)").eq("igreja_id", igrejaId)
+      const { data: allRecords } = await supabaseAdmin.from("records").select("*, record_items(*), cultos(data)").eq("igreja_id", igrejaId)
       const ledger = computeLedgerRealizado(allRecords, lancamentosRaw, financas);
     } catch {}
 
@@ -129,7 +135,6 @@ export default async function DashboardPage() {
       <BoasVindas nome={user.nome} cargo={cargoSimples} />
       <BirthdayBanners me={user} users={users || []} />
 
-      {/* 1. TOPO: COMUNICAÇÕES PUBLICADAS - AGORA COM EDITAR/EXCLUIR PARA PASTOR E SECRETÁRIO */}
       {avisos && avisos.length > 0 && (
         <div className="bg-white border border-line rounded-sm p-4 mb-6">
           <div className="text-sm font-medium text-ink mb-3">Comunicações</div>
@@ -189,7 +194,6 @@ export default async function DashboardPage() {
 
       <LeadershipBoards users={users || []} church={church} />
 
-      {/* FORMULÁRIO LIBERADO PARA PASTOR E SECRETÁRIO DO CONSELHO */}
       {podeGerenciarComunicacao && (
         <AvisosBoard me={user} avisos={[]} modoFormApenas={true} />
       )}
