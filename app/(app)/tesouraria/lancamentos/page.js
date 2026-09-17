@@ -7,14 +7,17 @@ export default async function LancamentosPage() {
   const me = await getSessionUser();
   const church = await getChurch(me.igreja_id);
 
-  const [{ data: lancamentos }, { data: solicitacoes }] = await Promise.all([
-    supabaseAdmin.from("lancamentos").select("*, lancamento_eventos(*)").eq("igreja_id", me.igreja_id).order("data", { ascending: false }),
-    isAdmin(me)
-      ? supabaseAdmin.from("approval_requests").select("*").eq("igreja_id", me.igreja_id).eq("status", "pendente").order("created_at", { ascending: false })
-      : Promise.resolve({ data: [] }),
+  const [[{ data: lancamentos }, { data: solicitacoes }], { data: cultos }] = await Promise.all([
+    Promise.all([
+      supabaseAdmin.from("lancamentos").select("*, lancamento_eventos(*)").eq("igreja_id", me.igreja_id).order("data", { ascending: false }),
+      isAdmin(me)
+        ? supabaseAdmin.from("approval_requests").select("*").eq("igreja_id", me.igreja_id).eq("status", "pendente").order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] }),
+    ]),
+    supabaseAdmin.from("cultos").select("*").eq("igreja_id", me.igreja_id).order("data", { ascending: false }).limit(30),
   ]);
 
   return (
-    <LancamentosClient me={me} church={church} lancamentos={lancamentos || []} solicitacoes={solicitacoes || []} />
+    <LancamentosClient me={me} church={church} lancamentos={lancamentos || []} solicitacoes={solicitacoes || []} cultos={cultos || []} />
   );
 }
