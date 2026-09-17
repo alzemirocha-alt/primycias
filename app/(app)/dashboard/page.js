@@ -115,7 +115,7 @@ export default async function DashboardPage() {
       <h2 className="text-xl font-serif text-ink mb-1">Início</h2>
       <p className="text-xs text-gray-500 mb-4">{officeLabel(user)} · {church.nome}</p>
 
-      <BoasVindas nome={user.nome} />
+      <BoasVindas nome={user.nome} cargo={officeLabel(user)} />
       <BirthdayBanners me={user} users={users || []} />
 
       {/* 1. TOPO: COMUNICAÇÕES PUBLICADAS - AGORA COM EDITAR/EXCLUIR PARA PASTOR E SECRETÁRIO */}
