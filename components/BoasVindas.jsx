@@ -2,17 +2,27 @@
 import { useState, useEffect } from "react";
 
 export default function BoasVindas({ nome, cargo }) {
-  const [visivel, setVisivel] = useState(true);
+  const [visivel, setVisivel] = useState(false);
   const primeiroNome = nome? nome.split(" ")[0] : "";
 
   useEffect(() => {
-    // some quando clicar em qualquer lugar - sempre que logar
+    // só mostra se ainda NÃO mostrou nessa sessão de login
+    const jaMostrou = sessionStorage.getItem("boas_vindas_mostrada");
+    if (!jaMostrou) {
+      setVisivel(true);
+    }
+
     const fechar = () => {
       setVisivel(false);
+      sessionStorage.setItem("boas_vindas_mostrada", "1");
       document.removeEventListener("click", fechar);
     };
+
     // delay pra não fechar no clique que fez login
-    const t = setTimeout(() => document.addEventListener("click", fechar), 800);
+    const t = setTimeout(() => {
+      if (!jaMostrou) document.addEventListener("click", fechar);
+    }, 800);
+
     return () => {
       clearTimeout(t);
       document.removeEventListener("click", fechar);
@@ -41,7 +51,10 @@ export default function BoasVindas({ nome, cargo }) {
         </div>
 
         <button
-          onClick={() => setVisivel(false)}
+          onClick={() => {
+            setVisivel(false);
+            sessionStorage.setItem("boas_vindas_mostrada", "1");
+          }}
           className="mt-5 px-6 py-2 bg-[#1E5631] text-white text-sm rounded-sm"
         >
           Continuar
