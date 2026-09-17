@@ -1,6 +1,6 @@
 "use client"
 import { useState } from "react"
-import { criarRegistros, liberarDiacono, bloquearDiacono, abrirCultoAction } from "../actions"
+import { criarRegistros, liberarDiacono, bloquearDiacono, abrirCultoAction } from "./actions"
 
 export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloqueadosIds = [], datasBloqueadas = [], liberadosIds = [], cultosAbertos = [] }) {
   const [cultoId, setCultoId] = useState('')
@@ -20,7 +20,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
   const safeCultos = Array.isArray(cultosAbertos)? cultosAbertos : []
 
   const oficio = (safeEu.oficio || '').toLowerCase().trim()
-  // SÓ PASTOR LIBERA - REMOVIDO PRESBÍTERO E ADMIN
+  // SÓ PASTOR LIBERA - PRESERVADO
   const isPastor = oficio === 'pastor'
   const podeLiberar = isPastor
 
