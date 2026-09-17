@@ -7,12 +7,12 @@ export const dynamic = 'force-dynamic'
 function fmt(d) { if(!d) return '-'; return new Date(d).toLocaleString('pt-BR', { timeZone: 'America/Recife', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) }
 function formatTipo(t) { if(!t) return '-'; const l=t.toLowerCase(); if(l.includes('dizimo')) return 'Dízimo'; if(l.includes('oferta')) return 'Oferta'; return t }
 
-// --- NOVAS FUNÇÕES PARA O STATUS BONITO ---
 function primeiroNome(nomeCompleto) {
   if (!nomeCompleto) return ""
   return String(nomeCompleto).trim().split(" ")[0]
 }
-function getStatusLabel(culto, mapaUsuarios) {
+
+function getStatusLabel(culto, mapaUsuarios, nomeTesoureiroDaIgreja) {
   if (!culto?.status) return "-"
   const s = String(culto.status).toLowerCase()
 
@@ -24,16 +24,18 @@ function getStatusLabel(culto, mapaUsuarios) {
   }
 
   if (s === "aguardando_tesoureiro") {
+    // busca o nome real do tesoureiro da igreja (Gilson, Rivaldo, etc)
+    if (nomeTesoureiroDaIgreja) {
+      return `Aguardando Tesoureiro ${primeiroNome(nomeTesoureiroDaIgreja)}`
+    }
     const idTes = culto.tesoureiro_id || culto.tesoureiroId
-    const nomeTes = culto.tesoureiro_nome || (idTes? mapaUsuarios[String(idTes)] : null) || "Tesoureiro"
-    if (nomeTes && nomeTes!== "Tesoureiro") return `Aguardando Tesoureiro ${primeiroNome(nomeTes)}`
-    // fallback: se não tem id, tenta pegar do histórico ou usa Gilson como padrão da sua igreja
-    return nomeTes? `Aguardando Tesoureiro ${primeiroNome(nomeTes)}` : "Aguardando Tesoureiro"
+    const nomeTes = culto.tesoureiro_nome || (idTes? mapaUsuarios[String(idTes)] : null)
+    if (nomeTes) return `Aguardando Tesoureiro ${primeiroNome(nomeTes)}`
+    return "Aguardando Tesoureiro"
   }
 
   if (s === "validado") return "Validado"
   if (s === "devolvido_com_erro") return "Devolvido com erro"
-
   return culto.status.toUpperCase()
 }
 
@@ -41,7 +43,6 @@ export default async function RegistrosPage() {
   const eu = await getSessionUser()
   if (!eu) return <div className="p-6">Faça login</div>
 
-  // FILTRO ESSENCIAL - só pega da sua igreja
   let igreja_id = eu?.igreja_id
   if(!igreja_id){
     const { data: perfil } = await supabaseAdmin.from('users').select('igreja_id').eq('id', eu.id).single()
@@ -51,12 +52,24 @@ export default async function RegistrosPage() {
   const { data } = await supabaseAdmin.from('records').select('*').eq('igreja_id', igreja_id).order('data_culto', { ascending: false })
   const regsAll = data || []
 
-  // MAPA DE USUÁRIOS PARA PEGAR NOME DO DIÁCONO/ TESOUREIRO PELO ID
-  const { data: usuariosDaIgreja } = await supabaseAdmin.from('users').select('id, nome').eq('igreja_id', igreja_id)
+  // MAPA DE USUÁRIOS + DESCOBRE QUEM É O TESOUREIRO DA IGREJA
+  const { data: usuariosDaIgreja } = await supabaseAdmin.from('users').select('id, nome, funcao, oficio').eq('igreja_id', igreja_id)
   const mapaUsuarios = {}
-  ;(usuariosDaIgreja || []).forEach(u => { mapaUsuarios[String(u.id)] = u.nome })
+  let nomeTesoureiroDaIgreja = null
+  ;(usuariosDaIgreja || []).forEach(u => {
+    mapaUsuarios[String(u.id)] = u.nome
+    const f = String(u.funcao || '').toLowerCase()
+    const o = String(u.oficio || '').toLowerCase()
+    if (f.includes('tesour') || o.includes('tesour')) {
+      nomeTesoureiroDaIgreja = u.nome // vai pegar o Gilson
+    }
+  })
+  // se não achou pela função, tenta pelo nome Gilson que é padrão aí
+  if (!nomeTesoureiroDaIgreja) {
+    const gilson = (usuariosDaIgreja || []).find(u => String(u.nome||'').toLowerCase().includes('gilson'))
+    if (gilson) nomeTesoureiroDaIgreja = gilson.nome
+  }
 
-  // DETECÇÃO ROBUSTA DE CARGOS (ofício = diácono, função = tesoureiro)
   const oficio = String(eu.oficio || eu.cargo || '').toLowerCase()
   const funcao = String(eu.funcao || '').toLowerCase()
   const nome = String(eu.nome || '').toLowerCase()
@@ -66,7 +79,6 @@ export default async function RegistrosPage() {
   const isPastor = oficio.includes('pastor')
   const isDiacono = oficio.includes('diacono')
 
-  // FUNÇÃO QUE VERIFICA SE EU PARTICIPEI (checa todos os nomes possíveis de coluna)
   function participei(r) {
     const ids = [
       r.primeiro_diacono_id, r.segundo_diacono_id, r.diacono_id,
@@ -78,20 +90,15 @@ export default async function RegistrosPage() {
 
   let regsFiltrados = regsAll
   if (isPastor) {
-    // Pastor: só vê validado (não lança, não confirma)
     regsFiltrados = regsAll.filter(r=>r.status==='validado')
   } else if (isTesoureiro) {
-    // Gilson: é diácono E tesoureiro - vê o que precisa validar + o que participou + já validados
     regsFiltrados = regsAll.filter(r=>['aguardando_tesoureiro','validado','devolvido_com_erro'].includes(r.status) || participei(r))
   } else if (isDiacono) {
-    // TRAVA FINAL: DIÁCONO COMUM SÓ VÊ O QUE PARTICIPOU - SE NÃO PARTICIPOU NÃO VÊ NADA
     regsFiltrados = regsAll.filter(r=> participei(r) )
   } else {
-    // Presbítero não vê nada
     regsFiltrados = []
   }
 
-  // --- FILTRO DE MÊS ATUAL PARA TELA DÍZIMOS E OFERTAS ---
   const agoraRecifeStr = new Date().toLocaleString('en-CA', { timeZone: 'America/Recife', year: 'numeric', month: '2-digit' })
   const [anoAtual, mesAtual] = agoraRecifeStr.split('-').map(Number)
 
@@ -122,7 +129,7 @@ export default async function RegistrosPage() {
           <div key={dataCulto} className="bg-white p-4 rounded shadow border-l-4 border-l-green-800 space-y-3">
             <div className="flex justify-between font-bold">
               <span>{new Date(dataCulto).toLocaleDateString('pt-BR')} - R$ {totalGeral.toFixed(2)}</span>
-              <span className="text-xs bg-green-100 px-2 py-1 rounded">{getStatusLabel(primeiro, mapaUsuarios)}</span>
+              <span className="text-xs bg-green-100 px-2 py-1 rounded">{getStatusLabel(primeiro, mapaUsuarios, nomeTesoureiroDaIgreja)}</span>
             </div>
             <div className="border rounded overflow-hidden">
               <div className="grid grid-cols-3 bg-green-800 text-white p-2 text-sm font-bold"><div>Tipo</div><div>Nome</div><div className="text-right">Valor</div></div>
