@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import RegistroBotoes from "./RegistroBotoes"
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 function fmt(d) { if(!d) return '-'; return new Date(d).toLocaleString('pt-BR', { timeZone: 'America/Recife', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) }
 function formatTipo(t) { if(!t) return '-'; const l=t.toLowerCase(); if(l.includes('dizimo')) return 'Dízimo'; if(l.includes('oferta')) return 'Oferta'; return t }
@@ -48,8 +49,7 @@ export default async function RegistrosPage() {
     igreja_id = perfil?.igreja_id
   }
 
-  // MUDANÇA 1: TRAZER CULTO_ID + PERIODO DO CULTO (pra separar manhã/noite)
-  const { data } = await supabaseAdmin.from('records').select('*, cultos!records_culto_id_fkey(data, periodo)').eq('igreja_id', igreja_id).order('data_culto', { ascending: false })
+  const { data } = await supabaseAdmin.from('records').select('*, cultos!records_culto_id_fkey(data, periodo)').eq('igreja_id', igreja_id).order('data_culto', { ascending: false }).order('created_at', { ascending: false })
   const regsAll = data || []
 
   const { data: usuariosDaIgreja } = await supabaseAdmin.from('users').select('id, nome, funcao, oficio').eq('igreja_id', igreja_id)
@@ -107,13 +107,12 @@ export default async function RegistrosPage() {
     return (d.getMonth()+1) === mesAtual && d.getFullYear() === anoAtual
   })
 
-  // MUDANÇA 2: AGRUPA POR CULTO_ID + PERIODO, NÃO SÓ POR DATA
   const grupos = {}
   regsDoMes.forEach(r=>{
     const dataBase = r.data_culto || r.created_at?.slice(0,10)
     const periodo = r.cultos?.periodo || r.periodo || 'manha'
     const cultoId = r.culto_id || ''
-    const k = `${dataBase}_${periodo}_${cultoId}` // separa 18/09 manhã de 18/09 noite
+    const k = `${dataBase}_${periodo}_${cultoId}`
     if(!grupos[k]) grupos[k]=[];
     grupos[k].push(r)
   })
