@@ -20,7 +20,15 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
   const safeCultos = Array.isArray(cultosAbertos)? cultosAbertos : []
 
   const oficio = (safeEu.oficio || '').toLowerCase().trim()
+  const funcao = (safeEu.funcao || '').toLowerCase().trim()
+  const funcaoPresb = (safeEu.funcao_presbitero || '').toLowerCase().trim()
+
   const isPastor = oficio === 'pastor'
+  const isTesoureiro = funcao === 'tesoureiro' || oficio === 'tesoureiro'
+  const isPresbitero = oficio === 'presbitero' || oficio === 'presbítero' || funcaoPresb !== ''
+  const isDiacono = oficio === 'diacono' || oficio === 'diácono'
+  const isDiaconoNaoTesoureiro = isDiacono &&!isTesoureiro &&!isPastor &&!isPresbitero
+
   const podeLiberar = isPastor
 
   const getNome = (id) => safeTodos.find(d=>d.id===id)?.nome || 'Diácono'
@@ -49,6 +57,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
 
   if(!eu) return <div className="p-6">Carregando sessão...</div>
 
+  // PASTOR - SÓ LIBERA - preservado igual seu original
   if(podeLiberar){
     return (
       <div className="p-6 max-w-2xl mx-auto">
@@ -68,6 +77,16 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
         {safeBloqueados.length===0 && safeLiberados.length===0 && <p className="bg-green-100 p-3 rounded">Nenhum bloqueado no momento.</p>}
       </div>
     )
+  }
+
+  // TRAVA NOVA: TESOUREIRO NÃO ABRE CULTO - preservando sua rotina
+  if(isTesoureiro){
+    return <div className="p-6 max-w-2xl mx-auto bg-yellow-50 border rounded">Tesoureiro: você não abre culto e não cria registro. Aguarde o 2º diácono confirmar para você validar em Dízimos/Ofertas.</div>
+  }
+
+  // TRAVA NOVA: PRESBÍTERO NÃO ABRE CULTO
+  if(isPresbitero ||!isDiaconoNaoTesoureiro){
+    return <div className="p-6 max-w-2xl mx-auto bg-gray-100 border rounded">Apenas Diácono que não é tesoureiro abre culto e inicia registro. Seu ofício: {safeEu.oficio || 'não definido'}</div>
   }
 
   return (
