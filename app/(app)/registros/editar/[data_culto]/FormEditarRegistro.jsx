@@ -4,9 +4,7 @@ import { atualizarRegistros } from "../../actions"
 
 function formataBR(dataISO){
   if(!dataISO) return ''
-  const dataLimpa = dataISO.split('T')[0] // remove hora se vier
-  const [y,m,d] = dataLimpa.split('-')
-  return `${d}/${m}/${y}`
+  return dataISO.split('T')[0].split('-').reverse().join('/')
 }
 
 export default function FormEditarRegistro({ registros, data_culto, culto }) {
@@ -35,7 +33,6 @@ export default function FormEditarRegistro({ registros, data_culto, culto }) {
     <div className="p-4 max-w-2xl mx-auto space-y-4">
       <h1 className="font-bold text-lg">Corrigir culto de {formataBR(data_culto)} {culto?.periodo? `- ${culto.periodo.toUpperCase()}` : ''}</h1>
       <p className="text-sm bg-red-100 p-2 rounded">Motivo do erro: {registros[0]?.motivo_erro || culto?.motivo_erro}</p>
-
       {itens.map((it, i) => (
         <div key={i} className="grid grid-cols-3 gap-2">
           <select value={it.tipo} onChange={e=>update(i,'tipo',e.target.value)} className="border p-2 rounded"><option value="dizimo">dizimo</option><option value="oferta">oferta</option></select>
@@ -43,15 +40,11 @@ export default function FormEditarRegistro({ registros, data_culto, culto }) {
           <input type="number" value={it.valor} onChange={e=>update(i,'valor',e.target.value)} className="border p-2 rounded" />
         </div>
       ))}
-
       <div className="bg-gray-100 p-3 rounded font-bold">
         <p>Dizimos: R$ {totalDiz.toFixed(2)}</p><p>Ofertas: R$ {totalOfe.toFixed(2)}</p><p>TOTAL: R$ {(totalDiz+totalOfe).toFixed(2)}</p>
         <p className="text-xs font-normal mt-1">Culto ID: {culto?.id || registros[0]?.culto_id}</p>
       </div>
-
-      <button disabled={salvando} onClick={handleSalvar} className="bg-green-700 text-white w-full py-3 rounded font-bold disabled:opacity-50">
-        {salvando? 'Salvando...' : 'Salvar Correção e reenviar p/ 2º Diácono'}
-      </button>
+      <button disabled={salvando} onClick={handleSalvar} className="bg-green-700 text-white w-full py-3 rounded font-bold">Salvar Correção e reenviar p/ 2º Diácono</button>
     </div>
   )
 }
