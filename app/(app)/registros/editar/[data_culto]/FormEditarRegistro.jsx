@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { atualizarRegistros } from "../../actions"
 
 function formataBR(dataISO){
@@ -10,6 +10,10 @@ function formataBR(dataISO){
 export default function FormEditarRegistro({ registros, data_culto, culto }) {
   const [itens, setItens] = useState(registros.map(r => ({ id: r.id, tipo: r.tipo, membro_nome: r.membro_nome, valor: r.valor })))
   const [salvando, setSalvando] = useState(false)
+
+  useEffect(() => {
+    setItens(registros.map(r => ({ id: r.id, tipo: r.tipo, membro_nome: r.membro_nome, valor: r.valor })))
+  }, [registros])
 
   function update(i, campo, val) {
     const c = [...itens]; c[i][campo] = val; setItens(c)
