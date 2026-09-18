@@ -30,7 +30,6 @@ export async function abrirCultoAction(formData){
   const eu = await getSessionUser()
   if(!eu?.id) throw new Error('Sessão expirada')
 
-  // TRAVA NOVA: SÓ DIÁCONO QUE NÃO É TESOUREIRO ABRE CULTO - preservando resto
   if(!ehDiaconoNaoTesoureiro(eu)){
     throw new Error('Só Diácono (que não é tesoureiro) pode abrir culto.')
   }
@@ -44,6 +43,26 @@ export async function abrirCultoAction(formData){
   const periodo = (formData.get('periodo')||'manha').toLowerCase()
   if(!data) throw new Error('Data obrigatória')
   if(!['manha','noite'].includes(periodo)) throw new Error('Período inválido')
+
+  // TRAVA NOVA: bloqueado do último culto não pode abrir novo (manhã/noite mesmo dia inclusive)
+  const { data: ultimo } = await supabaseAdmin.from('records').select('data_culto, primeiro_diacono_id, segundo_diacono_id').eq('igreja_id', igreja_id).order('created_at', { ascending: false }).limit(1)
+  if(ultimo?.length > 0){
+    const ult = ultimo[0]
+    let bloqueados = [ult.primeiro_diacono_id, ult.segundo_diacono_id].filter(Boolean)
+    const { data: liberados } = await supabaseAdmin.from('liberacoes_diaconos').select('diacono_id').eq('igreja_id', igreja_id)
+    const idsLiberados = (liberados||[]).map(l=>l.diacono_id)
+    bloqueados = bloqueados.filter(id=>!idsLiberados.includes(id))
+    if(bloqueados.includes(eu.id)){
+      throw new Error(`Você participou do último culto (${new Date(ult.data_culto).toLocaleDateString('pt-BR')}). Só o Pastor pode liberar.`)
+    }
+  }
+
+  // TRAVA NOVA: se já participou de um registro nessa MESMA DATA (manhã ou noite), não pode abrir outro no mesmo dia
+  const { data: jaNoDia } = await supabaseAdmin.from('records').select('id').eq('igreja_id', igreja_id).eq('data_culto', data).or(`primeiro_diacono_id.eq.${eu.id},segundo_diacono_id.eq.${eu.id}`).limit(1)
+  if(jaNoDia?.length > 0){
+    throw new Error(`Você já participou de um registro no dia ${new Date(data+'T12:00:00').toLocaleDateString('pt-BR')}. Não pode abrir manhã e noite no mesmo dia. Revezamento obrigatório.`)
+  }
+
   const { data: existe } = await supabaseAdmin.from('cultos').select('id').eq('igreja_id', igreja_id).eq('data', data).eq('periodo', periodo).maybeSingle()
   if(existe) throw new Error(`Culto ${periodo} de ${new Date(data+'T12:00:00').toLocaleDateString('pt-BR')} já está aberto.`)
   const { error } = await supabaseAdmin.from('cultos').insert({ igreja_id, data, periodo, status: 'aberto', criado_por: eu.id })
