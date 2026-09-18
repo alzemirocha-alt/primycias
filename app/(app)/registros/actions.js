@@ -76,7 +76,6 @@ export async function criarRegistros(formData) {
   if (ehTesoureiro(segundoUser)) throw new Error(`${segundoUser.nome} é Tesoureiro e só pode validar, não pode ser 2º diácono.`)
   if (eu.id === segundo_id) throw new Error('Você não pode ser os 2 diáconos ao mesmo tempo.')
 
-  // TRAVA REVEZAMENTO - SÓ PASTOR ESCAPA
   if (!isPastor) {
     const { data: ultimo } = await supabaseAdmin.from('records').select('data_culto, primeiro_diacono_id, segundo_diacono_id').eq('igreja_id', igreja_id).order('created_at', { ascending: false }).limit(1)
     if (ultimo?.length > 0) {
@@ -160,6 +159,9 @@ export async function devolverRegistro(id, motivo) {
     const hist = [...(r.historico||[]), { acao: `DEVOLVEU: ${motivo}`, usuario: eu.nome, em: agora() }]
     await supabaseAdmin.from('records').update({ status: 'devolvido_com_erro', motivo_erro: motivo, historico: hist }).eq('id', r.id)
   }
+  try{
+    if(reg.culto_id) await supabaseAdmin.from('cultos').update({ status: 'devolvido_com_erro', motivo_erro: motivo }).eq('id', reg.culto_id)
+  }catch{}
   revalidatePath('/registros')
 }
 
@@ -184,6 +186,7 @@ export async function corrigirRegistro(formData){
     const { data: perfil } = await supabaseAdmin.from('users').select('igreja_id').eq('id', eu.id).single()
     igreja_id = perfil?.igreja_id
   }
+  // CORREÇÃO: SEMPRE PRIORIZA CULTO_ID - NÃO APAGA O DIA TODO
   if(culto_id){
     await supabaseAdmin.from('records').delete().eq('culto_id', culto_id).eq('igreja_id', igreja_id)
   } else {
@@ -208,26 +211,48 @@ export async function corrigirRegistro(formData){
   }))
   const { error } = await supabaseAdmin.from('records').insert(paraInserir)
   if(error) throw new Error(error.message)
+  // volta o culto pra aguardando
+  try{
+    if(culto_id) await supabaseAdmin.from('cultos').update({ status: 'aberto', motivo_erro: null }).eq('id', culto_id)
+  }catch{}
   revalidatePath('/registros')
   redirect('/registros')
 }
 
-export async function atualizarRegistros(data_culto_param, itens) {
+// CORREÇÃO PRINCIPAL DO BUG DA FOTO - AGORA RECEBE CULTO_ID, NÃO SÓ DATA
+export async function atualizarRegistros(culto_id_param, itens) {
   const eu = await getSessionUser()
-  const data_culto = typeof data_culto_param === 'string'? data_culto_param.split('T')[0] : new Date(data_culto_param).toISOString().split('T')[0]
+  // compatibilidade: se vier data antiga, trata como culto_id
+  const cultoId = culto_id_param
   let igreja_id = eu?.igreja_id
   if(!igreja_id){
     const { data: perfil } = await supabaseAdmin.from('users').select('igreja_id').eq('id', eu.id).single()
     igreja_id = perfil?.igreja_id
   }
-  const { data: original } = await supabaseAdmin.from('records').select('segundo_diacono_id, culto_id, igreja_id').eq('data_culto', data_culto).eq('igreja_id', igreja_id).limit(1).single()
-  const segundo_id = original?.segundo_diacono_id
-  const culto_id = original?.culto_id
-  if(culto_id){
+
+  // busca pelo culto_id correto - separa manhã/noite
+  const { data: cultoOrig } = await supabaseAdmin.from('cultos').select('id,data,periodo').eq('id', cultoId).single()
+  let data_culto, culto_id, segundo_id
+
+  if(cultoOrig){
+    data_culto = cultoOrig.data
+    culto_id = cultoOrig.id
+    const { data: original } = await supabaseAdmin.from('records').select('segundo_diacono_id').eq('culto_id', culto_id).eq('igreja_id', igreja_id).limit(1).single()
+    segundo_id = original?.segundo_diacono_id
     await supabaseAdmin.from('records').delete().eq('culto_id', culto_id).eq('igreja_id', igreja_id)
   } else {
-    await supabaseAdmin.from('records').delete().eq('data_culto', data_culto).eq('igreja_id', igreja_id)
+    // fallback rota antiga por data - mantém mas não mistura se tiver culto_id nos registros
+    data_culto = typeof culto_id_param === 'string'? culto_id_param.split('T')[0] : new Date(culto_id_param).toISOString().split('T')[0]
+    const { data: original } = await supabaseAdmin.from('records').select('segundo_diacono_id, culto_id, igreja_id').eq('data_culto', data_culto).eq('igreja_id', igreja_id).limit(1).single()
+    segundo_id = original?.segundo_diacono_id
+    culto_id = original?.culto_id
+    if(culto_id){
+      await supabaseAdmin.from('records').delete().eq('culto_id', culto_id).eq('igreja_id', igreja_id)
+    } else {
+      await supabaseAdmin.from('records').delete().eq('data_culto', data_culto).eq('igreja_id', igreja_id)
+    }
   }
+
   const hist = [{ acao: 'CORRIGIU e reenviou ao 2º Diácono', usuario: eu.nome, em: agora() }]
   const paraInserir = itens.filter(i=>i.membro_nome && i.valor).map(it=>({
     tipo: it.tipo.toLowerCase(),
@@ -247,6 +272,9 @@ export async function atualizarRegistros(data_culto_param, itens) {
   }))
   const { error } = await supabaseAdmin.from('records').insert(paraInserir)
   if(error) throw new Error(error.message)
+  try{
+    if(culto_id) await supabaseAdmin.from('cultos').update({ status: 'aberto', motivo_erro: null }).eq('id', culto_id)
+  }catch{}
   revalidatePath('/registros')
   redirect('/registros')
 }
