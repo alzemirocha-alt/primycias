@@ -4,25 +4,22 @@ import FormEditarRegistro from "./FormEditarRegistro"
 export const dynamic = 'force-dynamic'
 
 export default async function EditarPage({ params }) {
-  // AGORA O PARAM É O ID DO CULTO, NÃO A DATA - assim separa manhã/noite
-  const cultoId = params.id || params.culto_id || params.data_culto
+  const cultoId = params.data_culto // na sua pasta o param chama data_culto, mas agora vem o ID
 
-  // Se for UUID (culto_id), busca só ele. Se for data antiga, mantém compatibilidade mas filtra por culto_id
-  let registros = []
-  let culto = null
-
-  // tenta buscar como culto_id (caso correto)
-  const { data: cultoData } = await supabaseAdmin.from('cultos').select('id, data, periodo, motivo_erro').eq('id', cultoId).single()
+  // 1. TENTA COMO ID (CASO CORRETO - SEPARA MANHÃ/NOITE)
+  const { data: culto } = await supabaseAdmin.from('cultos').select('id, data, periodo, motivo_erro').eq('id', cultoId).single()
   
-  if (cultoData) {
-    culto = cultoData
-    const { data } = await supabaseAdmin.from('records').select('*').eq('culto_id', cultoId)
-    registros = data || []
-  } else {
-    // fallback rota antiga /editar/2026-09-17 -> busca por data mas ainda vai misturar, por isso use a rota por id
-    const { data } = await supabaseAdmin.from('records').select('*').eq('data_culto', cultoId)
-    registros = data || []
+  if (culto) {
+    const { data: registros } = await supabaseAdmin.from('records').select('*').eq('culto_id', cultoId)
+    return <FormEditarRegistro registros={registros || []} data_culto={culto.data} culto={culto} />
   }
 
-  return <FormEditarRegistro registros={registros} data_culto={culto?.data || cultoId} culto={culto} />
+  // 2. SE CAIU AQUI É LINK ANTIGO COM DATA (2026-09-18) - NÃO TEM COMO SEPARAR, AVISA
+  return (
+    <div className="p-6 max-w-xl mx-auto">
+      <h1 className="font-bold">Link antigo</h1>
+      <p className="mt-2">Esse link usa só a data ({cultoId}) e junta manhã + noite. Volte em /registros e clique novamente em <b>Corrigir</b> para abrir só o culto correto.</p>
+      <a href="/registros" className="mt-4 inline-block bg-green-700 text-white px-4 py-2 rounded">Voltar</a>
+    </div>
+  )
 }
