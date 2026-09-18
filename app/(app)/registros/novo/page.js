@@ -32,7 +32,7 @@ export default async function NovoPage() {
     try {
       const { data: emAndamento } = await supabaseAdmin
      .from('records')
-     .select('id,data_culto,periodo_culto,primeiro_diacono_id,segundo_diacono_id,status')
+     .select('id,data_culto,primeiro_diacono_id,segundo_diacono_id,status')
      .not('segundo_diacono_id','is',null)
      .or('status.neq.validado,status.is.null')
      .order('created_at', { ascending: false })
