@@ -20,7 +20,6 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
   const safeCultos = Array.isArray(cultosAbertos)? cultosAbertos : []
 
   const oficio = (safeEu.oficio || '').toLowerCase().trim()
-  // SÓ PASTOR LIBERA - PRESERVADO
   const isPastor = oficio === 'pastor'
   const podeLiberar = isPastor
 
@@ -50,10 +49,24 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
 
   if(!eu) return <div className="p-6">Carregando sessão...</div>
 
+  // PASTOR - preservado, mas agora também pode abrir culto
   if(podeLiberar){
     return (
-      <div className="p-6 max-w-2xl mx-auto">
-        <h1 className="font-bold text-lg mb-4">Liberar Diáconos - Pastor</h1>
+      <div className="p-6 max-w-2xl mx-auto space-y-6">
+        <div className="border rounded p-4 bg-[#faf9f6] space-y-3">
+          <label className="block font-bold">Abrir Culto (Pastor)</label>
+          <div className="flex gap-2">
+            <input type="date" value={dataNova} onChange={e=>setDataNova(e.target.value)} className="border p-2 rounded flex-1" />
+            <select value={periodoNovo} onChange={e=>setPeriodoNovo(e.target.value)} className="border p-2 rounded">
+              <option value="manha">Manhã</option>
+              <option value="noite">Noite</option>
+            </select>
+            <button type="button" disabled={abrindo} onClick={abrirCulto} className="bg-[#1E5631] text-white px-4 rounded font-bold">{abrindo?'Abrindo...':'Abrir'}</button>
+          </div>
+          {safeCultos.length>0 && <div className="text-sm text-gray-600">{safeCultos.length} culto(s) aberto(s): {safeCultos.map(getCultoLabel).join(', ')}</div>}
+        </div>
+
+        <h1 className="font-bold text-lg">Liberar Diáconos - Pastor</h1>
         {safeBloqueados.map(id=>(
           <div key={id} className="flex justify-between items-center border p-3 rounded mb-2 bg-white">
             <span>{getNome(id)} - bloqueado</span>
@@ -93,7 +106,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
           </select>
         ) : (
           <div className="space-y-2">
-            <p className="text-sm text-gray-600">Nenhum culto aberto. Abra o culto abaixo:</p>
+            <p className="text-sm text-gray-600">Nenhum culto aberto. Peça ao Pastor para abrir ou abra abaixo:</p>
             <div className="flex gap-2">
               <input type="date" value={dataNova} onChange={e=>setDataNova(e.target.value)} className="border p-2 rounded flex-1" />
               <select value={periodoNovo} onChange={e=>setPeriodoNovo(e.target.value)} className="border p-2 rounded">
