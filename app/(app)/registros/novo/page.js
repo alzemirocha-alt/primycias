@@ -11,7 +11,6 @@ export default async function NovoPage() {
       return <div className="p-6">Sessão expirada. Faça login novamente.</div>
     }
 
-    // PEGA IGREJA DO LOGADO - preservado
     let igrejaId = eu?.igreja_id
     let euCompleto = null
     try {
@@ -28,7 +27,6 @@ export default async function NovoPage() {
 
     if(!igrejaId) return <div className="p-6">Usuário sem igreja_id vinculada.</div>
 
-    // USERS - preservado - colunas que você provou que existem (26 colunas)
     let users = []
     try {
       const { data } = await supabaseAdmin.from('users').select('id,nome,oficio,funcao,funcao_presbitero,igreja_id').eq('igreja_id', igrejaId).limit(100)
@@ -40,7 +38,6 @@ export default async function NovoPage() {
       } catch { users = [] }
     }
 
-    // REGRA OFICIAL LIMPA - preservado igual seu original
     const diaconosValidos = (users || []).filter(u => {
       const oficio = (u.oficio || '').toLowerCase().trim()
       const funcao = (u.funcao || '').toLowerCase().trim()
@@ -54,7 +51,6 @@ export default async function NovoPage() {
 
     const diaconosParaEscolher = diaconosValidos.filter(d => d.id!== eu.id)
 
-    // BUSCA CULTOS ABERTOS - preservado
     let cultosAbertos = []
     try {
       const { data, error } = await supabaseAdmin.from('cultos').select('id, data, periodo, status').eq('igreja_id', igrejaId).eq('status', 'aberto').order('data', { ascending: true }).order('periodo', { ascending: true })
@@ -70,7 +66,6 @@ export default async function NovoPage() {
       ultimo = res.data?.[0] || null
     } catch {}
 
-    // LIBERAÇÕES - preservado
     let idsLiberados = []
     try {
       const { data: liberados, error } = await supabaseAdmin.from('liberacoes_diaconos').select('diacono_id').eq('igreja_id', igrejaId)
@@ -83,19 +78,13 @@ export default async function NovoPage() {
       } catch { idsLiberados = [] }
     }
 
+    // TRAVA CORRIGIDA: os 2 diáconos do último registro ficam bloqueados (manhã/noite mesmo dia inclusive)
     let bloqueadosIds = ultimo? [ultimo.primeiro_diacono_id, ultimo.segundo_diacono_id].filter(Boolean) : []
     bloqueadosIds = bloqueadosIds.filter(id =>!idsLiberados.includes(id))
 
+    // CORREÇÃO BUG MANHÃ/NOITE: não bloqueia por data mais. Antes se manhã validava, a data 18/09 entrava em datasBloqueadas e bloqueava a noite.
+    // Agora permite 18/09 manhã e 18/09 noite separados. Bloqueio é por culto_id e por bloqueadosIds
     let datasBloqueadas = []
-    try {
-      const { data: datas } = await supabaseAdmin.from('cultos').select('data').eq('igreja_id', igrejaId).eq('status', 'validado')
-      datasBloqueadas = datas?.map(d => d.data) || []
-    } catch {
-      try {
-        const { data: datas2 } = await supabaseAdmin.from('records').select('data_culto').eq('igreja_id', igrejaId)
-        datasBloqueadas = datas2?.map(d => d.data_culto) || []
-      } catch { datasBloqueadas = [] }
-    }
 
     return <FormNovo
       eu={{...eu,...euCompleto, igreja_id: igrejaId}}
