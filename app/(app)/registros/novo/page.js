@@ -28,18 +28,17 @@ export default async function NovoPage() {
 
     if(!igrejaId) return <div className="p-6">Usuário sem igreja_id vinculada.</div>
 
-    // ===== TRAVA NOVA: COMEÇA QUANDO 2º DIÁCONO É ESCOLHIDO =====
-    // Busca registro em andamento que já tem 2º diácono
+    // ===== TRAVA: COMEÇA QUANDO 2º DIÁCONO É ESCOLHIDO =====
     try {
       const { data: emAndamento } = await supabaseAdmin
-       .from('records')
-       .select('id,data_culto,periodo_culto,primeiro_diacono_id,segundo_diacono_id,status')
-       .eq('igreja_id', igrejaId)
-       .not('segundo_diacono_id','is',null)
-       .neq('status','validado')
-       .order('created_at', { ascending: false })
-       .limit(1)
-       .maybeSingle()
+      .from('records')
+      .select('id,data_culto,periodo_culto,primeiro_diacono_id,segundo_diacono_id,status')
+      .eq('igreja_id', igrejaId)
+      .not('segundo_diacono_id','is',null)
+      .or('status.neq.validado,status.is.null')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
       if(emAndamento){
         const meuId = String(eu.id)
@@ -53,7 +52,6 @@ export default async function NovoPage() {
 
         const souEnvolvido = meuId===pId || meuId===sId || isTesoureiro
 
-        // Se não sou 1º, 2º nem tesoureiro, bloqueia - INCLUSIVE PASTOR
         if(!souEnvolvido){
           return <BloqueioTela cultoAberto={emAndamento} />
         }
