@@ -28,7 +28,7 @@ export default async function NovoPage() {
 
     if(!igrejaId) return <div className="p-6">Usuário sem igreja_id vinculada.</div>
 
-    // USERS - preservado
+    // USERS - preservado - colunas que você provou que existem (26 colunas)
     let users = []
     try {
       const { data } = await supabaseAdmin.from('users').select('id,nome,oficio,funcao,funcao_presbitero,igreja_id').eq('igreja_id', igrejaId).limit(100)
