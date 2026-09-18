@@ -4,22 +4,44 @@ import FormEditarRegistro from "./FormEditarRegistro"
 export const dynamic = 'force-dynamic'
 
 export default async function EditarPage({ params }) {
-  const cultoId = params.data_culto // na sua pasta o param chama data_culto, mas agora vem o ID
+  const param = params.data_culto
 
-  // 1. TENTA COMO ID (CASO CORRETO - SEPARA MANHÃ/NOITE)
-  const { data: culto } = await supabaseAdmin.from('cultos').select('id, data, periodo, motivo_erro').eq('id', cultoId).single()
-  
-  if (culto) {
-    const { data: registros } = await supabaseAdmin.from('records').select('*').eq('culto_id', cultoId)
-    return <FormEditarRegistro registros={registros || []} data_culto={culto.data} culto={culto} />
+  let culto = null
+  let cultoIdReal = param
+
+  // 1. tenta como ID da tabela cultos
+  const { data: c1 } = await supabaseAdmin.from('cultos').select('id,data,periodo,motivo_erro').eq('id', param).single()
+  if (c1) {
+    culto = c1
+    cultoIdReal = c1.id
+  } else {
+    // 2. tenta como ID da tabela records (é o que vem do seu RegistroBotoes com culto.id)
+    const { data: r } = await supabaseAdmin.from('records').select('culto_id,data_culto').eq('id', param).single()
+    if (r?.culto_id) {
+      cultoIdReal = r.culto_id
+      const { data: c2 } = await supabaseAdmin.from('cultos').select('id,data,periodo,motivo_erro').eq('id', r.culto_id).single()
+      culto = c2
+      if (!culto) {
+        // se não tem na tabela cultos (registro antigo), cria objeto culto fake só com a data
+        culto = { id: r.culto_id, data: r.data_culto, periodo: 'manha', motivo_erro: null }
+      }
+    } else {
+      // 3. tenta como culto_id direto nos records
+      const { data: r2 } = await supabaseAdmin.from('records').select('culto_id,data_culto').eq('culto_id', param).limit(1).single()
+      if (r2) {
+        cultoIdReal = param
+        const { data: c3 } = await supabaseAdmin.from('cultos').select('id,data,periodo,motivo_erro').eq('id', param).single()
+        culto = c3 || { id: param, data: r2.data_culto, periodo: 'manha', motivo_erro: null }
+      }
+    }
   }
 
-  // 2. SE CAIU AQUI É LINK ANTIGO COM DATA (2026-09-18) - NÃO TEM COMO SEPARAR, AVISA
-  return (
-    <div className="p-6 max-w-xl mx-auto">
-      <h1 className="font-bold">Link antigo</h1>
-      <p className="mt-2">Esse link usa só a data ({cultoId}) e junta manhã + noite. Volte em /registros e clique novamente em <b>Corrigir</b> para abrir só o culto correto.</p>
-      <a href="/registros" className="mt-4 inline-block bg-green-700 text-white px-4 py-2 rounded">Voltar</a>
-    </div>
-  )
+  if (!cultoIdReal) {
+    return <div className="p-6">Culto não encontrado: {param}</div>
+  }
+
+  // AGORA SIM - busca SÓ desse culto_id, separa manhã/noite
+  const { data: registros } = await supabaseAdmin.from('records').select('*').eq('culto_id', cultoIdReal)
+
+  return <FormEditarRegistro registros={registros || []} data_culto={culto?.data} culto={culto} />
 }
