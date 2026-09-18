@@ -36,7 +36,8 @@ export default function RegistroBotoes({ culto, eu, isTesoureiro, isPastor }) {
   if (culto.status === 'devolvido_com_erro' && isPrimeiro) {
     return (
       <div className="flex gap-2">
-        <button onClick={() => router.push(`/registros/editar/${culto.data_culto}`)} className="bg-orange-500 text-white px-4 py-2 rounded font-bold flex-1">✏️ Corrigir - Editar valores</button>
+        {/* CORREÇÃO: usa culto_id pra separar manhã/noite - antes usava data_culto e juntava tudo */}
+        <button onClick={() => router.push(`/registros/editar/${culto.culto_id}`)} className="bg-orange-500 text-white px-4 py-2 rounded font-bold flex-1">✏️ Corrigir - Editar valores</button>
         <button onClick={() => { if(confirm('Excluir definitivamente?')) excluirRegistro(culto.id) }} className="bg-red-700 text-white px-4 py-2 rounded">🗑️ Excluir</button>
       </div>
     )
