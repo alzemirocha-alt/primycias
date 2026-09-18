@@ -31,14 +31,13 @@ export default async function NovoPage() {
     // ===== TRAVA: COMEÇA QUANDO 2º DIÁCONO É ESCOLHIDO =====
     try {
       const { data: emAndamento } = await supabaseAdmin
-      .from('records')
-      .select('id,data_culto,periodo_culto,primeiro_diacono_id,segundo_diacono_id,status')
-      .eq('igreja_id', igrejaId)
-      .not('segundo_diacono_id','is',null)
-      .or('status.neq.validado,status.is.null')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+     .from('records')
+     .select('id,data_culto,periodo_culto,primeiro_diacono_id,segundo_diacono_id,status')
+     .not('segundo_diacono_id','is',null)
+     .or('status.neq.validado,status.is.null')
+     .order('created_at', { ascending: false })
+     .limit(1)
+     .maybeSingle()
 
       if(emAndamento){
         const meuId = String(eu.id)
