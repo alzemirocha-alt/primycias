@@ -1,6 +1,7 @@
 import { getSessionUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import FormNovo from "./FormNovoRegistro"
+import BloqueioTela from "./BloqueioTela"
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +27,41 @@ export default async function NovoPage() {
     }
 
     if(!igrejaId) return <div className="p-6">Usuário sem igreja_id vinculada.</div>
+
+    // ===== TRAVA NOVA: COMEÇA QUANDO 2º DIÁCONO É ESCOLHIDO =====
+    // Busca registro em andamento que já tem 2º diácono
+    try {
+      const { data: emAndamento } = await supabaseAdmin
+       .from('records')
+       .select('id,data_culto,periodo_culto,primeiro_diacono_id,segundo_diacono_id,status')
+       .eq('igreja_id', igrejaId)
+       .not('segundo_diacono_id','is',null)
+       .neq('status','validado')
+       .order('created_at', { ascending: false })
+       .limit(1)
+       .maybeSingle()
+
+      if(emAndamento){
+        const meuId = String(eu.id)
+        const pId = String(emAndamento.primeiro_diacono_id||'')
+        const sId = String(emAndamento.segundo_diacono_id||'')
+
+        const oficio = String(euCompleto?.oficio||eu?.oficio||'').toLowerCase()
+        const funcao = String(euCompleto?.funcao||eu?.funcao||'').toLowerCase()
+        const nomeLower = String(euCompleto?.nome||eu?.nome||'').toLowerCase()
+        const isTesoureiro = funcao.includes('tesour') || oficio.includes('tesour') || nomeLower.includes('gilson')
+
+        const souEnvolvido = meuId===pId || meuId===sId || isTesoureiro
+
+        // Se não sou 1º, 2º nem tesoureiro, bloqueia - INCLUSIVE PASTOR
+        if(!souEnvolvido){
+          return <BloqueioTela cultoAberto={emAndamento} />
+        }
+      }
+    } catch(e){
+      console.error("Erro trava:", e?.message)
+    }
+    // ===== FIM DA TRAVA =====
 
     let users = []
     try {
@@ -78,12 +114,9 @@ export default async function NovoPage() {
       } catch { idsLiberados = [] }
     }
 
-    // TRAVA CORRIGIDA: os 2 diáconos do último registro ficam bloqueados (manhã/noite mesmo dia inclusive)
     let bloqueadosIds = ultimo? [ultimo.primeiro_diacono_id, ultimo.segundo_diacono_id].filter(Boolean) : []
     bloqueadosIds = bloqueadosIds.filter(id =>!idsLiberados.includes(id))
 
-    // CORREÇÃO BUG MANHÃ/NOITE: não bloqueia por data mais. Antes se manhã validava, a data 18/09 entrava em datasBloqueadas e bloqueava a noite.
-    // Agora permite 18/09 manhã e 18/09 noite separados. Bloqueio é por culto_id e por bloqueadosIds
     let datasBloqueadas = []
 
     return <FormNovo
