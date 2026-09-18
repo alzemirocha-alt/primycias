@@ -186,7 +186,6 @@ export async function corrigirRegistro(formData){
     const { data: perfil } = await supabaseAdmin.from('users').select('igreja_id').eq('id', eu.id).single()
     igreja_id = perfil?.igreja_id
   }
-  // CORREÇÃO: SEMPRE PRIORIZA CULTO_ID - NÃO APAGA O DIA TODO
   if(culto_id){
     await supabaseAdmin.from('records').delete().eq('culto_id', culto_id).eq('igreja_id', igreja_id)
   } else {
@@ -211,49 +210,42 @@ export async function corrigirRegistro(formData){
   }))
   const { error } = await supabaseAdmin.from('records').insert(paraInserir)
   if(error) throw new Error(error.message)
-  // volta o culto pra aguardando
   try{
     if(culto_id) await supabaseAdmin.from('cultos').update({ status: 'aberto', motivo_erro: null }).eq('id', culto_id)
   }catch{}
   revalidatePath('/registros')
+  revalidatePath(`/registros/editar/${culto_id}`)
   redirect('/registros')
 }
 
-// CORREÇÃO PRINCIPAL DO BUG DA FOTO - AGORA RECEBE CULTO_ID, NÃO SÓ DATA
+// === ARQUIVO FINAL CORRIGIDO - 2ª EDIÇÃO AGORA PEGA O ÚLTIMO SALVO ===
 export async function atualizarRegistros(culto_id_param, itens) {
   const eu = await getSessionUser()
-  // compatibilidade: se vier data antiga, trata como culto_id
   const cultoId = culto_id_param
+
   let igreja_id = eu?.igreja_id
   if(!igreja_id){
     const { data: perfil } = await supabaseAdmin.from('users').select('igreja_id').eq('id', eu.id).single()
     igreja_id = perfil?.igreja_id
   }
 
-  // busca pelo culto_id correto - separa manhã/noite
+  // Busca o culto pra garantir que não mistura manhã/noite
   const { data: cultoOrig } = await supabaseAdmin.from('cultos').select('id,data,periodo').eq('id', cultoId).single()
-  let data_culto, culto_id, segundo_id
+  if(!cultoOrig) throw new Error('Culto não encontrado para edição')
 
-  if(cultoOrig){
-    data_culto = cultoOrig.data
-    culto_id = cultoOrig.id
-    const { data: original } = await supabaseAdmin.from('records').select('segundo_diacono_id').eq('culto_id', culto_id).eq('igreja_id', igreja_id).limit(1).single()
-    segundo_id = original?.segundo_diacono_id
-    await supabaseAdmin.from('records').delete().eq('culto_id', culto_id).eq('igreja_id', igreja_id)
-  } else {
-    // fallback rota antiga por data - mantém mas não mistura se tiver culto_id nos registros
-    data_culto = typeof culto_id_param === 'string'? culto_id_param.split('T')[0] : new Date(culto_id_param).toISOString().split('T')[0]
-    const { data: original } = await supabaseAdmin.from('records').select('segundo_diacono_id, culto_id, igreja_id').eq('data_culto', data_culto).eq('igreja_id', igreja_id).limit(1).single()
-    segundo_id = original?.segundo_diacono_id
-    culto_id = original?.culto_id
-    if(culto_id){
-      await supabaseAdmin.from('records').delete().eq('culto_id', culto_id).eq('igreja_id', igreja_id)
-    } else {
-      await supabaseAdmin.from('records').delete().eq('data_culto', data_culto).eq('igreja_id', igreja_id)
-    }
-  }
+  const data_culto = cultoOrig.data
+  const culto_id = cultoOrig.id
+
+  // Pega o segundo diácono do último registro válido
+  const { data: original } = await supabaseAdmin.from('records').select('segundo_diacono_id').eq('culto_id', culto_id).eq('igreja_id', igreja_id).limit(1).single()
+  const segundo_id = original?.segundo_diacono_id
+
+  // CORREÇÃO: Apaga SOMENTE deste culto_id (não por data)
+  const { error: delError } = await supabaseAdmin.from('records').delete().eq('culto_id', culto_id).eq('igreja_id', igreja_id)
+  if(delError) throw new Error(delError.message)
 
   const hist = [{ acao: 'CORRIGIU e reenviou ao 2º Diácono', usuario: eu.nome, em: agora() }]
+
   const paraInserir = itens.filter(i=>i.membro_nome && i.valor).map(it=>({
     tipo: it.tipo.toLowerCase(),
     membro_nome: it.membro_nome,
@@ -270,12 +262,17 @@ export async function atualizarRegistros(culto_id_param, itens) {
     historico: hist,
     igreja_id
   }))
+
   const { error } = await supabaseAdmin.from('records').insert(paraInserir)
   if(error) throw new Error(error.message)
+
   try{
-    if(culto_id) await supabaseAdmin.from('cultos').update({ status: 'aberto', motivo_erro: null }).eq('id', culto_id)
+    await supabaseAdmin.from('cultos').update({ status: 'aberto', motivo_erro: null }).eq('id', culto_id)
   }catch{}
+
   revalidatePath('/registros')
+  revalidatePath(`/registros/editar/${culto_id}`)
+  revalidatePath(`/registros/editar/${culto_id}/`)
   redirect('/registros')
 }
 
