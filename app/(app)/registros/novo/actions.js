@@ -11,6 +11,17 @@ function ehTesoureiro(user) {
 function ehPastor(user){
   return (user?.oficio||'').toLowerCase().trim() === 'pastor'
 }
+function ehPresbitero(user){
+  if(!user) return false
+  const oficio = (user.oficio||'').toLowerCase().trim()
+  const funcaoPresb = (user.funcao_presbitero||'').toLowerCase().trim()
+  return oficio === 'presbitero' || oficio === 'presbítero' || funcaoPresb!== ''
+}
+function ehDiaconoNaoTesoureiro(user){
+  if(!user) return false
+  const oficio = (user.oficio||'').toLowerCase().trim()
+  return (oficio === 'diacono' || oficio === 'diácono') &&!ehTesoureiro(user) &&!ehPastor(user) &&!ehPresbitero(user)
+}
 
 export async function abrirCultoAction(formData){
   const { supabaseAdmin } = await import("@/lib/supabaseAdmin")
@@ -18,6 +29,12 @@ export async function abrirCultoAction(formData){
   const { revalidatePath } = await import("next/cache")
   const eu = await getSessionUser()
   if(!eu?.id) throw new Error('Sessão expirada')
+
+  // TRAVA NOVA: SÓ DIÁCONO QUE NÃO É TESOUREIRO ABRE CULTO - preservando resto
+  if(!ehDiaconoNaoTesoureiro(eu)){
+    throw new Error('Só Diácono (que não é tesoureiro) pode abrir culto.')
+  }
+
   let igreja_id = formData.get('igreja_id') || eu?.igreja_id
   if(!igreja_id){
     const { data: perfil } = await supabaseAdmin.from('users').select('igreja_id').eq('id', eu.id).single()
