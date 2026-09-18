@@ -24,7 +24,6 @@ function getStatusLabel(culto, mapaUsuarios, nomeTesoureiroDaIgreja) {
   }
 
   if (s === "aguardando_tesoureiro") {
-    // busca o nome real do tesoureiro da igreja (Gilson, Rivaldo, etc)
     if (nomeTesoureiroDaIgreja) {
       return `Aguardando Tesoureiro ${primeiroNome(nomeTesoureiroDaIgreja)}`
     }
@@ -49,10 +48,10 @@ export default async function RegistrosPage() {
     igreja_id = perfil?.igreja_id
   }
 
-  const { data } = await supabaseAdmin.from('records').select('*').eq('igreja_id', igreja_id).order('data_culto', { ascending: false })
+  // MUDANÇA 1: TRAZER CULTO_ID + PERIODO DO CULTO (pra separar manhã/noite)
+  const { data } = await supabaseAdmin.from('records').select('*, cultos!records_culto_id_fkey(data, periodo)').eq('igreja_id', igreja_id).order('data_culto', { ascending: false })
   const regsAll = data || []
 
-  // MAPA DE USUÁRIOS + DESCOBRE QUEM É O TESOUREIRO DA IGREJA
   const { data: usuariosDaIgreja } = await supabaseAdmin.from('users').select('id, nome, funcao, oficio').eq('igreja_id', igreja_id)
   const mapaUsuarios = {}
   let nomeTesoureiroDaIgreja = null
@@ -61,10 +60,9 @@ export default async function RegistrosPage() {
     const f = String(u.funcao || '').toLowerCase()
     const o = String(u.oficio || '').toLowerCase()
     if (f.includes('tesour') || o.includes('tesour')) {
-      nomeTesoureiroDaIgreja = u.nome // vai pegar o Gilson
+      nomeTesoureiroDaIgreja = u.nome
     }
   })
-  // se não achou pela função, tenta pelo nome Gilson que é padrão aí
   if (!nomeTesoureiroDaIgreja) {
     const gilson = (usuariosDaIgreja || []).find(u => String(u.nome||'').toLowerCase().includes('gilson'))
     if (gilson) nomeTesoureiroDaIgreja = gilson.nome
@@ -109,8 +107,16 @@ export default async function RegistrosPage() {
     return (d.getMonth()+1) === mesAtual && d.getFullYear() === anoAtual
   })
 
+  // MUDANÇA 2: AGRUPA POR CULTO_ID + PERIODO, NÃO SÓ POR DATA
   const grupos = {}
-  regsDoMes.forEach(r=>{ const k=r.data_culto||r.created_at?.slice(0,10); if(!grupos[k]) grupos[k]=[]; grupos[k].push(r) })
+  regsDoMes.forEach(r=>{
+    const dataBase = r.data_culto || r.created_at?.slice(0,10)
+    const periodo = r.cultos?.periodo || r.periodo || 'manha'
+    const cultoId = r.culto_id || ''
+    const k = `${dataBase}_${periodo}_${cultoId}` // separa 18/09 manhã de 18/09 noite
+    if(!grupos[k]) grupos[k]=[];
+    grupos[k].push(r)
+  })
 
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-6">
@@ -120,15 +126,17 @@ export default async function RegistrosPage() {
         {isPastor && <a href="/registros/novo" className="bg-blue-700 text-white px-4 py-2 rounded font-bold">🔓 Liberar Diáconos</a>}
       </div>
 
-      {Object.entries(grupos).map(([dataCulto, lista])=>{
+      {Object.entries(grupos).map(([key, lista])=>{
+        const dataCulto = lista[0]?.data_culto || lista[0]?.created_at?.slice(0,10)
+        const periodo = lista[0]?.cultos?.periodo || lista[0]?.periodo || 'manha'
         const totalGeral = lista.reduce((s,x)=>s+Number(x.valor||0),0)
         const totalDizimo = lista.filter(x=>(x.tipo||'').toLowerCase().includes('dizimo')).reduce((s,x)=>s+Number(x.valor||0),0)
         const totalOferta = lista.filter(x=>(x.tipo||'').toLowerCase().includes('oferta')).reduce((s,x)=>s+Number(x.valor||0),0)
         const primeiro = lista[0]
         return (
-          <div key={dataCulto} className="bg-white p-4 rounded shadow border-l-4 border-l-green-800 space-y-3">
+          <div key={key} className="bg-white p-4 rounded shadow border-l-4 border-l-green-800 space-y-3">
             <div className="flex justify-between font-bold">
-              <span>{new Date(dataCulto).toLocaleDateString('pt-BR')} - R$ {totalGeral.toFixed(2)}</span>
+              <span>{new Date(dataCulto).toLocaleDateString('pt-BR')} - {periodo === 'manha'? 'Manhã' : 'Noite'} - R$ {totalGeral.toFixed(2)}</span>
               <span className="text-xs bg-green-100 px-2 py-1 rounded">{getStatusLabel(primeiro, mapaUsuarios, nomeTesoureiroDaIgreja)}</span>
             </div>
             <div className="border rounded overflow-hidden">
