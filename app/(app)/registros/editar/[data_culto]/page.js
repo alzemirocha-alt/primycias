@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import FormEditarRegistro from "./FormEditarRegistro"
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function EditarPage({ params }) {
   const p = await params
@@ -9,7 +10,7 @@ export default async function EditarPage({ params }) {
   const { data: culto } = await supabaseAdmin.from('cultos').select('id,data,periodo,motivo_erro').eq('id', param).maybeSingle()
   let cultoFinal = culto
 
-  const { data: registros } = await supabaseAdmin.from('records').select('*').eq('culto_id', param)
+  const { data: registros } = await supabaseAdmin.from('records').select('*').eq('culto_id', param).order('created_at', { ascending: false })
 
   if (!cultoFinal && registros && registros.length > 0) {
     const { data: c2 } = await supabaseAdmin.from('cultos').select('id,data,periodo,motivo_erro').eq('id', registros[0].culto_id).maybeSingle()
