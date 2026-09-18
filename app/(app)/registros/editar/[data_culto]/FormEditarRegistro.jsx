@@ -2,6 +2,13 @@
 import { useState } from "react"
 import { atualizarRegistros } from "../../actions"
 
+function formataBR(dataISO){
+  if(!dataISO) return ''
+  const dataLimpa = dataISO.split('T')[0] // remove hora se vier
+  const [y,m,d] = dataLimpa.split('-')
+  return `${d}/${m}/${y}`
+}
+
 export default function FormEditarRegistro({ registros, data_culto, culto }) {
   const [itens, setItens] = useState(registros.map(r => ({ id: r.id, tipo: r.tipo, membro_nome: r.membro_nome, valor: r.valor })))
   const [salvando, setSalvando] = useState(false)
@@ -16,7 +23,6 @@ export default function FormEditarRegistro({ registros, data_culto, culto }) {
   async function handleSalvar(){
     setSalvando(true)
     try{
-      // CORREÇÃO: passa culto.id (e7eaa01a... ou 498a51ff...) e não a data 2026-09-18
       const cultoId = culto?.id || registros[0]?.culto_id
       await atualizarRegistros(cultoId, itens)
     }catch(e){
@@ -27,7 +33,7 @@ export default function FormEditarRegistro({ registros, data_culto, culto }) {
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4">
-      <h1 className="font-bold text-lg">Corrigir culto de {new Date(data_culto).toLocaleDateString('pt-BR')} {culto?.periodo? `- ${culto.periodo}` : ''}</h1>
+      <h1 className="font-bold text-lg">Corrigir culto de {formataBR(data_culto)} {culto?.periodo? `- ${culto.periodo.toUpperCase()}` : ''}</h1>
       <p className="text-sm bg-red-100 p-2 rounded">Motivo do erro: {registros[0]?.motivo_erro || culto?.motivo_erro}</p>
 
       {itens.map((it, i) => (
