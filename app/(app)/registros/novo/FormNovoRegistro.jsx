@@ -28,6 +28,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
   const isPresbitero = oficio === 'presbitero' || oficio === 'presbítero' || funcaoPresb !== ''
   const isDiacono = oficio === 'diacono' || oficio === 'diácono'
   const isDiaconoNaoTesoureiro = isDiacono &&!isTesoureiro &&!isPastor &&!isPresbitero
+  const estouBloqueado = safeBloqueados.includes(safeEu.id)
 
   const podeLiberar = isPastor
 
@@ -36,6 +37,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
     const d = c.data? new Date(c.data + 'T12:00:00').toLocaleDateString('pt-BR') : ''
     return `${d} - ${c.periodo === 'manha'? 'Manhã' : c.periodo === 'noite'? 'Noite' : c.periodo}`
   }
+  const cultoSelecionado = safeCultos.find(c=>c.id===cultoId)
 
   const totalDizimo = itens.filter(i=>i.tipo==='dizimo').reduce((s,i)=>s+(Number(i.valor)||0),0)
   const totalOferta = itens.filter(i=>i.tipo==='oferta').reduce((s,i)=>s+(Number(i.valor)||0),0)
@@ -44,6 +46,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
 
   const abrirCulto = async () => {
     if(!dataNova){ showMsg('Escolha a data'); return }
+    if(estouBloqueado){ showMsg('Você está bloqueado por ter participado do registro anterior'); return }
     setAbrindo(true)
     try {
       const fd = new FormData()
@@ -57,7 +60,6 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
 
   if(!eu) return <div className="p-6">Carregando sessão...</div>
 
-  // PASTOR - SÓ LIBERA - preservado igual seu original
   if(podeLiberar){
     return (
       <div className="p-6 max-w-2xl mx-auto">
@@ -79,14 +81,30 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
     )
   }
 
-  // TRAVA NOVA: TESOUREIRO NÃO ABRE CULTO - preservando sua rotina
   if(isTesoureiro){
     return <div className="p-6 max-w-2xl mx-auto bg-yellow-50 border rounded">Tesoureiro: você não abre culto e não cria registro. Aguarde o 2º diácono confirmar para você validar em Dízimos/Ofertas.</div>
   }
 
-  // TRAVA NOVA: PRESBÍTERO NÃO ABRE CULTO
   if(isPresbitero ||!isDiaconoNaoTesoureiro){
     return <div className="p-6 max-w-2xl mx-auto bg-gray-100 border rounded">Apenas Diácono que não é tesoureiro abre culto e inicia registro. Seu ofício: {safeEu.oficio || 'não definido'}</div>
+  }
+
+  if(estouBloqueado){
+    return (
+      <div className="relative p-6 max-w-2xl mx-auto">
+        <div className="opacity-20 pointer-events-none select-none">
+          <div className="border rounded p-4 bg-[#faf9f6] h-32"></div>
+        </div>
+        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="bg-red-600 text-white p-6 rounded-lg font-bold text-center shadow-xl max-w-md">
+            <div className="text-3xl mb-2">⛔</div>
+            <p className="text-lg">Você está bloqueado para iniciar um novo registro por ter participado do registro anterior.</p>
+            <p className="text-sm mt-3 font-normal opacity-90">Aguarde o Pastor liberar. Quando o Pastor liberar, esse aviso some automaticamente.</p>
+            <p className="text-xs mt-2">Diácono: {safeEu.nome}</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -104,64 +122,67 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
 
       <div className="border rounded p-4 bg-[#faf9f6] space-y-3">
         <label className="block font-bold">Culto *</label>
-        {safeCultos.length>0? (
-          <select value={cultoId} onChange={e=>setCultoId(e.target.value)} required className="border p-3 rounded w-full bg-white">
-            <option value="">Selecione o culto aberto</option>
-            {safeCultos.map(c=><option key={c.id} value={c.id}>{getCultoLabel(c)}</option>)}
-          </select>
+        {cultoId && cultoSelecionado ? (
+          <div className="bg-green-50 border border-green-600 p-3 rounded">
+            <div className="font-bold text-green-800">Culto selecionado: {getCultoLabel(cultoSelecionado)}</div>
+            <button type="button" onClick={()=>setCultoId('')} className="text-sm text-blue-600 underline mt-1">Trocar culto</button>
+          </div>
         ) : (
-          <div className="space-y-2">
-            <p className="text-sm text-gray-600">Nenhum culto aberto. Abra o culto abaixo:</p>
-            <div className="flex gap-2">
-              <input type="date" value={dataNova} onChange={e=>setDataNova(e.target.value)} className="border p-2 rounded flex-1" />
-              <select value={periodoNovo} onChange={e=>setPeriodoNovo(e.target.value)} className="border p-2 rounded">
+          <>
+            {safeCultos.length>0? (
+              <select value={cultoId} onChange={e=>setCultoId(e.target.value)} required className="border p-3 rounded w-full bg-white">
+                <option value="">Selecione o culto aberto</option>
+                {safeCultos.map(c=><option key={c.id} value={c.id}>{getCultoLabel(c)}</option>)}
+              </select>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">Nenhum culto aberto. Abra o culto abaixo:</p>
+              </div>
+            )}
+            <div className="flex gap-2 pt-2 border-t mt-2">
+              <input type="date" value={dataNova} onChange={e=>setDataNova(e.target.value)} className="border p-2 rounded flex-1 text-sm" />
+              <select value={periodoNovo} onChange={e=>setPeriodoNovo(e.target.value)} className="border p-2 rounded text-sm">
                 <option value="manha">Manhã</option>
                 <option value="noite">Noite</option>
               </select>
-              <button type="button" disabled={abrindo} onClick={abrirCulto} className="bg-[#1E5631] text-white px-4 rounded font-bold">{abrindo?'Abrindo...':'Abrir Culto'}</button>
+              <button type="button" disabled={abrindo} onClick={abrirCulto} className="bg-[#1E5631] text-white px-3 rounded text-sm font-bold">{abrindo?'Abrindo...': safeCultos.length>0 ? '+ Novo Culto' : 'Abrir Culto'}</button>
             </div>
-          </div>
+          </>
         )}
-        {safeCultos.length>0 && (
-          <div className="flex gap-2 pt-2 border-t mt-2">
-            <input type="date" value={dataNova} onChange={e=>setDataNova(e.target.value)} className="border p-2 rounded flex-1 text-sm" />
-            <select value={periodoNovo} onChange={e=>setPeriodoNovo(e.target.value)} className="border p-2 rounded text-sm">
-              <option value="manha">Manhã</option>
-              <option value="noite">Noite</option>
+      </div>
+
+      {cultoId && (
+        <>
+          <div>
+            <label className="block font-bold mb-2">2º Diácono</label>
+            <select name="segundo_diacono_id" value={segundo} onChange={e=>setSegundo(e.target.value)} required className="border p-3 rounded w-full bg-gray-100">
+              <option value="">Selecione</option>
+              {safeDiaconos.map(d=>{
+                const bloqueado = safeBloqueados.includes(d.id)
+                return <option key={d.id} value={d.id} disabled={bloqueado}>{d.nome}{bloqueado?' - bloqueado':''}</option>
+              })}
             </select>
-            <button type="button" disabled={abrindo} onClick={abrirCulto} className="bg-[#1E5631] text-white px-3 rounded text-sm font-bold">+ Novo Culto</button>
           </div>
-        )}
-      </div>
 
-      <div>
-        <label className="block font-bold mb-2">2º Diácono</label>
-        <select name="segundo_diacono_id" value={segundo} onChange={e=>setSegundo(e.target.value)} required className="border p-3 rounded w-full bg-gray-100">
-          <option value="">Selecione</option>
-          {safeDiaconos.map(d=>{
-            const bloqueado = safeBloqueados.includes(d.id)
-            return <option key={d.id} value={d.id} disabled={bloqueado}>{d.nome}{bloqueado?' - bloqueado':''}</option>
-          })}
-        </select>
-      </div>
+          {itens.map((it,i)=>(
+            <div key={i} className="flex gap-2">
+              <select value={it.tipo} onChange={e=>{const n=[...itens]; n[i].tipo=e.target.value; setItens(n)}} className="border p-2 rounded bg-gray-100">
+                <option value="dizimo">Dízimo</option><option value="oferta">Oferta</option>
+              </select>
+              <input placeholder="Nome" value={it.membro_nome} onChange={e=>{const n=[...itens]; n[i].membro_nome=e.target.value; setItens(n)}} className="border p-2 rounded flex-1" />
+              <input type="number" step="0.01" placeholder="0,00" value={it.valor} onChange={e=>{const n=[...itens]; n[i].valor=e.target.value; setItens(n)}} className="border p-2 rounded w-24" />
+            </div>
+          ))}
+          <button type="button" onClick={()=>setItens([...itens,{tipo:'oferta',membro_nome:'',valor:''}])} className="text-blue-600 font-bold">+ Adicionar linha</button>
 
-      {itens.map((it,i)=>(
-        <div key={i} className="flex gap-2">
-          <select value={it.tipo} onChange={e=>{const n=[...itens]; n[i].tipo=e.target.value; setItens(n)}} className="border p-2 rounded bg-gray-100">
-            <option value="dizimo">Dízimo</option><option value="oferta">Oferta</option>
-          </select>
-          <input placeholder="Nome" value={it.membro_nome} onChange={e=>{const n=[...itens]; n[i].membro_nome=e.target.value; setItens(n)}} className="border p-2 rounded flex-1" />
-          <input type="number" step="0.01" placeholder="0,00" value={it.valor} onChange={e=>{const n=[...itens]; n[i].valor=e.target.value; setItens(n)}} className="border p-2 rounded w-24" />
-        </div>
-      ))}
-      <button type="button" onClick={()=>setItens([...itens,{tipo:'oferta',membro_nome:'',valor:''}])} className="text-blue-600 font-bold">+ Adicionar linha</button>
-
-      <div className="bg-gray-100 p-4 rounded border font-bold">
-        <div className="flex justify-between"><span>Dízimos:</span><span>R$ {totalDizimo.toFixed(2)}</span></div>
-        <div className="flex justify-between"><span>Ofertas:</span><span>R$ {totalOferta.toFixed(2)}</span></div>
-        <div className="flex justify-between border-t pt-2 mt-2 text-green-800 text-lg"><span>TOTAL:</span><span>R$ {totalGeral.toFixed(2)}</span></div>
-      </div>
-      <button disabled={safeCultos.length===0 &&!cultoId} className="bg-green-700 text-white w-full py-3 rounded font-bold disabled:opacity-50">Salvar Registro</button>
+          <div className="bg-gray-100 p-4 rounded border font-bold">
+            <div className="flex justify-between"><span>Dízimos:</span><span>R$ {totalDizimo.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Ofertas:</span><span>R$ {totalOferta.toFixed(2)}</span></div>
+            <div className="flex justify-between border-t pt-2 mt-2 text-green-800 text-lg"><span>TOTAL:</span><span>R$ {totalGeral.toFixed(2)}</span></div>
+          </div>
+          <button className="bg-green-700 text-white w-full py-3 rounded font-bold">Salvar Registro</button>
+        </>
+      )}
     </form>
   )
 }
