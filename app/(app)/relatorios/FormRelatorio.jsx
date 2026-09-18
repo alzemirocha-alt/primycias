@@ -15,6 +15,16 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
     logo: "/logo-igreja.png"
   }
 
+  function getPeriodo(r){
+    return r.cultos?.periodo || r.periodo || 'manha'
+  }
+  function getKey(r){
+    const data = r.data_culto
+    const periodo = getPeriodo(r)
+    const cid = r.culto_id || ''
+    return `${data}_${periodo}_${cid}`
+  }
+
   function gerar(){
     if(!de ||!ate){ alert('Selecione De e Até'); return }
     const dDe = new Date(de+"T00:00:00")
@@ -22,19 +32,25 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
     const lista = registros.filter(r=>{
       const d = new Date(r.data_culto+"T12:00:00")
       return d >= dDe && d <= dAte
-    }).sort((a,b)=> new Date(a.data_culto) - new Date(b.data_culto))
+    }).sort((a,b)=> {
+      const d = new Date(a.data_culto) - new Date(b.data_culto)
+      if(d!== 0) return d
+      // manha vem antes de noite no mesmo dia
+      return String(getPeriodo(a)).localeCompare(String(getPeriodo(b)))
+    })
     setFiltrados(lista)
     setGerou(true)
-    // BAIXA AUTOMATICAMENTE APÓS GERAR
     setTimeout(()=> baixarPDF(lista), 300)
   }
 
   const gerarHTML = (listaParaUsar = null)=>{
     const lista = listaParaUsar || filtrados
+    // CORREÇÃO: AGRUPA POR DATA + PERIODO + CULTO_ID
     const porData = {}
     lista.forEach(r=>{
-      if(!porData[r.data_culto]) porData[r.data_culto]=[]
-      porData[r.data_culto].push(r)
+      const k = getKey(r)
+      if(!porData[k]) porData[k]=[]
+      porData[k].push(r)
     })
     const agora = new Date().toLocaleString('pt-BR')
     const totDizGeral = lista.filter(f=>String(f.tipo).toLowerCase()==='dizimo').reduce((s,i)=>s+Number(i.valor||0),0)
@@ -44,19 +60,19 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
     <html><head><meta charset="utf-8"><title>Relatorio</title>
     <style>
       body{font-family:Arial;padding:30px;color:#222;font-size:12px}
-   .cab{display:flex;gap:16px;border-bottom:2px solid #1a4330;padding-bottom:12px}
-   .cab img{height:70px}
-   .cab h2{margin:0;color:#1a4330;font-size:16px}
-   .small{font-size:11px}
-   .titulo{color:#1a4330;font-size:18px;font-weight:bold;text-align:center;margin:16px 0}
-   .meta{font-size:11px;color:#555;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:14px}
-   .dia{margin-bottom:28px;border:1px solid #ddd;border-radius:6px;overflow:hidden;page-break-inside:avoid}
-   .dia-head{background:#f3f6f3;padding:8px 12px;font-weight:bold;display:flex;justify-content:space-between;color:#1a4330}
+  .cab{display:flex;gap:16px;border-bottom:2px solid #1a4330;padding-bottom:12px}
+  .cab img{height:70px}
+  .cab h2{margin:0;color:#1a4330;font-size:16px}
+  .small{font-size:11px}
+  .titulo{color:#1a4330;font-size:18px;font-weight:bold;text-align:center;margin:16px 0}
+  .meta{font-size:11px;color:#555;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:14px}
+  .dia{margin-bottom:28px;border:1px solid #ddd;border-radius:6px;overflow:hidden;page-break-inside:avoid}
+  .dia-head{background:#f3f6f3;padding:8px 12px;font-weight:bold;display:flex;justify-content:space-between;color:#1a4330}
       table{width:100%;border-collapse:collapse} th,td{border-top:1px solid #e5e5e5;padding:6px 10px;text-align:left}
       th{background:#fafafa;font-size:11px}
-   .sub{font-size:11px;background:#f9f9f9;padding:8px 12px;display:flex;justify-content:space-between}
-   .assin{font-size:10px;color:#555;padding:8px 12px;border-top:1px dashed #ccc;line-height:1.5}
-   .totais{border-top:2px solid #1a4330;margin-top:20px;padding-top:12px;font-weight:bold}
+  .sub{font-size:11px;background:#f9f9f9;padding:8px 12px;display:flex;justify-content:space-between}
+  .assin{font-size:10px;color:#555;padding:8px 12px;border-top:1px dashed #ccc;line-height:1.5}
+  .totais{border-top:2px solid #1a4330;margin-top:20px;padding-top:12px;font-weight:bold}
     </style></head><body>
       <div class="cab">
         <img src="${dadosIgreja.logo}" onerror="this.style.display='none'" />
@@ -73,17 +89,20 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
     if(lista.length===0){
       html+=`<p>Nenhum registro para exibir.</p>`
     } else {
-      Object.keys(porData).sort().forEach(dataCulto=>{
-        const itens = porData[dataCulto]
+      Object.keys(porData).sort().forEach(key=>{
+        const itens = porData[key]
+        const dataCulto = itens[0].data_culto
+        const periodo = getPeriodo(itens[0])
+        const periodoLabel = periodo.toLowerCase() === 'manha'? 'MANHÃ' : 'NOITE'
         const totDia = itens.reduce((s,i)=>s+Number(i.valor||0),0)
         const totDizDia = itens.filter(i=>String(i.tipo).toLowerCase()==='dizimo').reduce((s,i)=>s+Number(i.valor||0),0)
         const totOfeDia = itens.filter(i=>String(i.tipo).toLowerCase()==='oferta').reduce((s,i)=>s+Number(i.valor||0),0)
         const primeiro = itens[0]
-        html+=`<div class="dia"><div class="dia-head"><span>Data do Culto: ${new Date(dataCulto+"T12:00:00").toLocaleDateString('pt-BR')}</span><span>Total do Dia: R$ ${totDia.toFixed(2)}</span></div><table><thead><tr><th>Tipo</th><th>Nome</th><th>Valor</th></tr></thead><tbody>`
+        html+=`<div class="dia"><div class="dia-head"><span>Data do Culto: ${new Date(dataCulto+"T12:00:00").toLocaleDateString('pt-BR')} - ${periodoLabel}</span><span>Total: R$ ${totDia.toFixed(2)}</span></div><table><thead><tr><th>Tipo</th><th>Nome</th><th>Valor</th></tr></thead><tbody>`
         itens.forEach(it=>{
           html+=`<tr><td style="text-transform:capitalize">${it.tipo}</td><td>${it.membro_nome}</td><td>R$ ${Number(it.valor).toFixed(2)}</td></tr>`
         })
-        html+=`</tbody></table><div class="sub"><span>Dízimos dia: R$ ${totDizDia.toFixed(2)}</span><span>Ofertas dia: R$ ${totOfeDia.toFixed(2)}</span><span>Total dia: R$ ${totDia.toFixed(2)}</span></div>`
+        html+=`</tbody></table><div class="sub"><span>Dízimos: R$ ${totDizDia.toFixed(2)}</span><span>Ofertas: R$ ${totOfeDia.toFixed(2)}</span><span>Total: R$ ${totDia.toFixed(2)}</span></div>`
         html+=`<div class="assin">Preenchido por: ${primeiro.diacono1_nome||''} em ${primeiro.diacono1_at? new Date(primeiro.diacono1_at).toLocaleString('pt-BR'):''}<br/>Confirmado por: ${primeiro.diacono2_nome||''} em ${primeiro.diacono2_at? new Date(primeiro.diacono2_at).toLocaleString('pt-BR'):''}<br/>Validado por Tesoureiro: ${primeiro.tesoureiro_nome||''} em ${primeiro.tesoureiro_at? new Date(primeiro.tesoureiro_at).toLocaleString('pt-BR'):''}<br/>Histórico: ${(primeiro.historico||[]).map(h=>h.acao+' por '+h.usuario).join(' | ')}</div></div>`
       })
     }
@@ -109,8 +128,13 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
     w.document.close()
   }
 
+  // CORREÇÃO PREVIEW TAMBÉM: MESMO AGRUPAMENTO POR DATA+PERIODO+CULTO_ID
   const porData = {}
-  filtrados.forEach(r=>{ if(!porData[r.data_culto]) porData[r.data_culto]=[]; porData[r.data_culto].push(r) })
+  filtrados.forEach(r=>{
+    const k = getKey(r)
+    if(!porData[k]) porData[k]=[]
+    porData[k].push(r)
+  })
   const totalDizimo = filtrados.filter(f=>String(f.tipo).toLowerCase()==='dizimo').reduce((s,i)=>s+Number(i.valor||0),0)
   const totalOferta = filtrados.filter(f=>String(f.tipo).toLowerCase()==='oferta').reduce((s,i)=>s+Number(i.valor||0),0)
 
@@ -142,19 +166,22 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
           <div className="p-4">
             <h2 className="text-center font-bold text-[#1a4330] mb-4">Relatório de Dízimos e Ofertas — {de? new Date(de+"T12:00:00").toLocaleDateString('pt-BR'):''} a {ate? new Date(ate+"T12:00:00").toLocaleDateString('pt-BR'):''}</h2>
             {filtrados.length===0? <p>Nenhum registro para exibir.</p> :
-              Object.keys(porData).sort().map(dataCulto=>{
-                const itens = porData[dataCulto]
+              Object.keys(porData).sort().map(key=>{
+                const itens = porData[key]
+                const dataCulto = itens[0].data_culto
+                const periodo = getPeriodo(itens[0])
+                const periodoLabel = periodo.toLowerCase() === 'manha'? 'MANHÃ' : 'NOITE'
                 const totDia = itens.reduce((s,i)=>s+Number(i.valor||0),0)
                 const totDizDia = itens.filter(i=>String(i.tipo).toLowerCase()==='dizimo').reduce((s,i)=>s+Number(i.valor||0),0)
                 const totOfeDia = itens.filter(i=>String(i.tipo).toLowerCase()==='oferta').reduce((s,i)=>s+Number(i.valor||0),0)
                 const primeiro = itens[0]
                 return (
-                  <div key={dataCulto} className="mb-6 border rounded overflow-hidden">
-                    <div className="bg-[#f3f6f3] p-2 flex justify-between font-bold text-[#1a4330]"><span>{new Date(dataCulto+"T12:00:00").toLocaleDateString('pt-BR')}</span><span>R$ {totDia.toFixed(2)}</span></div>
+                  <div key={key} className="mb-6 border rounded overflow-hidden">
+                    <div className="bg-[#f3f6f3] p-2 flex justify-between font-bold text-[#1a4330]"><span>Data do Culto: {new Date(dataCulto+"T12:00:00").toLocaleDateString('pt-BR')} - {periodoLabel}</span><span>Total: R$ {totDia.toFixed(2)}</span></div>
                     <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-xs"><th className="p-2 text-left">Tipo</th><th className="p-2 text-left">Nome</th><th className="p-2 text-left">Valor</th></tr></thead>
                     <tbody>{itens.map(it=><tr key={it.id} className="border-t"><td className="p-2 capitalize">{it.tipo}</td><td className="p-2">{it.membro_nome}</td><td className="p-2">R$ {Number(it.valor).toFixed(2)}</td></tr>)}</tbody></table>
                     <div className="bg-gray-50 p-2 text-xs flex justify-between"><span>Dízimos: R$ {totDizDia.toFixed(2)}</span><span>Ofertas: R$ {totOfeDia.toFixed(2)}</span><span className="font-bold">Total: R$ {totDia.toFixed(2)}</span></div>
-                    <div className="p-2 text-[11px] text-gray-600 border-t border-dashed"><div>Preenchido: {primeiro.diacono1_nome} - {primeiro.diacono1_at? new Date(primeiro.diacono1_at).toLocaleString('pt-BR'):''}</div><div>Confirmado: {primeiro.diacono2_nome} - {primeiro.diacono2_at? new Date(primeiro.diacono2_at).toLocaleString('pt-BR'):''}</div><div>Validado: {primeiro.tesoureiro_nome} - {primeiro.tesoureiro_at? new Date(primeiro.tesoureiro_at).toLocaleString('pt-BR'):''}</div></div>
+                    <div className="p-2 text-[11px] text-gray-600 border-t border-dashed"><div>Preenchido: {primeiro.diacono1_nome} - {primeiro.diacono1_at? new Date(primeiro.diacono1_at).toLocaleString('pt-BR'):''}</div><div>Confirmado: {primeiro.diacono2_nome} - {primeiro.diacono2_at? new Date(primeiro.diacono2_at).toLocaleString('pt-BR'):''}</div><div>Validado: {primeiro.tesoureiro_nome} - {primeiro.tesoureiro_at? new Date(primeiro.tesoureiro_at).toLocaleString('pt-BR'):''}</div><div className="mt-1">Histórico: {(primeiro.historico||[]).map(h=>`${h.acao} por ${h.usuario}`).join(' | ')}</div></div>
                   </div>
                 )
               })
