@@ -12,7 +12,6 @@ import {
   reabrirLancamentoAction, liberarLancamentoAction, excluirLancamentoAction,
   solicitarLiberacaoDataAction, decidirSolicitacaoAction,
 } from "../actions";
-import NovoCultoModal from "../_components/NovoCultoModal";
 
 const TAG_TONE = { rascunho: "neutral", aprovado: "sage", erro_reportado: "rust" };
 
@@ -27,7 +26,6 @@ export default function LancamentosClient({ me, church, lancamentos, solicitacoe
   });
 
   const solicitacoesData = solicitacoes.filter((s) => s.tipo === "liberacao_data_lancamento");
-  const isTesoureiroIgreja = me.funcao === "tesoureiro";
 
   return (
     <div>
@@ -45,12 +43,6 @@ export default function LancamentosClient({ me, church, lancamentos, solicitacoe
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {!isTesoureiroIgreja && (
-        <div className="flex justify-end mb-3">
-          <NovoCultoModal igrejaId={church.id} onCreated={(c) => { setCultoSelecionado(c.id); router.refresh(); }} />
         </div>
       )}
 
@@ -103,7 +95,6 @@ function NovoLancamentoForm({ me, onCreated, cultos, cultoSelecionado, setCultoS
     if (recorrente && !dataFimRecorrencia) { setErro("Informe a data final da recorrência."); return; }
     if (recorrente && dataFimRecorrencia && dataFimRecorrencia <= data) { setErro("Data final deve ser após a data inicial."); return; }
     
-    // CORREÇÃO: sanitiza culto_id - nunca manda "" pro banco
     const cultoIdFinal = !isTesoureiroIgreja && tipo === "entrada" && isDizimoOferta && cultoSelecionado ? cultoSelecionado : null;
 
     startTransition(async () => {
@@ -210,9 +201,6 @@ function LancamentoCard({ l, me, run, isPending, cultos }) {
   const [confirmando, setConfirmando] = useState(false);
   
   const soPastor = me.oficio === "pastor";
-  const isTesoureiroIgreja = me.funcao === "tesoureiro";
-  const isTesoureiroJunta = me.funcao_diacono === "tesoureiro_junta";
-  
   const souCriador = l.criado_por === me.id;
   const dentroPrazoErro = l.data_aprovacao ? daysBetween(l.data_aprovacao, today()) <= 30 : true;
   const podeExcluir = (l.status === "rascunho") || soPastor;
