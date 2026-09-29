@@ -102,6 +102,10 @@ function NovoLancamentoForm({ me, onCreated, cultos, cultoSelecionado, setCultoS
     }
     if (recorrente && !dataFimRecorrencia) { setErro("Informe a data final da recorrência."); return; }
     if (recorrente && dataFimRecorrencia && dataFimRecorrencia <= data) { setErro("Data final deve ser após a data inicial."); return; }
+    
+    // CORREÇÃO: sanitiza culto_id - nunca manda "" pro banco
+    const cultoIdFinal = !isTesoureiroIgreja && tipo === "entrada" && isDizimoOferta && cultoSelecionado ? cultoSelecionado : null;
+
     startTransition(async () => {
       try {
         await criarLancamentoAction({ 
@@ -109,13 +113,13 @@ function NovoLancamentoForm({ me, onCreated, cultos, cultoSelecionado, setCultoS
           data, 
           historico, 
           valor, 
-          categoria, 
+          categoria: categoria || null, 
           recorrente, 
           frequencia,
-          data_fim_recorrencia: recorrente ? dataFimRecorrencia : null,
-          culto_id: !isTesoureiroIgreja && tipo === "entrada" && isDizimoOferta ? cultoSelecionado : null
+          data_fim_recorrencia: recorrente && dataFimRecorrencia ? dataFimRecorrencia : null,
+          culto_id: cultoIdFinal
         });
-        setHistorico(""); setValor(""); setDataFimRecorrencia("");
+        setHistorico(""); setValor(""); setDataFimRecorrencia(""); setCultoSelecionado(null);
         onCreated();
       } catch (e) {
         setErro(e.message);
@@ -164,7 +168,7 @@ function NovoLancamentoForm({ me, onCreated, cultos, cultoSelecionado, setCultoS
 
       {!isTesoureiroIgreja && tipo === "entrada" && isDizimoOferta && (
         <Field label="Culto (obrigatório para dízimos e ofertas)">
-          <Select value={cultoSelecionado || ""} onChange={(e) => setCultoSelecionado(e.target.value)}>
+          <Select value={cultoSelecionado || ""} onChange={(e) => setCultoSelecionado(e.target.value || null)}>
             <option value="">Selecione o culto aberto...</option>
             {cultos.filter(c => c.status !== 'fechado').map((c) => (
               <option key={c.id} value={c.id}>{fmtDate(c.data)} - {c.periodo}</option>
@@ -219,10 +223,10 @@ function LancamentoCard({ l, me, run, isPending, cultos }) {
       <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
         <div className="text-sm">
           <b style={{ color: l.tipo === "entrada" ? "#3F7A52" : "#8C3B3B" }}>{l.tipo === "entrada" ? "Entrada" : "Saída"}</b>
-          {" · "}{fmtDate(l.data)} {cultoInfo && <Tag>{cultoInfo.periodo}</Tag>} {l.data > today() && <Tag tone="gold">futuro</Tag>} {l.recorrente && <Tag>recorrente · {FREQUENCIAS[l.frequencia]} até {l.data_fim_recorrencia ? fmtDate(l.data_fim_recorrencia) : '—'}</Tag>}
+          {" · "}{fmtDate(l.data)} {cultoInfo && <Tag>{cultoInfo.periodo}</Tag>} {l.data > today() && <Tag tone="gold">futuro</Tag>} {l.recorrente && <Tag>recorrente · {FREQUENCIAS[l.frequencia] || l.frequencia || '—'} até {l.data_fim_recorrencia ? fmtDate(l.data_fim_recorrencia) : '—'}</Tag>}
         </div>
         <div className="flex items-center gap-2">
-          <Tag tone={TAG_TONE[l.status]}>{LANCAMENTO_STATUS_LABEL[l.status]}</Tag>
+          <Tag tone={TAG_TONE[l.status] || "neutral"}>{LANCAMENTO_STATUS_LABEL[l.status] || l.status}</Tag>
           {podeExcluir && !confirmando && <button onClick={() => setConfirmando(true)} className="text-xs text-rust underline">Excluir</button>}
         </div>
       </div>
