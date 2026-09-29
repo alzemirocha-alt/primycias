@@ -36,26 +36,26 @@ export async function criarLancamentoAction(payload) {
   const { me } = await requireTesouraria();
   const { tipo, data, historico, valor, categoria, recorrente, frequencia, data_fim_recorrencia, culto_id } = payload;
 
-  // TRAVA TESOUREIRO DA IGREJA - SÓ TESOUREIRO DA IGREJA, NÃO DA JUNTA
+  // CORREÇÃO: Tesoureiro da Igreja - pode lançar entrada, só não pode dízimo/oferta
   if (isTesoureiroIgreja(me)) {
-    if (tipo === 'entrada') {
-      throw new Error("Tesoureiro da igreja não pode lançar entradas de dízimos e ofertas.");
+    const cat = (categoria || "").toLowerCase();
+    if (tipo === 'entrada' && (cat.includes("dizimo") || cat.includes("oferta"))) {
+      throw new Error("Tesoureiro da igreja não pode lançar na categoria dízimos e ofertas.");
+    }
+    if (cat.includes("dizimo") || cat.includes("oferta")) {
+      throw new Error("Tesoureiro da igreja não pode lançar na categoria dízimos e ofertas.");
     }
     if (culto_id) {
       throw new Error("Tesoureiro da igreja não pode vincular culto.");
     }
-    const cat = (categoria || "").toLowerCase();
-    if (cat.includes("dizimo") || cat.includes("oferta")) {
-      throw new Error("Tesoureiro da igreja não pode lançar na categoria dízimos e ofertas.");
-    }
-    if (recorrente) {
-      throw new Error("Tesoureiro da igreja não pode criar lançamentos recorrentes.");
-    }
+    // REMOVIDO: trava de recorrente e trava de entrada total
   }
 
-  // TRAVA NOVA: entrada precisa de culto
-  if (!isTesoureiroIgreja(me) && tipo === 'entrada' &&!culto_id) {
-    throw new Error("Entrada precisa estar vinculada a um culto aberto. Abra o culto primeiro.");
+  // CORREÇÃO: culto só obrigatório quando for dízimo/oferta
+  const isDizimoOferta = (categoria || "").toLowerCase().includes("dizimo") || (categoria || "").toLowerCase().includes("oferta");
+
+  if (!isTesoureiroIgreja(me) && tipo === 'entrada' && isDizimoOferta &&!culto_id) {
+    throw new Error("Dízimos e ofertas precisam estar vinculados a um culto aberto. Abra o culto primeiro.");
   }
 
   // Valida se culto pertence à igreja e está aberto
