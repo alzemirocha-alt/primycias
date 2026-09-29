@@ -34,7 +34,6 @@ export async function criarLancamentoAction(payload) {
   const { me } = await requireTesouraria();
   let { tipo, data, historico, valor, categoria, recorrente, frequencia, data_fim_recorrencia, culto_id } = payload;
 
-  // sanitiza "" -> null (corrige erro da foto)
   if (culto_id === "" || culto_id === undefined) culto_id = null;
   if (data_fim_recorrencia === "" || data_fim_recorrencia === undefined) data_fim_recorrencia = null;
   if (categoria === "") categoria = null;
@@ -81,13 +80,11 @@ export async function criarLancamentoAction(payload) {
   if (recorrente && data_fim_recorrencia) {
     let d = new Date(data + "T00:00:00");
     const fim = new Date(data_fim_recorrencia + "T00:00:00");
-
     while (true) {
       if (frequencia === "semanal") d.setDate(d.getDate() + 7);
       else if (frequencia === "quinzenal") d.setDate(d.getDate() + 15);
       else if (frequencia === "mensal") d.setMonth(d.getMonth() + 1);
       else d.setFullYear(d.getFullYear() + 1);
-
       if (d > fim) break;
       datas.push(d.toISOString().slice(0, 10));
     }
@@ -202,8 +199,6 @@ export async function excluirLancamentoAction(id) {
   revalidatePath("/tesouraria/lancamentos");
 }
 
-// -------------------- Saldo inicial --------------------
-
 export async function definirSaldoInicialAction(valor, data) {
   const { me } = await requireTesoureiroIgreja();
   const { data: existing } = await supabaseAdmin.from("financas").select("*").eq("igreja_id", me.igreja_id).maybeSingle();
@@ -227,8 +222,6 @@ export async function solicitarLiberacaoSaldoAction() {
   });
   revalidatePath("/tesouraria/fluxo");
 }
-
-// -------------------- Decisões do Pastor --------------------
 
 export async function decidirSolicitacaoAction(requestId, liberar) {
   const me = await getSessionUser();
@@ -256,8 +249,6 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
   revalidatePath("/tesouraria/lancamentos");
   revalidatePath("/usuarios");
 }
-
-// -------------------- Recibo de Dízimos e Ofertas --------------------
 
 export async function buscarDizimistaOfertanteAction(nomeBusca) {
   const { me } = await requireTesouraria();
@@ -321,9 +312,6 @@ export async function obterContribuicoesMesAction(nomeSelecionado, mesAno) {
     valor: Number(r.valor),
   }));
 
-  const total = contribuicoes.reduce((s, c) => s + c.valor, 0);
-  return { contribuicoes, total, periodo: { inicio, fim, mesAno } };
-}
   const total = contribuicoes.reduce((s, c) => s + c.valor, 0);
   return { contribuicoes, total, periodo: { inicio, fim, mesAno } };
 }
