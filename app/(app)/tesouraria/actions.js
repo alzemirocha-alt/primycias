@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionUser, getChurch } from "@/lib/auth";
 import { canAccessTesouraria, daysBetween, today } from "@/lib/constants";
@@ -17,7 +16,6 @@ function isPastor(u) {
   return u.oficio === "pastor";
 }
 
-// regra central do item 1.1 - VALIDADA com Gilson
 function isTesoureiroIgreja(u) {
   return u.funcao === "tesoureiro";
 }
@@ -34,31 +32,29 @@ async function requireTesoureiroIgreja() {
 
 export async function criarLancamentoAction(payload) {
   const { me } = await requireTesouraria();
-  const { tipo, data, historico, valor, categoria, recorrente, frequencia, data_fim_recorrencia, culto_id } = payload;
+  let { tipo, data, historico, valor, categoria, recorrente, frequencia, data_fim_recorrencia, culto_id } = payload;
 
-  // CORREÇÃO: Tesoureiro da Igreja - pode lançar entrada, só não pode dízimo/oferta
+  // sanitiza "" -> null (corrige erro da foto)
+  if (culto_id === "" || culto_id === undefined) culto_id = null;
+  if (data_fim_recorrencia === "" || data_fim_recorrencia === undefined) data_fim_recorrencia = null;
+  if (categoria === "") categoria = null;
+
   if (isTesoureiroIgreja(me)) {
     const cat = (categoria || "").toLowerCase();
-    if (tipo === 'entrada' && (cat.includes("dizimo") || cat.includes("oferta"))) {
-      throw new Error("Tesoureiro da igreja não pode lançar na categoria dízimos e ofertas.");
-    }
     if (cat.includes("dizimo") || cat.includes("oferta")) {
       throw new Error("Tesoureiro da igreja não pode lançar na categoria dízimos e ofertas.");
     }
     if (culto_id) {
       throw new Error("Tesoureiro da igreja não pode vincular culto.");
     }
-    // REMOVIDO: trava de recorrente e trava de entrada total
   }
 
-  // CORREÇÃO: culto só obrigatório quando for dízimo/oferta
   const isDizimoOferta = (categoria || "").toLowerCase().includes("dizimo") || (categoria || "").toLowerCase().includes("oferta");
 
   if (!isTesoureiroIgreja(me) && tipo === 'entrada' && isDizimoOferta &&!culto_id) {
     throw new Error("Dízimos e ofertas precisam estar vinculados a um culto aberto. Abra o culto primeiro.");
   }
 
-  // Valida se culto pertence à igreja e está aberto
   if (culto_id) {
     const { data: culto } = await supabaseAdmin.from("cultos").select("id,status,igreja_id").eq("id", culto_id).maybeSingle();
     if (!culto || culto.igreja_id!== me.igreja_id) throw new Error("Culto inválido.");
@@ -79,7 +75,7 @@ export async function criarLancamentoAction(payload) {
     throw new Error("Informe a data final da recorrência.");
   }
 
-  const serieId = recorrente? randomUUID() : null;
+  const serieId = recorrente? crypto.randomUUID() : null;
   const datas = [data];
 
   if (recorrente && data_fim_recorrencia) {
@@ -114,12 +110,12 @@ export async function criarLancamentoAction(payload) {
 
 async function hasLiberacaoData(igrejaId, data) {
   const { data: reqs } = await supabaseAdmin
-.from("approval_requests")
-.select("id")
-.eq("igreja_id", igrejaId)
-.eq("tipo", "liberacao_data_lancamento")
-.eq("status", "liberado")
-.contains("dados", { data });
+   .from("approval_requests")
+   .select("id")
+   .eq("igreja_id", igrejaId)
+   .eq("tipo", "liberacao_data_lancamento")
+   .eq("status", "liberado")
+   .contains("dados", { data });
   return (reqs || []).length > 0;
 }
 
@@ -240,17 +236,17 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
     throw new Error("Apenas Pastor.");
   }
   const { data: reqRow } = await supabaseAdmin
-.from("approval_requests")
-.select("*")
-.eq("id", requestId)
-.eq("igreja_id", me.igreja_id)
-.maybeSingle();
+   .from("approval_requests")
+   .select("*")
+   .eq("id", requestId)
+   .eq("igreja_id", me.igreja_id)
+   .maybeSingle();
   if (!reqRow) return;
 
   await supabaseAdmin
-.from("approval_requests")
-.update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
-.eq("id", requestId);
+   .from("approval_requests")
+   .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
+   .eq("id", requestId);
 
   if (liberar && reqRow.tipo === "liberacao_saldo_inicial") {
     const { data: fin } = await supabaseAdmin.from("financas").select("id").eq("igreja_id", me.igreja_id).maybeSingle();
@@ -261,19 +257,19 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
   revalidatePath("/usuarios");
 }
 
-// -------------------- Recibo de Dízimos e Ofertas - ATUALIZADO COM culto_id --------------------
+// -------------------- Recibo de Dízimos e Ofertas --------------------
 
 export async function buscarDizimistaOfertanteAction(nomeBusca) {
   const { me } = await requireTesouraria();
   if (!nomeBusca || nomeBusca.trim().length < 2) return [];
 
   const { data, error } = await supabaseAdmin
-.from("records")
-.select("membro_nome, valor, cultos!inner(data, periodo)")
-.eq("igreja_id", me.igreja_id)
-.eq("status", "validado")
-.ilike("membro_nome", `%${nomeBusca.trim()}%`)
-.limit(300);
+   .from("records")
+   .select("membro_nome, valor, cultos!inner(data, periodo)")
+   .eq("igreja_id", me.igreja_id)
+   .eq("status", "validado")
+   .ilike("membro_nome", `%${nomeBusca.trim()}%`)
+   .limit(300);
 
   if (error) throw new Error("Erro ao buscar: " + error.message);
   if (!data || data.length === 0) return [];
@@ -308,14 +304,14 @@ export async function obterContribuicoesMesAction(nomeSelecionado, mesAno) {
   const fim = new Date(ano, mes, 0).toISOString().slice(0, 10);
 
   const { data, error } = await supabaseAdmin
-.from("records")
-.select("membro_nome, tipo, valor, cultos!inner(data)")
-.eq("igreja_id", me.igreja_id)
-.eq("status", "validado")
-.ilike("membro_nome", `%${nomeSelecionado.trim()}%`)
-.gte("cultos.data", inicio)
-.lte("cultos.data", fim)
-.order("cultos(data)", { ascending: true });
+   .from("records")
+   .select("membro_nome, tipo, valor, cultos!inner(data)")
+   .eq("igreja_id", me.igreja_id)
+   .eq("status", "validado")
+   .ilike("membro_nome", `%${nomeSelecionado.trim()}%`)
+   .gte("cultos.data", inicio)
+   .lte("cultos.data", fim)
+   .order("cultos(data)", { ascending: true });
 
   if (error) throw new Error("Erro ao carregar: " + error.message);
 
@@ -325,6 +321,9 @@ export async function obterContribuicoesMesAction(nomeSelecionado, mesAno) {
     valor: Number(r.valor),
   }));
 
+  const total = contribuicoes.reduce((s, c) => s + c.valor, 0);
+  return { contribuicoes, total, periodo: { inicio, fim, mesAno } };
+}
   const total = contribuicoes.reduce((s, c) => s + c.valor, 0);
   return { contribuicoes, total, periodo: { inicio, fim, mesAno } };
 }
