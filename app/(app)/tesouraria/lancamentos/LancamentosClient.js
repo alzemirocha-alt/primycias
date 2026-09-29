@@ -27,6 +27,7 @@ export default function LancamentosClient({ me, church, lancamentos, solicitacoe
   });
 
   const solicitacoesData = solicitacoes.filter((s) => s.tipo === "liberacao_data_lancamento");
+  const isTesoureiro = me.funcao === "tesoureiro" || me.funcao_diacono === "tesoureiro_junta";
 
   return (
     <div>
@@ -47,11 +48,13 @@ export default function LancamentosClient({ me, church, lancamentos, solicitacoe
         </div>
       )}
 
-      <div className="flex justify-end mb-3">
-        <NovoCultoModal igrejaId={church.id} onCreated={(c) => { setCultoSelecionado(c.id); router.refresh(); }} />
-      </div>
+      {!isTesoureiro && (
+        <div className="flex justify-end mb-3">
+          <NovoCultoModal igrejaId={church.id} onCreated={(c) => { setCultoSelecionado(c.id); router.refresh(); }} />
+        </div>
+      )}
 
-      <NovoLancamentoForm cultos={cultos} cultoSelecionado={cultoSelecionado} setCultoSelecionado={setCultoSelecionado} onCreated={() => router.refresh()} />
+      <NovoLancamentoForm me={me} cultos={cultos} cultoSelecionado={cultoSelecionado} setCultoSelecionado={setCultoSelecionado} onCreated={() => router.refresh()} />
 
       <div className="mt-4 space-y-2">
         {lancamentos.map((l) => (
@@ -63,8 +66,9 @@ export default function LancamentosClient({ me, church, lancamentos, solicitacoe
   );
 }
 
-function NovoLancamentoForm({ onCreated, cultos, cultoSelecionado, setCultoSelecionado }) {
-  const [tipo, setTipo] = useState("entrada");
+function NovoLancamentoForm({ me, onCreated, cultos, cultoSelecionado, setCultoSelecionado }) {
+  const isTesoureiro = me.funcao === "tesoureiro" || me.funcao_diacono === "tesoureiro_junta";
+  const [tipo, setTipo] = useState(isTesoureiro ? "saida" : "entrada");
   const [data, setData] = useState(today());
   const [historico, setHistorico] = useState("");
   const [valor, setValor] = useState("");
@@ -76,12 +80,20 @@ function NovoLancamentoForm({ onCreated, cultos, cultoSelecionado, setCultoSelec
   const [bloqueadoPorData, setBloqueadoPorData] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const cats = tipo === "saida" ? CATEGORIAS_SAIDA : CATEGORIAS_ENTRADA;
+  const catsRaw = tipo === "saida" ? CATEGORIAS_SAIDA : CATEGORIAS_ENTRADA;
+  // Tesoureiro não pode lançar Dízimos e Ofertas
+  const cats = isTesoureiro
+    ? catsRaw.filter((c) => {
+        const n = c.toLowerCase();
+        return !n.includes("dizimo") && !n.includes("oferta");
+      })
+    : catsRaw;
 
   const submit = () => {
     setErro(""); setBloqueadoPorData(false);
     if (!historico || !valor) { setErro("Preencha histórico e valor."); return; }
-    if (tipo === "entrada" && !cultoSelecionado) { setErro("Selecione o culto para esta entrada."); return; }
+    if (!isTesoureiro && tipo === "entrada" && !cultoSelecionado) { setErro("Selecione o culto para esta entrada."); return; }
+    if (isTesoureiro && tipo === "entrada") { setErro("Tesoureiro não pode lançar entradas de dízimos e ofertas."); return; }
     if (recorrente && !dataFimRecorrencia) { setErro("Informe a data final da recorrência."); return; }
     if (recorrente && dataFimRecorrencia && dataFimRecorrencia <= data) { setErro("Data final deve ser após a data inicial."); return; }
     startTransition(async () => {
@@ -95,7 +107,7 @@ function NovoLancamentoForm({ onCreated, cultos, cultoSelecionado, setCultoSelec
           recorrente, 
           frequencia,
           data_fim_recorrencia: recorrente ? dataFimRecorrencia : null,
-          culto_id: tipo === "entrada" ? cultoSelecionado : null
+          culto_id: !isTesoureiro && tipo === "entrada" ? cultoSelecionado : null
         });
         setHistorico(""); setValor(""); setDataFimRecorrencia("");
         onCreated();
@@ -118,7 +130,7 @@ function NovoLancamentoForm({ onCreated, cultos, cultoSelecionado, setCultoSelec
     <div className="bg-white border border-line rounded-sm p-4">
       <div className="text-sm font-medium mb-3">Novo lançamento (imediato, futuro ou recorrente)</div>
       
-      {tipo === "entrada" && (
+      {!isTesoureiro && tipo === "entrada" && (
         <Field label="Culto (obrigatório para entradas)">
           <Select value={cultoSelecionado || ""} onChange={(e) => setCultoSelecionado(e.target.value)}>
             <option value="">Selecione o culto aberto...</option>
@@ -132,7 +144,7 @@ function NovoLancamentoForm({ onCreated, cultos, cultoSelecionado, setCultoSelec
       <div className="grid sm:grid-cols-2 gap-3 mb-2">
         <Field label="Tipo">
           <Select value={tipo} onChange={(e) => { setTipo(e.target.value); setCategoria(""); }}>
-            <option value="entrada">Entrada</option>
+            {!isTesoureiro && <option value="entrada">Entrada</option>}
             <option value="saida">Saída</option>
           </Select>
         </Field>
@@ -154,21 +166,25 @@ function NovoLancamentoForm({ onCreated, cultos, cultoSelecionado, setCultoSelec
           </Select>
         </Field>
       </div>
-      <label className="flex items-center gap-2 text-sm mb-2">
-        <input type="checkbox" checked={recorrente} onChange={(e) => setRecorrente(e.target.checked)} />
-        Lançamento recorrente
-      </label>
-      {recorrente && (
-        <div className="grid sm:grid-cols-2 gap-3 mb-2">
-          <Field label="Frequência">
-            <Select value={frequencia} onChange={(e) => setFrequencia(e.target.value)}>
-              {Object.entries(FREQUENCIAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </Select>
-          </Field>
-          <Field label="Data final da recorrência *">
-            <Input type="date" value={dataFimRecorrencia} onChange={(e) => setDataFimRecorrencia(e.target.value)} />
-          </Field>
-        </div>
+      {!isTesoureiro && (
+        <>
+          <label className="flex items-center gap-2 text-sm mb-2">
+            <input type="checkbox" checked={recorrente} onChange={(e) => setRecorrente(e.target.checked)} />
+            Lançamento recorrente
+          </label>
+          {recorrente && (
+            <div className="grid sm:grid-cols-2 gap-3 mb-2">
+              <Field label="Frequência">
+                <Select value={frequencia} onChange={(e) => setFrequencia(e.target.value)}>
+                  {Object.entries(FREQUENCIAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </Select>
+              </Field>
+              <Field label="Data final da recorrência *">
+                <Input type="date" value={dataFimRecorrencia} onChange={(e) => setDataFimRecorrencia(e.target.value)} />
+              </Field>
+            </div>
+          )}
+        </>
       )}
       {erro && <div className="text-xs text-rust mb-2">{erro}</div>}
       {bloqueadoPorData && (
