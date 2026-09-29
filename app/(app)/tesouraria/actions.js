@@ -36,8 +36,25 @@ export async function criarLancamentoAction(payload) {
   const { me } = await requireTesouraria();
   const { tipo, data, historico, valor, categoria, recorrente, frequencia, data_fim_recorrencia, culto_id } = payload;
 
+  // TRAVA TESOUREIRO DA IGREJA - SÓ TESOUREIRO DA IGREJA, NÃO DA JUNTA
+  if (isTesoureiroIgreja(me)) {
+    if (tipo === 'entrada') {
+      throw new Error("Tesoureiro da igreja não pode lançar entradas de dízimos e ofertas.");
+    }
+    if (culto_id) {
+      throw new Error("Tesoureiro da igreja não pode vincular culto.");
+    }
+    const cat = (categoria || "").toLowerCase();
+    if (cat.includes("dizimo") || cat.includes("oferta")) {
+      throw new Error("Tesoureiro da igreja não pode lançar na categoria dízimos e ofertas.");
+    }
+    if (recorrente) {
+      throw new Error("Tesoureiro da igreja não pode criar lançamentos recorrentes.");
+    }
+  }
+
   // TRAVA NOVA: entrada precisa de culto
-  if (tipo === 'entrada' &&!culto_id) {
+  if (!isTesoureiroIgreja(me) && tipo === 'entrada' &&!culto_id) {
     throw new Error("Entrada precisa estar vinculada a um culto aberto. Abra o culto primeiro.");
   }
 
@@ -97,12 +114,12 @@ export async function criarLancamentoAction(payload) {
 
 async function hasLiberacaoData(igrejaId, data) {
   const { data: reqs } = await supabaseAdmin
- .from("approval_requests")
- .select("id")
- .eq("igreja_id", igrejaId)
- .eq("tipo", "liberacao_data_lancamento")
- .eq("status", "liberado")
- .contains("dados", { data });
+.from("approval_requests")
+.select("id")
+.eq("igreja_id", igrejaId)
+.eq("tipo", "liberacao_data_lancamento")
+.eq("status", "liberado")
+.contains("dados", { data });
   return (reqs || []).length > 0;
 }
 
@@ -223,17 +240,17 @@ export async function decidirSolicitacaoAction(requestId, liberar) {
     throw new Error("Apenas Pastor.");
   }
   const { data: reqRow } = await supabaseAdmin
- .from("approval_requests")
- .select("*")
- .eq("id", requestId)
- .eq("igreja_id", me.igreja_id)
- .maybeSingle();
+.from("approval_requests")
+.select("*")
+.eq("id", requestId)
+.eq("igreja_id", me.igreja_id)
+.maybeSingle();
   if (!reqRow) return;
 
   await supabaseAdmin
- .from("approval_requests")
- .update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
- .eq("id", requestId);
+.from("approval_requests")
+.update({ status: liberar? "liberado" : "negado", decidido_por_nome: me.nome, decided_at: new Date().toISOString() })
+.eq("id", requestId);
 
   if (liberar && reqRow.tipo === "liberacao_saldo_inicial") {
     const { data: fin } = await supabaseAdmin.from("financas").select("id").eq("igreja_id", me.igreja_id).maybeSingle();
@@ -251,12 +268,12 @@ export async function buscarDizimistaOfertanteAction(nomeBusca) {
   if (!nomeBusca || nomeBusca.trim().length < 2) return [];
 
   const { data, error } = await supabaseAdmin
- .from("records")
- .select("membro_nome, valor, cultos!inner(data, periodo)")
- .eq("igreja_id", me.igreja_id)
- .eq("status", "validado")
- .ilike("membro_nome", `%${nomeBusca.trim()}%`)
- .limit(300);
+.from("records")
+.select("membro_nome, valor, cultos!inner(data, periodo)")
+.eq("igreja_id", me.igreja_id)
+.eq("status", "validado")
+.ilike("membro_nome", `%${nomeBusca.trim()}%`)
+.limit(300);
 
   if (error) throw new Error("Erro ao buscar: " + error.message);
   if (!data || data.length === 0) return [];
@@ -291,14 +308,14 @@ export async function obterContribuicoesMesAction(nomeSelecionado, mesAno) {
   const fim = new Date(ano, mes, 0).toISOString().slice(0, 10);
 
   const { data, error } = await supabaseAdmin
- .from("records")
- .select("membro_nome, tipo, valor, cultos!inner(data)")
- .eq("igreja_id", me.igreja_id)
- .eq("status", "validado")
- .ilike("membro_nome", `%${nomeSelecionado.trim()}%`)
- .gte("cultos.data", inicio)
- .lte("cultos.data", fim)
- .order("cultos(data)", { ascending: true });
+.from("records")
+.select("membro_nome, tipo, valor, cultos!inner(data)")
+.eq("igreja_id", me.igreja_id)
+.eq("status", "validado")
+.ilike("membro_nome", `%${nomeSelecionado.trim()}%`)
+.gte("cultos.data", inicio)
+.lte("cultos.data", fim)
+.order("cultos(data)", { ascending: true });
 
   if (error) throw new Error("Erro ao carregar: " + error.message);
 
