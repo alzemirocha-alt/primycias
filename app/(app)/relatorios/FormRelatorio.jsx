@@ -25,6 +25,21 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
     return `${data}_${periodo}_${cid}`
   }
 
+  // CORREÇÃO DE FUSO: FORÇA UTC E CONVERTE PARA RECIFE
+  function fmtRecife(iso){
+    if(!iso) return ''
+    try {
+      let s = String(iso).trim().replace(' ', 'T')
+      // se não tem Z nem +00:00, força Z (estava salvando 13:43 como UTC sem Z)
+      if(!s.endsWith('Z') &&!/[+-]\d{2}:?\d{2}$/.test(s)){
+        s = s + 'Z'
+      }
+      return new Date(s).toLocaleString('pt-BR', { timeZone: 'America/Recife' })
+    } catch {
+      return ''
+    }
+  }
+
   function gerar(){
     if(!de ||!ate){ alert('Selecione De e Até'); return }
     const dDe = new Date(de+"T00:00:00")
@@ -58,19 +73,19 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
     <html><head><meta charset="utf-8"><title>Relatorio</title>
     <style>
       body{font-family:Arial;padding:30px;color:#222;font-size:12px}
- .cab{display:flex;gap:16px;border-bottom:2px solid #1a4330;padding-bottom:12px}
- .cab img{height:70px}
- .cab h2{margin:0;color:#1a4330;font-size:16px}
- .small{font-size:11px}
- .titulo{color:#1a4330;font-size:18px;font-weight:bold;text-align:center;margin:16px 0}
- .meta{font-size:11px;color:#555;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:14px}
- .dia{margin-bottom:28px;border:1px solid #ddd;border-radius:6px;overflow:hidden;page-break-inside:avoid}
- .dia-head{background:#f3f6f3;padding:8px 12px;font-weight:bold;display:flex;justify-content:space-between;color:#1a4330}
+.cab{display:flex;gap:16px;border-bottom:2px solid #1a4330;padding-bottom:12px}
+.cab img{height:70px}
+.cab h2{margin:0;color:#1a4330;font-size:16px}
+.small{font-size:11px}
+.titulo{color:#1a4330;font-size:18px;font-weight:bold;text-align:center;margin:16px 0}
+.meta{font-size:11px;color:#555;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:14px}
+.dia{margin-bottom:28px;border:1px solid #ddd;border-radius:6px;overflow:hidden;page-break-inside:avoid}
+.dia-head{background:#f3f6f3;padding:8px 12px;font-weight:bold;display:flex;justify-content:space-between;color:#1a4330}
       table{width:100%;border-collapse:collapse} th,td{border-top:1px solid #e5e5e5;padding:6px 10px;text-align:left}
       th{background:#fafafa;font-size:11px}
- .sub{font-size:11px;background:#f9f9f9;padding:8px 12px;display:flex;justify-content:space-between}
- .assin{font-size:10px;color:#555;padding:8px 12px;border-top:1px dashed #ccc;line-height:1.5}
- .totais{border-top:2px solid #1a4330;margin-top:20px;padding-top:12px;font-weight:bold}
+.sub{font-size:11px;background:#f9f9f9;padding:8px 12px;display:flex;justify-content:space-between}
+.assin{font-size:10px;color:#555;padding:8px 12px;border-top:1px dashed #ccc;line-height:1.5}
+.totais{border-top:2px solid #1a4330;margin-top:20px;padding-top:12px;font-weight:bold}
     </style></head><body>
       <div class="cab">
         <img src="${dadosIgreja.logo}" onerror="this.style.display='none'" />
@@ -101,7 +116,7 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
           html+=`<tr><td style="text-transform:capitalize">${it.tipo}</td><td>${it.membro_nome}</td><td>R$ ${Number(it.valor).toFixed(2)}</td></tr>`
         })
         html+=`</tbody></table><div class="sub"><span>Dízimos: R$ ${totDizDia.toFixed(2)}</span><span>Ofertas: R$ ${totOfeDia.toFixed(2)}</span><span>Total: R$ ${totDia.toFixed(2)}</span></div>`
-        html+=`<div class="assin">Preenchido por: ${primeiro.diacono1_nome||''} em ${primeiro.diacono1_at? new Date(primeiro.diacono1_at).toLocaleString('pt-BR', { timeZone: 'America/Recife' }):''}<br/>Confirmado por: ${primeiro.diacono2_nome||''} em ${primeiro.diacono2_at? new Date(primeiro.diacono2_at).toLocaleString('pt-BR', { timeZone: 'America/Recife' }):''}<br/>Validado por Tesoureiro: ${primeiro.tesoureiro_nome||''} em ${primeiro.tesoureiro_at? new Date(primeiro.tesoureiro_at).toLocaleString('pt-BR', { timeZone: 'America/Recife' }):''}<br/>Histórico: ${(primeiro.historico||[]).map(h=>h.acao+' por '+h.usuario).join(' | ')}</div></div>`
+        html+=`<div class="assin">Preenchido por: ${primeiro.diacono1_nome||''} em ${primeiro.diacono1_at? fmtRecife(primeiro.diacono1_at):''}<br/>Confirmado por: ${primeiro.diacono2_nome||''} em ${primeiro.diacono2_at? fmtRecife(primeiro.diacono2_at):''}<br/>Validado por Tesoureiro: ${primeiro.tesoureiro_nome||''} em ${primeiro.tesoureiro_at? fmtRecife(primeiro.tesoureiro_at):''}<br/>Histórico: ${(primeiro.historico||[]).map(h=>h.acao+' por '+h.usuario).join(' | ')}</div></div>`
       })
     }
 
@@ -178,7 +193,7 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
                     <table className="w-full text-sm"><thead><tr className="bg-gray-50 text-xs"><th className="p-2 text-left">Tipo</th><th className="p-2 text-left">Nome</th><th className="p-2 text-left">Valor</th></tr></thead>
                     <tbody>{itens.map(it=><tr key={it.id} className="border-t"><td className="p-2 capitalize">{it.tipo}</td><td className="p-2">{it.membro_nome}</td><td className="p-2">R$ {Number(it.valor).toFixed(2)}</td></tr>)}</tbody></table>
                     <div className="bg-gray-50 p-2 text-xs flex justify-between"><span>Dízimos: R$ {totDizDia.toFixed(2)}</span><span>Ofertas: R$ {totOfeDia.toFixed(2)}</span><span className="font-bold">Total: R$ {totDia.toFixed(2)}</span></div>
-                    <div className="p-2 text-[11px] text-gray-600 border-t border-dashed"><div>Preenchido: {primeiro.diacono1_nome} - {primeiro.diacono1_at? new Date(primeiro.diacono1_at).toLocaleString('pt-BR', { timeZone: 'America/Recife' }):''}</div><div>Confirmado: {primeiro.diacono2_nome} - {primeiro.diacono2_at? new Date(primeiro.diacono2_at).toLocaleString('pt-BR', { timeZone: 'America/Recife' }):''}</div><div>Validado: {primeiro.tesoureiro_nome} - {primeiro.tesoureiro_at? new Date(primeiro.tesoureiro_at).toLocaleString('pt-BR', { timeZone: 'America/Recife' }):''}</div><div className="mt-1">Histórico: {(primeiro.historico||[]).map(h=>`${h.acao} por ${h.usuario}`).join(' | ')}</div></div>
+                    <div className="p-2 text-[11px] text-gray-600 border-t border-dashed"><div>Preenchido: {primeiro.diacono1_nome} - {primeiro.diacono1_at? fmtRecife(primeiro.diacono1_at):''}</div><div>Confirmado: {primeiro.diacono2_nome} - {primeiro.diacono2_at? fmtRecife(primeiro.diacono2_at):''}</div><div>Validado: {primeiro.tesoureiro_nome} - {primeiro.tesoureiro_at? fmtRecife(primeiro.tesoureiro_at):''}</div><div className="mt-1">Histórico: {(primeiro.historico||[]).map(h=>`${h.acao} por ${h.usuario}`).join(' | ')}</div></div>
                   </div>
                 )
               })
