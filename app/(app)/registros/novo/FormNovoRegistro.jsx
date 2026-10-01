@@ -1,16 +1,24 @@
 "use client"
 import { useState } from "react"
 import { criarRegistros, liberarDiacono, bloquearDiacono, abrirCultoAction } from "./actions"
+import { createClient } from "@supabase/supabase-js"
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
 
 export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloqueadosIds = [], datasBloqueadas = [], liberadosIds = [], cultosAbertos = [] }) {
   const [cultoId, setCultoId] = useState('')
   const [dataNova, setDataNova] = useState(new Date().toISOString().slice(0,10))
   const [periodoNovo, setPeriodoNovo] = useState('manha')
   const [segundo, setSegundo] = useState('')
-  const [itens, setItens] = useState([{ tipo:'dizimo', membro_nome:'', valor:'' }])
+  const [itens, setItens] = useState([{ tipo:'dizimo', membro_nome:'', membro_id:'', valor:'' }])
   const [msg, setMsg] = useState('')
   const [carregando, setCarregando] = useState(null)
   const [abrindo, setAbrindo] = useState(false)
+  const [buscaAtiva, setBuscaAtiva] = useState(null)
+  const [sugestoes, setSugestoes] = useState([])
 
   const safeEu = eu || {}
   const safeDiaconos = Array.isArray(diaconos)? diaconos : []
@@ -25,7 +33,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
 
   const isPastor = oficio === 'pastor'
   const isTesoureiro = funcao === 'tesoureiro' || oficio === 'tesoureiro'
-  const isPresbitero = oficio === 'presbitero' || oficio === 'presbítero' || funcaoPresb !== ''
+  const isPresbitero = oficio === 'presbitero' || oficio === 'presbítero' || funcaoPresb!== ''
   const isDiacono = oficio === 'diacono' || oficio === 'diácono'
   const isDiaconoNaoTesoureiro = isDiacono &&!isTesoureiro &&!isPastor &&!isPresbitero
   const estouBloqueado = safeBloqueados.includes(safeEu.id)
@@ -43,6 +51,19 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
   const totalOferta = itens.filter(i=>i.tipo==='oferta').reduce((s,i)=>s+(Number(i.valor)||0),0)
   const totalGeral = totalDizimo + totalOferta
   const showMsg = (t)=>{ setMsg(t); setTimeout(()=>setMsg(''),4000) }
+
+  const buscarMembro = async (texto, index) => {
+    const n = [...itens]; n[index].membro_nome = texto; n[index].membro_id = ''; setItens(n)
+    setBuscaAtiva(index)
+    if(texto.length < 2){ setSugestoes([]); return }
+    const { data } = await supabase.from('membros').select('id, nome').ilike('nome', `%${texto}%`).order('nome').limit(10)
+    setSugestoes(data || [])
+  }
+
+  const selecionarMembro = (index, membro) => {
+    const n = [...itens]; n[index].membro_nome = membro.nome; n[index].membro_id = membro.id; setItens(n)
+    setSugestoes([]); setBuscaAtiva(null)
+  }
 
   const abrirCulto = async () => {
     if(!dataNova){ showMsg('Escolha a data'); return }
@@ -122,7 +143,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
 
       <div className="border rounded p-4 bg-[#faf9f6] space-y-3">
         <label className="block font-bold">Culto *</label>
-        {cultoId && cultoSelecionado ? (
+        {cultoId && cultoSelecionado? (
           <div className="bg-green-50 border border-green-600 p-3 rounded">
             <div className="font-bold text-green-800">Culto selecionado: {getCultoLabel(cultoSelecionado)}</div>
             <button type="button" onClick={()=>setCultoId('')} className="text-sm text-blue-600 underline mt-1">Trocar culto</button>
@@ -145,7 +166,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
                 <option value="manha">Manhã</option>
                 <option value="noite">Noite</option>
               </select>
-              <button type="button" disabled={abrindo} onClick={abrirCulto} className="bg-[#1E5631] text-white px-3 rounded text-sm font-bold">{abrindo?'Abrindo...': safeCultos.length>0 ? '+ Novo Culto' : 'Abrir Culto'}</button>
+              <button type="button" disabled={abrindo} onClick={abrirCulto} className="bg-[#1E5631] text-white px-3 rounded text-sm font-bold">{abrindo?'Abrindo...': safeCultos.length>0? '+ Novo Culto' : 'Abrir Culto'}</button>
             </div>
           </>
         )}
@@ -165,15 +186,26 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
           </div>
 
           {itens.map((it,i)=>(
-            <div key={i} className="flex gap-2">
+            <div key={i} className="flex gap-2 relative">
               <select value={it.tipo} onChange={e=>{const n=[...itens]; n[i].tipo=e.target.value; setItens(n)}} className="border p-2 rounded bg-gray-100">
                 <option value="dizimo">Dízimo</option><option value="oferta">Oferta</option>
               </select>
-              <input placeholder="Nome" value={it.membro_nome} onChange={e=>{const n=[...itens]; n[i].membro_nome=e.target.value; setItens(n)}} className="border p-2 rounded flex-1" />
+              <div className="flex-1 relative">
+                <input placeholder="Digite o nome - ex: VAL" value={it.membro_nome} onChange={e=>buscarMembro(e.target.value, i)} className="border p-2 rounded w-full" />
+                {buscaAtiva===i && sugestoes.length>0 && (
+                  <div className="absolute z-50 top-full left-0 right-0 bg-white border rounded shadow-lg max-h-40 overflow-auto mt-1">
+                    {sugestoes.map(m=>(
+                      <div key={m.id} onClick={()=>selecionarMembro(i,m)} className="p-2 hover:bg-green-100 cursor-pointer border-b text-sm">
+                        {m.nome}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <input type="number" step="0.01" placeholder="0,00" value={it.valor} onChange={e=>{const n=[...itens]; n[i].valor=e.target.value; setItens(n)}} className="border p-2 rounded w-24" />
             </div>
           ))}
-          <button type="button" onClick={()=>setItens([...itens,{tipo:'oferta',membro_nome:'',valor:''}])} className="text-blue-600 font-bold">+ Adicionar linha</button>
+          <button type="button" onClick={()=>setItens([...itens,{tipo:'oferta',membro_nome:'',membro_id:'',valor:''}])} className="text-blue-600 font-bold">+ Adicionar linha</button>
 
           <div className="bg-gray-100 p-4 rounded border font-bold">
             <div className="flex justify-between"><span>Dízimos:</span><span>R$ {totalDizimo.toFixed(2)}</span></div>
