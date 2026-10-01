@@ -1,31 +1,34 @@
 "use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabaseClient" // se não tiver, usa fetch
 
 export default function NovoMembroPage() {
   const router = useRouter()
   const [tipo, setTipo] = useState("comungante")
-  const [oficial, setOficial] = useState(false)
   const [oficialTipo, setOficialTipo] = useState("")
   const [estadoCivil, setEstadoCivil] = useState("")
   const [isComungante, setIsComungante] = useState(true)
+  const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
+    setLoading(true)
     const fd = new FormData(e.target)
+    const body = Object.fromEntries(fd)
 
-    // Pega o maior numero_rol e soma 1 para garantir ordem crescente
-    // Isso será feito no backend, mas aqui validamos
-
-    const res = await fetch("/api/membros", {
-      method: "POST",
-      body: JSON.stringify(Object.fromEntries(fd)),
-      headers: { "Content-Type": "application/json" }
-    })
-    const data = await res.json()
-    if(data.id) router.push(`/membros/${data.id}`)
-    else alert("Erro: " + data.error)
+    try {
+      const res = await fetch("/api/membros", {
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Erro ao salvar")
+      router.push(`/membros/${data.id}`)
+    } catch (err) {
+      alert(err.message)
+      setLoading(false)
+    }
   }
 
   return (
@@ -38,9 +41,9 @@ export default function NovoMembroPage() {
           <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">1. Dados Pessoais</h2>
           <div className="grid grid-cols-2 gap-4">
             <label className="col-span-2 flex flex-col text-sm">Nome Completo *<input name="nome_completo" required className="border p-2 rounded mt-1" /></label>
-            <label className="flex flex-col text-sm">Nº Cadastro Membro *<input name="numero_rol" type="number" required placeholder="Ex: 73" className="border p-2 rounded mt-1" /><span className="text-[10px] text-gray-500">Nunca pode repetir, mesmo se demitido</span></label>
+            <label className="flex flex-col text-sm">Nº Cadastro Membro *<input name="numero_rol" type="number" required placeholder="Ex: 73" className="border p-2 rounded mt-1" /><span className="text-[10px] text-gray-500">Nunca pode repetir</span></label>
             <label className="flex flex-col text-sm">CPF<input name="cpf" className="border p-2 rounded mt-1" placeholder="Importa do sistema se já tiver" /></label>
-            <label className="col-span-2 flex flex-col text-sm">Foto de Perfil URL<input name="foto_url" className="border p-2 rounded mt-1" placeholder="URL da foto ou upload futuro" /></label>
+            <label className="col-span-2 flex flex-col text-sm">Foto de Perfil URL<input name="foto_url" className="border p-2 rounded mt-1" placeholder="URL da foto" /></label>
             <label className="flex flex-col text-sm">Filiação - Pai<input name="filiacao_pai" className="border p-2 rounded mt-1" /></label>
             <label className="flex flex-col text-sm">Filiação - Mãe<input name="filiacao_mae" className="border p-2 rounded mt-1" /></label>
             <label className="flex flex-col text-sm">Data Nascimento<input name="data_nascimento" type="date" className="border p-2 rounded mt-1" /></label>
@@ -61,7 +64,7 @@ export default function NovoMembroPage() {
               <label className="flex flex-col text-sm">Nome Cônjuge<input name="nome_conjuge" className="border p-2 rounded mt-1" /></label>
               <label className="flex flex-col text-sm">CPF Cônjuge<input name="cpf_conjuge" className="border p-2 rounded mt-1" /></label>
               <label className="flex flex-col text-sm">Data Casamento<input name="data_casamento" type="date" className="border p-2 rounded mt-1" /></label>
-              <span className="col-span-3 text-xs text-gray-500">O sistema buscará se o cônjuge é membro e vinculará.</span>
+              <span className="col-span-3 text-xs text-gray-500">O sistema buscará se o cônjuge é membro e vinculará automaticamente.</span>
             </div>
           )}
         </div>
@@ -123,7 +126,9 @@ export default function NovoMembroPage() {
           </div>
         )}
 
-        <button type="submit" className="w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold">Salvar Ficha Completa</button>
+        <button type="submit" disabled={loading} className="w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold disabled:opacity-50">
+          {loading? 'Salvando...' : 'Salvar Ficha Completa'}
+        </button>
       </form>
     </div>
   )
