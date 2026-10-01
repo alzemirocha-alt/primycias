@@ -1,6 +1,6 @@
 "use client"
 import { useState } from "react"
-import { criarRegistros, liberarDiacono, bloquearDiacono, abrirCultoAction } from "./actions"
+import { criarRegistros, liberarDiacono, bloquearDiacono, abrirCultoAction, deletarCultoAction } from "./actions"
 import { createClient } from "@supabase/supabase-js"
 
 const supabase = createClient(
@@ -19,6 +19,7 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
   const [abrindo, setAbrindo] = useState(false)
   const [buscaAtiva, setBuscaAtiva] = useState(null)
   const [sugestoes, setSugestoes] = useState([])
+  const [excluindo, setExcluindo] = useState(false)
 
   const safeEu = eu || {}
   const safeDiaconos = Array.isArray(diaconos)? diaconos : []
@@ -77,6 +78,19 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
       await abrirCultoAction(fd)
       window.location.reload()
     } catch(e){ showMsg(e.message); setAbrindo(false) }
+  }
+
+  const excluirCulto = async () => {
+    if(!cultoId) return
+    if(!confirm('Excluir este culto aberto? Só pode excluir antes de enviar para o 2º diácono.')) return
+    setExcluindo(true)
+    try {
+      await deletarCultoAction(cultoId)
+      window.location.reload()
+    } catch(e){
+      showMsg(e.message)
+      setExcluindo(false)
+    }
   }
 
   if(!eu) return <div className="p-6">Carregando sessão...</div>
@@ -146,7 +160,11 @@ export default function FormNovo({ eu, diaconos = [], todosDiaconos = [], bloque
         {cultoId && cultoSelecionado? (
           <div className="bg-green-50 border border-green-600 p-3 rounded">
             <div className="font-bold text-green-800">Culto selecionado: {getCultoLabel(cultoSelecionado)}</div>
-            <button type="button" onClick={()=>setCultoId('')} className="text-sm text-blue-600 underline mt-1">Trocar culto</button>
+            <div className="flex gap-3 mt-2">
+              <button type="button" onClick={()=>setCultoId('')} className="text-sm text-blue-600 underline">Trocar culto</button>
+              <button type="button" disabled={excluindo} onClick={excluirCulto} className="text-sm text-red-600 underline font-bold">{excluindo?'Excluindo...':'Excluir este culto'}</button>
+            </div>
+            <p className="text-[11px] text-gray-500 mt-1">Só o diácono que abriu pode excluir, e só antes de enviar para o 2º diácono.</p>
           </div>
         ) : (
           <>
