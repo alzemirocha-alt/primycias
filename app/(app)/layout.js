@@ -27,14 +27,17 @@ export default async function AppLayout({ children }) {
   const oficio = (user.oficio || '').toLowerCase()
   const funcao = (user.funcao_diacono || user.funcao || '').toLowerCase()
   const funcaoPresb = (user.funcao_presbitero || '').toLowerCase()
-  const nome = (user.nome || '').toLowerCase()
   const isTesoureiro = funcao === 'tesoureiro' || oficio === 'tesoureiro' || funcao === 'tesoureiro_junta'
-  const isPresbitero = oficio === 'presbitero' || funcaoPresb!== '' || nome.includes('alzemir') || nome.includes('jairo magero') || nome.includes('nilo da silva')
+  const isPresbitero = oficio === 'presbitero' || funcaoPresb!== ''
   const isPresbiteroPuro = isPresbitero &&!isTesoureiro
+
+  // REGRA CORRETA: Só Pastor (admin) e Secretário do Conselho pela FUNÇÃO
+  const isSecretarioConselho = funcaoPresb.includes('secretario')
+  const podeVerMembros = isAdmin(user) || isSecretarioConselho
 
   const nav = [
     { href: "/dashboard", label: "Início" },
-    { href: "/membros", label: "Membros" },
+   ...(podeVerMembros? [{ href: "/membros", label: "Membros" }] : []),
 ...(isAdmin(user)? [{ href: "/usuarios", label: "Usuários" }] : []),
 ...(!isPresbiteroPuro? [{ href: "/registros", label: "Dízimos e Ofertas" }] : []),
 ...(!isPresbiteroPuro? [{ href: "/relatorios", label: "Relatórios" }] : []),
