@@ -44,7 +44,6 @@ export async function abrirCultoAction(formData){
   if(!data) throw new Error('Data obrigatória')
   if(!['manha','noite'].includes(periodo)) throw new Error('Período inválido')
 
-  // TRAVA NOVA: bloqueado do último culto não pode abrir novo (manhã/noite mesmo dia inclusive)
   const { data: ultimo } = await supabaseAdmin.from('records').select('data_culto, primeiro_diacono_id, segundo_diacono_id').eq('igreja_id', igreja_id).order('created_at', { ascending: false }).limit(1)
   if(ultimo?.length > 0){
     const ult = ultimo[0]
@@ -57,7 +56,6 @@ export async function abrirCultoAction(formData){
     }
   }
 
-  // TRAVA NOVA: se já participou de um registro nessa MESMA DATA (manhã ou noite), não pode abrir outro no mesmo dia
   const { data: jaNoDia } = await supabaseAdmin.from('records').select('id').eq('igreja_id', igreja_id).eq('data_culto', data).or(`primeiro_diacono_id.eq.${eu.id},segundo_diacono_id.eq.${eu.id}`).limit(1)
   if(jaNoDia?.length > 0){
     throw new Error(`Você já participou de um registro no dia ${new Date(data+'T12:00:00').toLocaleDateString('pt-BR')}. Não pode abrir manhã e noite no mesmo dia. Revezamento obrigatório.`)
@@ -273,6 +271,37 @@ export async function bloquearDiacono(id){
   if(!ehPastor(eu)) throw new Error('Só pastor pode bloquear')
   const { error } = await supabaseAdmin.from('liberacoes_diaconos').delete().eq('diacono_id', id)
   if(error) throw new Error("Erro ao bloquear: " + error.message)
+  revalidatePath('/registros/novo')
+  return true
+}
+
+// NOVA FUNÇÃO: DELETAR CULTO ABERTO - REGRA QUE VOCÊ PEDIU
+export async function deletarCultoAction(cultoId){
+  const { supabaseAdmin } = await import("@/lib/supabaseAdmin")
+  const { getSessionUser } = await import("@/lib/auth")
+  const { revalidatePath } = await import("next/cache")
+  const eu = await getSessionUser()
+  if(!eu?.id) throw new Error('Sessão expirada')
+
+  // Busca o culto
+  const { data: culto, error: errCulto } = await supabaseAdmin.from('cultos').select('id, criado_por, igreja_id, status').eq('id', cultoId).single()
+  if(errCulto ||!culto) throw new Error('Culto não encontrado')
+
+  // Só quem abriu pode excluir
+  if(culto.criado_por!== eu.id &&!ehPastor(eu)){
+    throw new Error('Apenas o diácono que abriu o culto pode excluir')
+  }
+
+  // TRAVA PRINCIPAL: se já tem registro em records, já foi enviado para o 2º diácono -> não pode mais excluir
+  const { data: temRegistro, error: errReg } = await supabaseAdmin.from('records').select('id').eq('culto_id', cultoId).limit(1)
+  if(temRegistro && temRegistro.length > 0){
+    throw new Error('Este culto já foi enviado para o 2º diácono e não pode mais ser excluído, mesmo que volte com erro.')
+  }
+
+  // Pode excluir
+  const { error } = await supabaseAdmin.from('cultos').delete().eq('id', cultoId)
+  if(error) throw new Error(error.message)
+
   revalidatePath('/registros/novo')
   return true
 }
