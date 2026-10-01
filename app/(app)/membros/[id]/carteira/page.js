@@ -5,11 +5,9 @@ export const dynamic = 'force-dynamic'
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
   if (!url ||!key) {
     throw new Error(`ENV faltando - URL: ${!!url} KEY: ${!!key}`)
   }
-
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false }
   })
@@ -17,47 +15,31 @@ function getSupabaseAdmin() {
 
 export default async function CarteiraPage({ params }) {
   const { id } = await params
-
   let m = null
   let errorMsg = null
 
   try {
     const supabaseAdmin = getSupabaseAdmin()
-
-    // Tenta primeiro membros_oficial
-    const r1 = await supabaseAdmin.from('membros_oficial').select('*').eq('id', id).single()
+    const r1 = await supabaseAdmin.from('membros_oficial').select('*').eq('id', id).maybeSingle()
     if (r1.data) {
       m = r1.data
     } else {
-      // Se não achou, tenta tabela membros
-      const r2 = await supabaseAdmin.from('membros').select('*').eq('id', id).single()
-      if (r2.data) {
-        m = r2.data
-      } else {
-        errorMsg = r1.error?.message + ' | ' + r2.error?.message
-      }
+      const r2 = await supabaseAdmin.from('membros').select('*').eq('id', id).maybeSingle()
+      if (r2.data) m = r2.data
+      else errorMsg = r1.error?.message + ' | ' + r2.error?.message
     }
   } catch (e) {
     return (
       <div className="p-10 bg-red-50 min-h-screen">
         <h1 className="font-bold text-red-700">Erro de ENV na Vercel</h1>
-        <p className="mt-2 text-sm">A Vercel não carregou a chave SERVICE_ROLE</p>
         <p className="mt-2 text-xs font-mono bg-white p-2 border">{e.message}</p>
-        <p className="mt-4 text-xs">Vá em Vercel → Settings → Env Vars → Confirme que SUPABASE_SERVICE_ROLE_KEY está em Production e faça Redeploy SEM cache</p>
-        <p className="mt-2 text-xs">ID tentado: {id}</p>
+        <p className="mt-2 text-xs">ID: {id}</p>
       </div>
     )
   }
 
   if (!m) {
-    return (
-      <div className="p-10">
-        Membro não encontrado<br/>
-        ID: {id}<br/>
-        Erro: {errorMsg}<br/><br/>
-        Roda no Supabase SQL: ALTER TABLE membros_oficial DISABLE ROW LEVEL SECURITY;
-      </div>
-    )
+    return <div className="p-10">Membro não encontrado<br/>ID: {id}<br/>Erro: {errorMsg}</div>
   }
 
   const baseUrl = 'https://primycias.vercel.app'
@@ -69,11 +51,10 @@ export default async function CarteiraPage({ params }) {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between mb-6 print:hidden">
           <a href={`/membros/${id}`} className="text-sm text-blue-600 underline">← Voltar</a>
-          <button onClick={()=>window.print()} className="bg-[#0F3A1F] text-white px-6 py-2 rounded text-sm">Imprimir Carteira</button>
+          <button id="btnPrint" className="bg-[#0F3A1F] text-white px-6 py-2 rounded text-sm">Imprimir Carteira</button>
         </div>
 
         <div className="flex gap-8 justify-center flex-wrap print:gap-0">
-          {/* FRENTE */}
           <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden print:shadow-none">
             <div className="bg-[#0F3A1F] text-white px-3 py-2 flex items-center gap-2 text-[11px] leading-none">
               <div className="w-7 h-7 bg-white text-[#0F3A1F] rounded-full flex items-center justify-center font-bold text-[12px]">IPB</div>
@@ -85,11 +66,7 @@ export default async function CarteiraPage({ params }) {
             </div>
             <div className="p-3 flex gap-3">
               <div className="w-[80px] h-[100px] bg-gray-200 rounded overflow-hidden border flex-shrink-0">
-                {m.foto_url? (
-                  <img src={m.foto_url} className="w-full h-full object-cover" alt="foto" />
-                ) : (
-                  <div className="w-full h-full grid place-items-center text-[9px] text-gray-500">Sem foto</div>
-                )}
+                {m.foto_url? <img src={m.foto_url} className="w-full h-full object-cover" alt="foto" /> : <div className="w-full h-full grid place-items-center text-[9px] text-gray-500">Sem foto</div>}
               </div>
               <div className="text-[11px] leading-[1.2] flex-1">
                 <div className="font-bold text-[13px] text-[#0F3A1F] leading-tight">{m.nome_completo}</div>
@@ -102,7 +79,6 @@ export default async function CarteiraPage({ params }) {
             </div>
           </div>
 
-          {/* VERSO */}
           <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden p-3 print:shadow-none">
             <div className="h-full border border-dashed border-gray-300 rounded-lg p-3 flex flex-col">
               <div className="text-[10px] font-bold text-center text-[#0F3A1F]">Carteira de Membro - IPB Boa Viagem</div>
@@ -117,6 +93,7 @@ export default async function CarteiraPage({ params }) {
           </div>
         </div>
       </div>
+      <script dangerouslySetInnerHTML={{__html: `document.getElementById('btnPrint')?.addEventListener('click',()=>window.print())`}} />
     </div>
   )
 }
