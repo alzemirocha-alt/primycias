@@ -3,7 +3,9 @@ export const revalidate = 0
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { getSessionUser } from "@/lib/auth"
+import { isAdmin } from "@/lib/constants"
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 import Link from "next/link"
 
 async function getMembro(id) {
@@ -55,6 +57,13 @@ export default async function FichaMembro({ params }) {
   const user = await getSessionUser()
   if (!user) return <div className="p-6">Não autenticado</div>
 
+  // MESMA TRAVA DA LISTA
+  const funcaoPresb = (user.funcao_presbitero || '').toLowerCase()
+  const isSecretario = funcaoPresb.includes('secretario')
+  if (!isAdmin(user) && !isSecretario) {
+    redirect("/dashboard")
+  }
+
   const membro = await getMembro(params.id)
 
   if (!membro) {
@@ -104,7 +113,7 @@ export default async function FichaMembro({ params }) {
         </label>
 
         <div className="col-span-2 mt-4">
-          <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+          <button type="submit" className="bg-[#0F3A1F] text-white px-6 py-2 rounded hover:bg-[#133e23]">
             Salvar
           </button>
         </div>
