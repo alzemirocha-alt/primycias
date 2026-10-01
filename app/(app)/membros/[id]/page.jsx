@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { createClient } from "@supabase/supabase-js"
 import { getSessionUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
@@ -6,13 +6,22 @@ import { revalidatePath } from "next/cache"
 
 export const dynamic = 'force-dynamic'
 
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) throw new Error("Falta ENV Supabase na Vercel")
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+}
+
 async function getMembro(id) {
-  const { data } = await supabaseAdmin.from('membros_oficial').select('*').eq('id', id).single()
+  const supabase = getSupabase()
+  const { data } = await supabase.from('membros_oficial').select('*').eq('id', id).single()
   return data
 }
 
 async function updateMembro(formData) {
   "use server"
+  const supabase = getSupabase()
   const id = formData.get('id')
   const user = await getSessionUser()
   if (!user) redirect('/login')
@@ -55,13 +64,12 @@ async function updateMembro(formData) {
     tipo_membro: formData.get('categoria_membro') || 'comungante'
   }
 
-  // vincula cônjuge se tiver CPF
   if (dados.cpf_conjuge) {
-    const { data: conj } = await supabaseAdmin.from('membros_oficial').select('id').eq('cpf', dados.cpf_conjuge).maybeSingle()
+    const { data: conj } = await supabase.from('membros_oficial').select('id').eq('cpf', dados.cpf_conjuge).maybeSingle()
     if (conj) dados.conjuge_membro_id = conj.id
   }
 
-  await supabaseAdmin.from('membros_oficial').update(dados).eq('id', id)
+  await supabase.from('membros_oficial').update(dados).eq('id', id)
   revalidatePath('/membros')
   revalidatePath(`/membros/${id}`)
 }
