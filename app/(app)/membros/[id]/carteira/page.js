@@ -48,30 +48,38 @@ export default async function CarteiraPage({ params }) {
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(validacaoUrl)}`
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8 print:p-0 print:bg-white">
+    <div className="min-h-screen bg-gray-100 p-8 print:p-0 print:bg-white print:min-h-0">
       <style>{`
         @media print {
-          /* esconde tudo do layout */
-          header, nav, aside, footer,.no-print { display: none!important; }
-          body { background: white!important; margin:0!important; padding:0!important; }
-          /* mostra só a área da carteira */
-          #print-area { position: absolute!important; left:0!important; top:0!important; width:100%!important; margin:0!important; padding:20px!important; }
-          #print-area * { visibility: visible; }
-          body * { visibility: hidden; }
-          #print-area, #print-area * { visibility: visible; }
-          @page { margin: 10mm; }
+          html, body { margin: 0!important; padding: 0!important; background: white!important; height: auto!important; overflow: visible!important; }
+          /* MATA O LAYOUT GLOBAL */
+          header, nav, aside, footer { display: none!important; }
+         .no-print { display: none!important; }
+
+          #print-area {
+            display: block!important;
+            position: absolute!important;
+            top: 0!important;
+            left: 0!important;
+            width: 100%!important;
+            padding: 15mm!important;
+            box-sizing: border-box;
+          }
+
+          /* Tira cabeçalho e rodapé do navegador com URL e data */
+          @page { margin: 0!important; size: A4; }
         }
       `}</style>
 
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto print:max-w-none print:mx-0">
         <div className="flex justify-between mb-6 no-print">
           <a href={`/membros/${id}`} className="text-sm text-blue-600 underline">← Voltar</a>
           <PrintButton />
         </div>
 
-        <div id="print-area" className="flex gap-8 justify-center flex-wrap print:gap-0 bg-transparent">
-          <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden print:shadow-none print:border print:border-black">
-            <div className="bg-[#0F3A1F] text-white px-3 py-2 flex items-center gap-2 text-[11px] leading-none print:bg-black print:text-white">
+        <div id="print-area" className="flex flex-col gap-4 items-center justify-start">
+          <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden print:shadow-none print:border print:border-black print:rounded-lg">
+            <div className="bg-[#0F3A1F] text-white px-3 py-2 flex items-center gap-2 text-[11px] leading-none">
               <div className="w-7 h-7 bg-white text-[#0F3A1F] rounded-full flex items-center justify-center font-bold text-[12px]">IPB</div>
               <div>
                 <div className="font-bold">Igreja Presbiteriana do Brasil</div>
@@ -94,7 +102,7 @@ export default async function CarteiraPage({ params }) {
             </div>
           </div>
 
-          <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden p-3 print:shadow-none print:border print:border-black">
+          <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden p-3 print:shadow-none print:border print:border-black print:rounded-lg">
             <div className="h-full border border-dashed border-gray-300 rounded-lg p-3 flex flex-col">
               <div className="text-[10px] font-bold text-center text-[#0F3A1F]">Carteira de Membro - IPB Boa Viagem</div>
               <div className="mt-3 text-[9px] text-gray-600 leading-relaxed">
