@@ -24,7 +24,6 @@ export default async function AppLayout({ children }) {
     );
   }
 
-  // === REGRA: PRESBÍTERO NÃO VÊ DÍZIMO E RELATÓRIO ===
   const oficio = (user.oficio || '').toLowerCase()
   const funcao = (user.funcao_diacono || user.funcao || '').toLowerCase()
   const funcaoPresb = (user.funcao_presbitero || '').toLowerCase()
@@ -35,14 +34,14 @@ export default async function AppLayout({ children }) {
 
   const nav = [
     { href: "/dashboard", label: "Início" },
-  ...(isAdmin(user)? [{ href: "/usuarios", label: "Usuários" }] : []),
-    // SÓ MOSTRA SE NÃO FOR PRESBÍTERO PURO (secretário do conselho continua sem ver)
-  ...(!isPresbiteroPuro? [{ href: "/registros", label: "Dízimos e Ofertas" }] : []),
-  ...(!isPresbiteroPuro? [{ href: "/relatorios", label: "Relatórios" }] : []),
+    { href: "/membros", label: "Membros" },
+...(isAdmin(user)? [{ href: "/usuarios", label: "Usuários" }] : []),
+...(!isPresbiteroPuro? [{ href: "/registros", label: "Dízimos e Ofertas" }] : []),
+...(!isPresbiteroPuro? [{ href: "/relatorios", label: "Relatórios" }] : []),
     { href: "/calendario", label: "Agenda" },
-  ...(canAccessTesouraria(user, church)? [{ href: "/tesouraria", label: "Tesouraria" }] : []),
-  ...(canAccessTesouraria(user, church)? [{ href: `/igreja/${user.igreja_id}/orcamento-anual`, label: "Orçamento Anual" }] : []),
-  ...(isAdmin(user)? [{ href: "/igreja", label: "Dados da Igreja" }] : []),
+...(canAccessTesouraria(user, church)? [{ href: "/tesouraria", label: "Tesouraria" }] : []),
+...(canAccessTesouraria(user, church)? [{ href: `/igreja/${user.igreja_id}/orcamento-anual`, label: "Orçamento Anual" }] : []),
+...(isAdmin(user)? [{ href: "/igreja", label: "Dados da Igreja" }] : []),
     { href: "/perfil", label: "Meus dados" },
   ];
 
