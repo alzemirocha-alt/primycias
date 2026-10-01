@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import PrintButton from "./PrintButton"
 
 export const dynamic = 'force-dynamic'
 
@@ -48,15 +49,29 @@ export default async function CarteiraPage({ params }) {
 
   return (
     <div className="min-h-screen bg-gray-100 p-8 print:p-0 print:bg-white">
+      <style>{`
+        @media print {
+          /* esconde tudo do layout */
+          header, nav, aside, footer,.no-print { display: none!important; }
+          body { background: white!important; margin:0!important; padding:0!important; }
+          /* mostra só a área da carteira */
+          #print-area { position: absolute!important; left:0!important; top:0!important; width:100%!important; margin:0!important; padding:20px!important; }
+          #print-area * { visibility: visible; }
+          body * { visibility: hidden; }
+          #print-area, #print-area * { visibility: visible; }
+          @page { margin: 10mm; }
+        }
+      `}</style>
+
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between mb-6 print:hidden">
+        <div className="flex justify-between mb-6 no-print">
           <a href={`/membros/${id}`} className="text-sm text-blue-600 underline">← Voltar</a>
-          <button id="btnPrint" className="bg-[#0F3A1F] text-white px-6 py-2 rounded text-sm">Imprimir Carteira</button>
+          <PrintButton />
         </div>
 
-        <div className="flex gap-8 justify-center flex-wrap print:gap-0">
-          <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden print:shadow-none">
-            <div className="bg-[#0F3A1F] text-white px-3 py-2 flex items-center gap-2 text-[11px] leading-none">
+        <div id="print-area" className="flex gap-8 justify-center flex-wrap print:gap-0 bg-transparent">
+          <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden print:shadow-none print:border print:border-black">
+            <div className="bg-[#0F3A1F] text-white px-3 py-2 flex items-center gap-2 text-[11px] leading-none print:bg-black print:text-white">
               <div className="w-7 h-7 bg-white text-[#0F3A1F] rounded-full flex items-center justify-center font-bold text-[12px]">IPB</div>
               <div>
                 <div className="font-bold">Igreja Presbiteriana do Brasil</div>
@@ -79,7 +94,7 @@ export default async function CarteiraPage({ params }) {
             </div>
           </div>
 
-          <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden p-3 print:shadow-none">
+          <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden p-3 print:shadow-none print:border print:border-black">
             <div className="h-full border border-dashed border-gray-300 rounded-lg p-3 flex flex-col">
               <div className="text-[10px] font-bold text-center text-[#0F3A1F]">Carteira de Membro - IPB Boa Viagem</div>
               <div className="mt-3 text-[9px] text-gray-600 leading-relaxed">
@@ -93,7 +108,6 @@ export default async function CarteiraPage({ params }) {
           </div>
         </div>
       </div>
-      <script dangerouslySetInnerHTML={{__html: `document.getElementById('btnPrint')?.addEventListener('click',()=>window.print())`}} />
     </div>
   )
 }
