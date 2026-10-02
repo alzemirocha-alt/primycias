@@ -43,7 +43,7 @@ export default async function CarteiraPage({ params }) {
     return <div className="p-10">Membro não encontrado<br/>ID: {id}<br/>Erro: {errorMsg}</div>
   }
 
-  // BUSCA DINÂMICA DA IGREJA PELO igreja_id - COLUNAS REAIS
+  // BUSCA DINÂMICA DA IGREJA PELO igreja_id - MULTI-IGREJAS
   let igreja = null
   try {
     const supabaseAdmin = getSupabaseAdmin()
@@ -55,12 +55,15 @@ export default async function CarteiraPage({ params }) {
     console.log('Erro ao buscar igreja', e.message)
   }
 
-  const igrejaNome = igreja?.nome || 'Igreja Presbiteriana em Sucupira'
-  const igrejaCnpj = igreja?.cnpj || '12857611000130'
-  const igrejaCep = igreja?.cep || '54280-005'
-  const igrejaEndereco = igreja?.endereco || 'Avenida General Manoel Rabelo, 5.657, Sucupira, Jaboatão dos Guararapes-PE'
-  const igrejaLogo = igreja?.logo || '/logo-sucupira.png'
-  const pastorNome = igreja?.nome_pastor_responsavel || 'Rev. Eli Roberto da Silva'
+  // 100% DINÂMICO - SEM FIXO DE SUCUPIRA
+  const igrejaNome = igreja?.nome || ''
+  const igrejaCnpj = igreja?.cnpj || ''
+  const igrejaCep = igreja?.cep || ''
+  const igrejaEndereco = igreja?.endereco || ''
+  const igrejaLogo = igreja?.logo_url || igreja?.logo || ''
+
+  const pastorNomeRaw = igreja?.pastor_nome || igreja?.nome_pastor_responsavel || ''
+  const pastorNome = pastorNomeRaw? (pastorNomeRaw.startsWith('Rev.')? pastorNomeRaw : `Rev. ${pastorNomeRaw}`) : ''
 
   const baseUrl = 'https://primycias.vercel.app'
   const validacaoUrl = `${baseUrl}/validar/${m.id}`
@@ -72,13 +75,22 @@ export default async function CarteiraPage({ params }) {
   const pai = m.nome_pai || m.filiacao_pai || m.pai || '---'
   const mae = m.nome_mae || m.filiacao_mae || m.mae || '---'
 
+  const oficialFormatado = (() => {
+    if (!m.oficial_tipo) return null
+    const t = m.oficial_tipo.toLowerCase()
+    if (t === 'presbitero') return 'Presbítero'
+    if (t === 'diacono') return 'Diácono'
+    if (t === 'pastor') return 'Pastor'
+    return m.oficial_tipo.charAt(0).toUpperCase() + m.oficial_tipo.slice(1).toLowerCase()
+  })()
+
   return (
     <div className="min-h-screen bg-gray-100 p-8 print:p-0 print:bg-white print:min-h-0">
       <style>{`
         @media print {
           html, body { margin: 0!important; padding: 0!important; background: white!important; height: auto!important; overflow: visible!important; }
           header, nav, aside, footer { display: none!important; }
-        .no-print { display: none!important; }
+       .no-print { display: none!important; }
           #print-area {
             display: block!important;
             position: absolute!important;
@@ -103,7 +115,7 @@ export default async function CarteiraPage({ params }) {
           {/* FRENTE */}
           <div className="w-[600px] h-[380px] bg-white rounded-[20px] shadow-lg border-2 border-black overflow-hidden print:shadow-none">
             <div className="bg-[#0A3D26] h-[100px] flex items-center px-5 gap-4">
-              <img src={igrejaLogo} alt="Logo" className="h-[65px] w-auto object-contain" />
+              {igrejaLogo? <img src={igrejaLogo} alt="Logo" className="h-[65px] w-auto object-contain" /> : null}
               <div className="text-white leading-[1.1]">
                 <h1 className="text-[19px] font-bold">{igrejaNome}</h1>
                 <p className="text-[11px] font-semibold mt-1">CNPJ: {igrejaCnpj} &nbsp; CEP: {igrejaCep}</p>
@@ -111,8 +123,8 @@ export default async function CarteiraPage({ params }) {
               </div>
             </div>
             <div className="p-5 flex gap-6">
-              <div className="w-[145px] h-[195px] border-2 border-dashed border-black p-1.5 flex-shrink-0">
-                <div className="w-full h-full bg-gray-100 border border-black flex flex-col items-center justify-center overflow-hidden">
+              <div className="w-[145px] h-[195px] border border-black flex-shrink-0 overflow-hidden bg-white">
+                <div className="w-full h-full bg-gray-100 flex flex-col items-center justify-center overflow-hidden">
                   {m.foto_url? <img src={m.foto_url} className="w-full h-full object-cover" alt="foto" /> : (
                     <>
                       <span className="text-2xl">📷</span>
@@ -126,7 +138,7 @@ export default async function CarteiraPage({ params }) {
                 <h2 className="text-[#0A3D26] text-[22px] font-bold leading-tight mb-1">{m.nome_completo}</h2>
                 <p className="text-[18px] font-bold mt-2">Rol: {m.numero_rol || m.rol || '---'}</p>
                 <p className="text-[18px] font-bold mt-1">Membro Comungante</p>
-                {m.oficial_tipo && <p className="text-[18px] font-bold">{m.oficial_tipo}</p>}
+                {oficialFormatado && <p className="text-[18px] font-bold">{oficialFormatado}</p>}
                 <p className="text-[16px] font-bold mt-3">Data Admissão: {dataAdmissao}</p>
                 <p className="text-[16px] font-bold">Modo Admissão: {modoAdmissao}</p>
               </div>
@@ -134,10 +146,10 @@ export default async function CarteiraPage({ params }) {
             <div className="px-5 text-[11px] -mt-1">Carteira de Membro • {igrejaNome}</div>
           </div>
 
-          {/* VERSO - FINAL APROVADO */}
+          {/* VERSO */}
           <div className="w-[600px] h-[380px] bg-white rounded-[20px] shadow-lg border-2 border-black overflow-hidden flex flex-col print:shadow-none">
             <div className="bg-[#0A3D26] h-[75px] flex items-center px-5 gap-3">
-              <img src={igrejaLogo} alt="Logo" className="h-[50px] w-auto" />
+              {igrejaLogo? <img src={igrejaLogo} alt="Logo" className="h-[50px] w-auto" /> : null}
               <div className="text-white">
                 <h1 className="text-[12px] font-bold leading-[1.1]">{igrejaNome.toUpperCase()}</h1>
               </div>
