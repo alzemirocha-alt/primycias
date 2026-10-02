@@ -48,11 +48,13 @@ export function OficialToggle() {
   const [editando, setEditando] = useState(false)
 
   useEffect(() => {
-    const form = document.querySelector('form')
-    if(!form) return
-    const btnSalvar = document.getElementById('btn-salvar')
+    const lock = (isEdit) => {
+      const form = document.getElementById('ficha-form') || document.querySelector('form')
+      if(!form) return
+      const btnSalvar = document.getElementById('btn-salvar')
+      const inputs = form.querySelectorAll('input, select, textarea')
 
-    function applyRules(){
+      // Regras Art.16/17 e 23/24 + Oficial + Casado + Demissão
       const selEC = document.getElementById('estado_civil')
       const selStatus = document.getElementById('status_membro')
       const selCat = document.getElementById('categoria_membro')
@@ -61,61 +63,51 @@ export function OficialToggle() {
       const gConj = document.getElementById('grupo-conjuge')
       const gDem = document.getElementById('grupo-demissao')
       const gProf = document.getElementById('grupo-prof-fe')
-      const cOfTipo = document.getElementById('campo-oficial-tipo')
+      const cOf = document.getElementById('campo-oficial-tipo')
       const cOrd = document.getElementById('campo-data-ordenacao')
       const cInst = document.getElementById('campo-data-instalacao')
 
       if(gConj && selEC) gConj.style.display = selEC.value === 'casado'? 'grid' : 'none'
       if(gDem && selStatus) gDem.style.display = (selStatus.value === 'inativo' || selStatus.value === 'demitido')? 'block' : 'none'
       if(selCat){
-        const isNaoCom = selCat.value === 'nao_comungante'
-        const isOficial = selCat.value === 'comungante_oficial'
-        if(gProf) gProf.style.display = isNaoCom? 'none' : 'grid'
-        if(cOfTipo) cOfTipo.style.display = isOficial? '' : 'none'
-        if(cOrd) cOrd.style.display = isOficial? '' : 'none'
-        if(cInst) cInst.style.display = isOficial? '' : 'none'
+        const isNao = selCat.value === 'nao_comungante'
+        const isOf = selCat.value === 'comungante_oficial'
+        if(gProf) gProf.style.display = isNao? 'none' : 'grid'
+        if(cOf) cOf.style.display = isOf? '' : 'none'
+        if(cOrd) cOrd.style.display = isOf? '' : 'none'
+        if(cInst) cInst.style.display = isOf? '' : 'none'
+        if(selAdm) selAdm.querySelectorAll('optgroup').forEach(og => { og.hidden = isNao?!og.label.includes('Art. 17') :!og.label.includes('Art. 16') })
+        if(selDem) selDem.querySelectorAll('optgroup').forEach(og => { og.hidden = isNao?!og.label.includes('Art. 24') :!og.label.includes('Art. 23') })
+      }
 
-        if(selAdm){
-          selAdm.querySelectorAll('optgroup').forEach(og => {
-            const isArt16 = og.label.includes('Art. 16')
-            const isArt17 = og.label.includes('Art. 17')
-            og.hidden = isNaoCom?!isArt17 :!isArt16
-          })
-        }
-        if(selDem){
-          selDem.querySelectorAll('optgroup').forEach(og => {
-            const isArt23 = og.label.includes('Art. 23')
-            const isArt24 = og.label.includes('Art. 24')
-            og.hidden = isNaoCom?!isArt24 :!isArt23
-          })
-        }
+      if(isEdit){
+        if(btnSalvar) btnSalvar.style.display = ''
+        form.classList.remove('modo-visualizar')
+        inputs.forEach(el => { if(el.type!=='hidden') el.disabled = false })
+      } else {
+        if(btnSalvar) btnSalvar.style.display = 'none'
+        form.classList.add('modo-visualizar')
+        inputs.forEach(el => { if(el.type!=='hidden') el.disabled = true })
       }
     }
 
-    const inputs = form.querySelectorAll('input, select, textarea')
-    if(editando){
-      if(btnSalvar) btnSalvar.style.display = ''
-      form.classList.remove('modo-visualizar')
-      inputs.forEach(el => { if(el.type!=='hidden') el.disabled = false })
-      applyRules()
-    } else {
-      if(btnSalvar) btnSalvar.style.display = 'none'
-      form.classList.add('modo-visualizar')
-      inputs.forEach(el => { if(el.type!=='hidden') el.disabled = true })
-      applyRules()
-    }
+    lock(editando)
+    // trava de novo após 150ms para garantir que pegou todos os campos
+    const t = setTimeout(() => lock(editando), 150)
 
-    const selEC = document.getElementById('estado_civil')
-    const selStatus = document.getElementById('status_membro')
-    const selCat = document.getElementById('categoria_membro')
-    selEC?.addEventListener('change', applyRules)
-    selStatus?.addEventListener('change', applyRules)
-    selCat?.addEventListener('change', applyRules)
+    const ec = document.getElementById('estado_civil')
+    const st = document.getElementById('status_membro')
+    const cat = document.getElementById('categoria_membro')
+    const handler = () => lock(editando)
+    ec?.addEventListener('change', handler)
+    st?.addEventListener('change', handler)
+    cat?.addEventListener('change', handler)
 
     return () => {
-      selEC?.removeEventListener('change', applyRules)
-      selStatus?.removeEventListener('change', applyRules)
-      selCat?.removeEventListener('change', applyRules)
+      clearTimeout(t)
+      ec?.removeEventListener('change', handler)
+      st?.removeEventListener('change', handler)
+      cat?.removeEventListener('change', handler)
     }
   }, [editando])
 
@@ -124,4 +116,5 @@ export function OficialToggle() {
       {editando? '❌ Cancelar' : '✏️ Editar Ficha'}
     </button>
   )
+}
 }
