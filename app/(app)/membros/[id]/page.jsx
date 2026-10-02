@@ -120,11 +120,13 @@ export default async function Page({ params }) {
          .no-print { display: none!important; }
             input, select { border: none!important; padding: 0!important; appearance: none; background: transparent!important; }
           }
+          .modo-visualizar input, .modo-visualizar select, .modo-visualizar textarea { background:#f9fafb!important; pointer-events:none; border-color:#e5e7eb!important; }
         `}</style>
 
         <div className="no-print flex justify-between items-center">
           <Link href="/membros" className="text-sm text-blue-600">← Voltar para lista</Link>
           <div className="flex gap-2">
+            <button id="btn-editar-ficha" type="button" className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">✏️ Editar Ficha</button>
             <PrintButton />
             <Link href={`/membros/${m.id}/carteira`} className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">Emitir Carteira</Link>
           </div>
@@ -263,86 +265,96 @@ export default async function Page({ params }) {
               </div>
             </div>
 
-            <button className="no-print w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold">Salvar Ficha Completa</button>
+            <button id="btn-salvar" className="no-print w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold">Salvar Alterações</button>
           </form>
 
           <OficialToggle />
           
           <script dangerouslySetInnerHTML={{__html: `
             (function(){
+              var editando = false;
+              function setModo(modoEdicao){
+                editando = modoEdicao;
+                var form = document.querySelector('form');
+                var btn = document.getElementById('btn-editar-ficha');
+                var btnSalvar = document.getElementById('btn-salvar');
+                var inputs = form ? form.querySelectorAll('input, select, textarea') : [];
+                if(modoEdicao){
+                  if(btn) btn.textContent = '❌ Cancelar Edição';
+                  if(btnSalvar) btnSalvar.style.display = '';
+                  form.classList.remove('modo-visualizar');
+                  inputs.forEach(function(el){ if(el.type!=='hidden') el.disabled = false; });
+                  applyRules();
+                } else {
+                  if(btn) btn.textContent = '✏️ Editar Ficha';
+                  if(btnSalvar) btnSalvar.style.display = 'none';
+                  form.classList.add('modo-visualizar');
+                  inputs.forEach(function(el){ if(el.type!=='hidden') el.disabled = true; });
+                  applyRules();
+                }
+              }
               function applyRules(){
                 var ec = document.getElementById('estado_civil');
                 var status = document.getElementById('status_membro');
                 var cat = document.getElementById('categoria_membro');
                 var selAdm = document.getElementById('forma_admissao');
                 var selDem = document.getElementById('forma_demissao');
-
                 var gConj = document.getElementById('grupo-conjuge');
-                if(gConj){
-                  if(ec && ec.value === 'casado'){ gConj.style.display='grid'; }
-                  else { gConj.style.display='none'; }
-                }
                 var gDem = document.getElementById('grupo-demissao');
-                if(gDem){
-                  if(status && (status.value === 'inativo' || status.value === 'demitido')){ gDem.style.display='block'; }
-                  else { gDem.style.display='none'; }
-                }
                 var gProf = document.getElementById('grupo-prof-fe');
-                if(gProf){
-                  if(cat && cat.value === 'nao_comungante'){ gProf.style.display='none'; }
-                  else { gProf.style.display='grid'; }
-                }
+                var cOfTipo = document.getElementById('campo-oficial-tipo');
+                var cOrd = document.getElementById('campo-data-ordenacao');
+                var cInst = document.getElementById('campo-data-instalacao');
 
-                // REGRA NOVA: Filtra Admissão por Categoria
+                if(gConj) gConj.style.display = (ec && ec.value==='casado') ? 'grid' : 'none';
+                if(gDem) gDem.style.display = (status && (status.value==='inativo' || status.value==='demitido')) ? 'block' : 'none';
+                if(gProf) gProf.style.display = (cat && cat.value==='nao_comungante') ? 'none' : 'grid';
+                var isOf = cat && cat.value==='comungante_oficial';
+                if(cOfTipo) cOfTipo.style.display = isOf ? '' : 'none';
+                if(cOrd) cOrd.style.display = isOf ? '' : 'none';
+                if(cInst) cInst.style.display = isOf ? '' : 'none';
+
+                // FILTRA ADMISSÃO
                 if(selAdm && cat){
-                  var optGroupsAdm = selAdm.getElementsByTagName('optgroup');
-                  for(var i=0;i<optGroupsAdm.length;i++){
-                    var og = optGroupsAdm[i];
-                    var isComunganteOG = og.label.includes('COMUNGANTES') || og.label.includes('Art. 16');
-                    var isNaoComOG = og.label.includes('NÃO COMUNGANTES') || og.label.includes('Art. 17');
-                    if(cat.value === 'nao_comungante'){
-                      og.style.display = isNaoComOG ? '' : 'none';
-                      // desabilita options do grupo errado
-                      for(var j=0;j<og.children.length;j++){ og.children[j].disabled = !isNaoComOG; }
-                    } else {
-                      og.style.display = isComunganteOG ? '' : 'none';
-                      for(var j=0;j<og.children.length;j++){ og.children[j].disabled = !isComunganteOG; }
-                    }
-                  }
+                  var isNaoCom = cat.value==='nao_comungante';
+                  var ogs = selAdm.querySelectorAll('optgroup');
+                  ogs.forEach(function(og){
+                    var is16 = og.label.indexOf('Art. 16')>-1;
+                    var is17 = og.label.indexOf('Art. 17')>-1;
+                    var show = isNaoCom ? is17 : is16;
+                    og.hidden = !show;
+                    og.querySelectorAll('option').forEach(function(op){ if(op.value) op.hidden = !show; });
+                  });
                 }
-
-                // REGRA NOVA: Filtra Demissão por Categoria
+                // FILTRA DEMISSÃO
                 if(selDem && cat){
-                  var optGroupsDem = selDem.getElementsByTagName('optgroup');
-                  for(var i=0;i<optGroupsDem.length;i++){
-                    var og = optGroupsDem[i];
-                    var isComOG = og.label.includes('COMUNGANTES') || og.label.includes('Art. 23');
-                    var isNaoComOG2 = og.label.includes('NÃO COMUNGANTES') || og.label.includes('Art. 24');
-                    if(cat.value === 'nao_comungante'){
-                      og.style.display = isNaoComOG2 ? '' : 'none';
-                      for(var j=0;j<og.children.length;j++){ og.children[j].disabled = !isNaoComOG2; }
-                    } else {
-                      og.style.display = isComOG ? '' : 'none';
-                      for(var j=0;j<og.children.length;j++){ og.children[j].disabled = !isComOG; }
-                    }
-                  }
+                  var isNaoCom2 = cat.value==='nao_comungante';
+                  var ogs2 = selDem.querySelectorAll('optgroup');
+                  ogs2.forEach(function(og){
+                    var is23 = og.label.indexOf('Art. 23')>-1;
+                    var is24 = og.label.indexOf('Art. 24')>-1;
+                    var show2 = isNaoCom2 ? is24 : is23;
+                    og.hidden = !show2;
+                    og.querySelectorAll('option').forEach(function(op){ if(op.value) op.hidden = !show2; });
+                  });
                 }
               }
               document.addEventListener('DOMContentLoaded', function(){
+                var btn = document.getElementById('btn-editar-ficha');
                 var ec = document.getElementById('estado_civil');
                 var status = document.getElementById('status_membro');
                 var cat = document.getElementById('categoria_membro');
+                if(btn) btn.addEventListener('click', function(){ setModo(!editando); });
                 if(ec) ec.addEventListener('change', applyRules);
                 if(status) status.addEventListener('change', applyRules);
                 if(cat) cat.addEventListener('change', applyRules);
-                applyRules();
+                setModo(false);
               });
-              setTimeout(applyRules, 300);
-              setTimeout(applyRules, 1000);
+              setTimeout(function(){ setModo(false); }, 500);
             })();
           `}} />
 
-          <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja? `• Pastor: ${pastorDaIgreja}` : ""}</div>
+          <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja? \`• Pastor: \${pastorDaIgreja}\` : ""}</div>
         </div>
       </div>
     )
