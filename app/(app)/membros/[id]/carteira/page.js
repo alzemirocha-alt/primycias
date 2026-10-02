@@ -90,7 +90,7 @@ export default async function CarteiraPage({ params }) {
         @media print {
           html, body { margin: 0!important; padding: 0!important; background: white!important; height: auto!important; overflow: visible!important; }
           header, nav, aside, footer { display: none!important; }
-       .no-print { display: none!important; }
+      .no-print { display: none!important; }
           #print-area {
             display: block!important;
             position: absolute!important;
@@ -112,11 +112,11 @@ export default async function CarteiraPage({ params }) {
 
         <div id="print-area" className="flex flex-col gap-8 items-center justify-start">
 
-          {/* FRENTE */}
+          {/* FRENTE - INVERTIDO: FUNDO BRANCO LETRA VERDE */}
           <div className="w-[600px] h-[380px] bg-white rounded-[20px] shadow-lg border-2 border-black overflow-hidden print:shadow-none">
-            <div className="bg-[#0A3D26] h-[100px] flex items-center px-5 gap-4">
+            <div className="bg-white h-[100px] flex items-center px-5 gap-4 border-b-2 border-[#0A3D26]">
               {igrejaLogo? <img src={igrejaLogo} alt="Logo" className="h-[65px] w-auto object-contain" /> : null}
-              <div className="text-white leading-[1.1]">
+              <div className="text-[#0A3D26] leading-[1.1]">
                 <h1 className="text-[19px] font-bold">{igrejaNome}</h1>
                 <p className="text-[11px] font-semibold mt-1">CNPJ: {igrejaCnpj} &nbsp; CEP: {igrejaCep}</p>
                 <p className="text-[11px]">{igrejaEndereco}</p>
@@ -146,11 +146,11 @@ export default async function CarteiraPage({ params }) {
             <div className="px-5 text-[11px] -mt-1">Carteira de Membro • {igrejaNome}</div>
           </div>
 
-          {/* VERSO */}
+          {/* VERSO - INVERTIDO: FUNDO BRANCO LETRA VERDE */}
           <div className="w-[600px] h-[380px] bg-white rounded-[20px] shadow-lg border-2 border-black overflow-hidden flex flex-col print:shadow-none">
-            <div className="bg-[#0A3D26] h-[75px] flex items-center px-5 gap-3">
+            <div className="bg-white h-[75px] flex items-center px-5 gap-3 border-b-2 border-[#0A3D26]">
               {igrejaLogo? <img src={igrejaLogo} alt="Logo" className="h-[50px] w-auto" /> : null}
-              <div className="text-white">
+              <div className="text-[#0A3D26]">
                 <h1 className="text-[12px] font-bold leading-[1.1]">{igrejaNome.toUpperCase()}</h1>
               </div>
             </div>
