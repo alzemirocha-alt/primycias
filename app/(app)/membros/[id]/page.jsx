@@ -268,7 +268,7 @@ export default async function Page({ params }) {
               </div>
             </div>
 
-            <button id="btn-salvar" className="no-print w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold">Salvar Alterações</button>
+            <button id="btn-salvar" className="no-print w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold mt-8">Salvar Alteracoes</button>
           </form>
 
           <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja? " - Pastor: " + pastorDaIgreja : ""}</div>
