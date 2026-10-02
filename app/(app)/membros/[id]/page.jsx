@@ -117,7 +117,7 @@ export default async function Page({ params }) {
             body * { visibility: hidden; }
             #ficha-print, #ficha-print * { visibility: visible; }
             #ficha-print { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
-        .no-print { display: none!important; }
+           .no-print { display: none!important; }
             input, select { border: none!important; padding: 0!important; appearance: none; background: transparent!important; }
           }
          .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea { background:#f9fafb!important; pointer-events:none; border-color:#e5e7eb!important; }
@@ -125,8 +125,8 @@ export default async function Page({ params }) {
 
         <div className="no-print flex justify-between items-center">
           <Link href="/membros" className="text-sm text-blue-600">← Voltar para lista</Link>
-          <div className="flex gap-2">
-            <div id="container-editar-btn"></div>
+          <div className="flex gap-2 items-center">
+            <OficialToggle />
             <PrintButton />
             <Link href={`/membros/${m.id}/carteira`} className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">Emitir Carteira</Link>
           </div>
@@ -267,8 +267,6 @@ export default async function Page({ params }) {
 
             <button id="btn-salvar" className="no-print w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold">Salvar Alterações</button>
           </form>
-
-          <OficialToggle />
 
           <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja? " - Pastor: " + pastorDaIgreja : ""}</div>
         </div>
