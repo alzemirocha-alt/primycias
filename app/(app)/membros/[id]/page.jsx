@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache"
 
 export const dynamic = 'force-dynamic'
 
+const LOGO_URL = "https://ebqvtoqpoxaklhheaeve.supabase.co/storage/v1/object/public/logos/Code_Generated_Image.png"
+
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -24,14 +26,39 @@ async function getMembro(id) {
   }
 }
 
+// NOVO: Puxa o pastor titular da igreja - NÃO usa mais Rev. Eli fixo
+async function getPastorDaIgreja() {
+  try {
+    const supabase = getSupabase()
+    // tenta por oficio pastor
+    let { data } = await supabase.from('users').select('nome_completo, nome').eq('oficio', 'pastor').eq('status', 'ativo').limit(1).maybeSingle()
+    if (data) return data.nome_completo || data.nome
+    // tenta por cargo
+    const r2 = await supabase.from('users').select('nome_completo, nome').ilike('cargo', '%pastor%').limit(1).maybeSingle()
+    if (r2.data) return r2.data.nome_completo || r2.data.nome
+    // tenta por igreja config
+    const r3 = await supabase.from('configuracoes').select('pastor_nome').limit(1).maybeSingle()
+    if (r3.data?.pastor_nome) return r3.data.pastor_nome
+    return null
+  } catch { return null }
+}
+
 async function updateMembro(formData) {
   "use server"
   const supabase = getSupabase()
   const id = formData.get('id')
 
+  // CORRIGIDO: Rol NÃO cria automático, se vazio fica null
+  const rolRaw = formData.get('numero_rol')
+  let numeroRol = null
+  if (rolRaw && String(rolRaw).trim() !== "") {
+    const parsed = parseInt(String(rolRaw).trim())
+    if (!isNaN(parsed)) numeroRol = parsed
+  }
+
   const dados = {
     nome_completo: formData.get('nome_completo'),
-    numero_rol: formData.get('numero_rol') ? parseInt(formData.get('numero_rol')) : null,
+    numero_rol: numeroRol,
     cpf: formData.get('cpf') || null,
     foto_url: formData.get('foto_url') || null,
     filiacao_pai: formData.get('filiacao_pai') || null,
@@ -83,17 +110,24 @@ export default async function Page({ params }) {
   try {
     const { id } = await params
     const m = await getMembro(id)
+    const pastorDaIgreja = await getPastorDaIgreja()
     if (!m) return <div className="p-6">Membro não encontrado ID: {id} <br/><Link href="/membros" className="text-blue-600 underline">Voltar</Link></div>
 
     return (
       <div className="p-6 max-w-5xl mx-auto pb-20">
         <Link href="/membros" className="text-sm text-blue-600">← Voltar para lista</Link>
-        <div className="flex justify-between items-start mt-2 mb-4">
-          <div>
-            <h1 className="text-2xl font-bold">{m.nome_completo}</h1>
-            <p className="text-sm text-gray-500">Rol: {m.numero_rol || 'a definir'} • {m.status} • {m.categoria_membro || m.tipo_membro}</p>
+        <div className="flex justify-between items-start mt-2 mb-4 bg-white border rounded p-3">
+          <div className="flex items-center gap-3">
+            {/* LOGO INSERIDA AQUI - vindo do Supabase bucket logos */}
+            <img src={LOGO_URL} alt="Logo IPS" className="w-14 h-14 object-contain rounded-full bg-white border p-1" />
+            <div>
+              <h1 className="text-xl font-bold leading-tight">Igreja Presbiteriana em Sucupira</h1>
+              <p className="text-sm font-bold text-[#0F3A1F]">{m.nome_completo}</p>
+              <p className="text-xs text-gray-500">Rol: {m.numero_rol || 'a definir (manual)'} • {m.status} • {m.categoria_membro || m.tipo_membro}</p>
+              {pastorDaIgreja && <p className="text-[11px] text-gray-400">Pastor: {pastorDaIgreja}</p>}
+            </div>
           </div>
-          <Link href={`/membros/${m.id}/carteira`} className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">Emitir Carteira de Membro</Link>
+          <Link href={`/membros/${m.id}/carteira`} className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">Emitir Carteira</Link>
         </div>
 
         <form action={updateMembro} className="space-y-8 bg-white border rounded p-6">
@@ -102,7 +136,10 @@ export default async function Page({ params }) {
             <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">1. Dados Pessoais</h2>
             <div className="grid grid-cols-2 gap-4">
               <label className="col-span-2 flex flex-col text-sm">Nome Completo<input name="nome_completo" defaultValue={m.nome_completo} className="border p-2 rounded mt-1" /></label>
-              <label className="flex flex-col text-sm">Nº Cadastro<input name="numero_rol" type="number" defaultValue={m.numero_rol} className="border p-2 rounded mt-1" /></label>
+              
+              {/* CORRIGIDO: ROL NÃO É AUTOMÁTICO */}
+              <label className="flex flex-col text-sm font-semibold">Nº Rol (Manual)<input name="numero_rol" type="text" placeholder="Ex: 123 - deixe vazio se não tiver" defaultValue={m.numero_rol || ""} className="border p-2 rounded mt-1" /></label>
+              
               <label className="flex flex-col text-sm">CPF<input name="cpf" defaultValue={m.cpf} className="border p-2 rounded mt-1" /></label>
               <label className="col-span-2 flex flex-col text-sm">Foto URL<input name="foto_url" defaultValue={m.foto_url} className="border p-2 rounded mt-1" /></label>
               <label className="flex flex-col text-sm">Filiação Pai<input name="filiacao_pai" defaultValue={m.filiacao_pai} className="border p-2 rounded mt-1" /></label>
@@ -136,20 +173,38 @@ export default async function Page({ params }) {
             <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">3. Admissão e Ordenação</h2>
             <div className="grid grid-cols-2 gap-4">
               <label className="flex flex-col text-sm">Data Admissão<input name="data_admissao" type="date" defaultValue={m.data_admissao} className="border p-2 rounded mt-1" /></label>
-              <label className="col-span-2 flex flex-col text-sm">Forma Admissão<input name="forma_admissao" defaultValue={m.forma_admissao} className="border p-2 rounded mt-1" /></label>
+              
+              {/* CORRIGIDO: INVERSÃO PEDIDA - Batismo vem antes do Art. */}
+              <label className="col-span-2 flex flex-col text-sm">Forma Admissão
+                <select name="forma_admissao" defaultValue={m.forma_admissao} className="border p-2 rounded mt-1">
+                  <option value="">Selecione a forma</option>
+                  <option value="Batismo na Infância - Art. 17, alínea a">Batismo na Infância - Art. 17, alínea a</option>
+                  <option value="Transferência dos Pais - Art. 17, alínea b">Transferência dos Pais - Art. 17, alínea b</option>
+                  <option value="Jurisdição sobre os pais - Art. 17, alínea c">Jurisdição sobre os pais - Art. 17, alínea c</option>
+                  <option value="Profissão de Fé dos batizados na infância - Art. 16, alínea a">Profissão de Fé dos batizados na infância - Art. 16, alínea a</option>
+                  <option value="Profissão de Fé e Batismo - Art. 16, alínea b">Profissão de Fé e Batismo - Art. 16, alínea b</option>
+                  <option value="Carta de Transferência de Igreja Evangélica - Art. 16, alínea c">Carta de Transferência de Igreja Evangélica - Art. 16, alínea c</option>
+                  <option value="Restauração de rol - Art. 16, alínea d">Restauração de rol - Art. 16, alínea d</option>
+                  <option value="Jurisdição a pedido - Art. 16, alínea e">Jurisdição a pedido - Art. 16, alínea e</option>
+                </select>
+              </label>
+
               <label className="flex flex-col text-sm">Data Batismo<input name="data_batismo" type="date" defaultValue={m.data_batismo} className="border p-2 rounded mt-1" /></label>
               <label className="flex flex-col text-sm">Local Batismo<input name="local_batismo" defaultValue={m.local_batismo} className="border p-2 rounded mt-1" /></label>
-              <label className="flex flex-col text-sm">Pastor Batismo<input name="pastor_batismo" defaultValue={m.pastor_batismo} className="border p-2 rounded mt-1" /></label>
+              
+              {/* CORRIGIDO: Puxa pastor da igreja, não Rev. Eli fixo */}
+              <label className="flex flex-col text-sm">Pastor Batismo<input name="pastor_batismo" defaultValue={m.pastor_batismo || pastorDaIgreja || ""} placeholder={pastorDaIgreja || "Nome do pastor"} className="border p-2 rounded mt-1" /></label>
+              
               <label className="flex flex-col text-sm">Data Prof. Fé<input name="data_profissao_fe" type="date" defaultValue={m.data_profissao_fe} className="border p-2 rounded mt-1" /></label>
               <label className="flex flex-col text-sm">Local Prof. Fé<input name="local_profissao_fe" defaultValue={m.local_profissao_fe} className="border p-2 rounded mt-1" /></label>
-              <label className="flex flex-col text-sm">Pastor Prof. Fé<input name="pastor_profissao_fe" defaultValue={m.pastor_profissao_fe} className="border p-2 rounded mt-1" /></label>
+              <label className="flex flex-col text-sm">Pastor Prof. Fé<input name="pastor_profissao_fe" defaultValue={m.pastor_profissao_fe || pastorDaIgreja || ""} placeholder={pastorDaIgreja || "Nome do pastor"} className="border p-2 rounded mt-1" /></label>
               <label className="flex flex-col text-sm">Data Ordenação<input name="data_ordenacao" type="date" defaultValue={m.data_ordenacao} className="border p-2 rounded mt-1" /></label>
               <label className="flex flex-col text-sm">Data Instalação<input name="data_instalacao" type="date" defaultValue={m.data_instalacao} className="border p-2 rounded mt-1" /></label>
             </div>
           </div>
           <button className="w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold">Salvar Ficha Completa</button>
         </form>
-        <div className="mt-4 text-xs text-gray-500">ID: {m.id}</div>
+        <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja ? `• Pastor: ${pastorDaIgreja}` : ""}</div>
       </div>
     )
   } catch (e) {
