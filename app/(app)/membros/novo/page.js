@@ -1,6 +1,7 @@
 "use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { createClient } from "@supabase/supabase-js"
 
 export default function NovoMembroPage() {
   const router = useRouter()
@@ -9,12 +10,50 @@ export default function NovoMembroPage() {
   const [estadoCivil, setEstadoCivil] = useState("")
   const [isComungante, setIsComungante] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [fotoUrl, setFotoUrl] = useState("")
+  const [previewFoto, setPreviewFoto] = useState("")
+  const [uploadingFoto, setUploadingFoto] = useState(false)
+
+  async function handleFotoChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const preview = URL.createObjectURL(file)
+    setPreviewFoto(preview)
+    setUploadingFoto(true)
+
+    try {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Faça login como pastor ou secretário antes')
+
+      const fileName = `${session.user.id}/${Date.now()}_${file.name.replace(/\s/g,'_')}`
+
+      const { error } = await supabase.storage.from('fotos-membros').upload(fileName, file)
+      if (error) throw error
+
+      const { data } = supabase.storage.from('fotos-membros').getPublicUrl(fileName)
+      setFotoUrl(data.publicUrl)
+
+    } catch (err) {
+      alert('Erro ao enviar foto: ' + err.message)
+      console.log(err)
+    } finally {
+      setUploadingFoto(false)
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
     const fd = new FormData(e.target)
     const body = Object.fromEntries(fd)
+    if (fotoUrl) body.foto_url = fotoUrl
+    if (!body.numero_rol) delete body.numero_rol // agora é opcional
 
     try {
       const res = await fetch("/api/membros", {
@@ -36,14 +75,30 @@ export default function NovoMembroPage() {
       <h1 className="text-2xl font-bold mb-6">Ficha de Dados Cadastrais dos Membros</h1>
 
       <form onSubmit={handleSubmit} className="space-y-8 bg-white border rounded p-6">
-        {/* DADOS PESSOAIS */}
         <div>
           <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">1. Dados Pessoais</h2>
           <div className="grid grid-cols-2 gap-4">
             <label className="col-span-2 flex flex-col text-sm">Nome Completo *<input name="nome_completo" required className="border p-2 rounded mt-1" /></label>
-            <label className="flex flex-col text-sm">Nº Cadastro Membro *<input name="numero_rol" type="number" required placeholder="Ex: 73" className="border p-2 rounded mt-1" /><span className="text-[10px] text-gray-500">Nunca pode repetir</span></label>
-            <label className="flex flex-col text-sm">CPF<input name="cpf" className="border p-2 rounded mt-1" placeholder="Importa do sistema se já tiver" /></label>
-            <label className="col-span-2 flex flex-col text-sm">Foto de Perfil URL<input name="foto_url" className="border p-2 rounded mt-1" placeholder="URL da foto" /></label>
+
+            <label className="flex flex-col text-sm">Nº Cadastro Membro<input name="numero_rol" type="number" placeholder="Ex: 73 - opcional" className="border p-2 rounded mt-1" /><span className="text-[10px] text-gray-500">Opcional</span></label>
+            <label className="flex flex-col text-sm">CPF<input name="cpf" className="border p-2 rounded mt-1" /></label>
+
+            <div className="col-span-2 flex flex-col text-sm border p-3 rounded bg-gray-50">
+              <span className="font-medium mb-2">Foto de Perfil</span>
+              <div className="flex gap-4 items-center">
+                <div className="w-20 h-24 bg-white border rounded overflow-hidden flex-shrink-0 grid place-items-center">
+                  {previewFoto || fotoUrl? <img src={previewFoto || fotoUrl} className="w-full h-full object-cover" alt="foto" /> : <span className="text-[9px] text-gray-500">Sem foto</span>}
+                </div>
+                <div className="flex-1">
+                  <input type="file" accept="image/*" onChange={handleFotoChange} className="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-[#0F3A1F] file:text-white file:text-xs" />
+                  {uploadingFoto && <span className="text-[11px] text-blue-600">Enviando foto...</span>}
+                  {fotoUrl && <span className="text-[10px] text-green-600 break-all">Foto salva!</span>}
+                  <input type="hidden" name="foto_url" value={fotoUrl} />
+                  <p className="text-[10px] text-gray-500 mt-1">No celular abre câmera ou galeria</p>
+                </div>
+              </div>
+            </div>
+
             <label className="flex flex-col text-sm">Filiação - Pai<input name="filiacao_pai" className="border p-2 rounded mt-1" /></label>
             <label className="flex flex-col text-sm">Filiação - Mãe<input name="filiacao_mae" className="border p-2 rounded mt-1" /></label>
             <label className="flex flex-col text-sm">Data Nascimento<input name="data_nascimento" type="date" className="border p-2 rounded mt-1" /></label>
@@ -64,12 +119,10 @@ export default function NovoMembroPage() {
               <label className="flex flex-col text-sm">Nome Cônjuge<input name="nome_conjuge" className="border p-2 rounded mt-1" /></label>
               <label className="flex flex-col text-sm">CPF Cônjuge<input name="cpf_conjuge" className="border p-2 rounded mt-1" /></label>
               <label className="flex flex-col text-sm">Data Casamento<input name="data_casamento" type="date" className="border p-2 rounded mt-1" /></label>
-              <span className="col-span-3 text-xs text-gray-500">O sistema buscará se o cônjuge é membro e vinculará automaticamente.</span>
             </div>
           )}
         </div>
 
-        {/* DADOS ECLESIÁSTICOS */}
         <div>
           <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">2. Dados Eclesiásticos</h2>
           <div className="grid grid-cols-2 gap-4">
@@ -84,7 +137,6 @@ export default function NovoMembroPage() {
           </div>
         </div>
 
-        {/* DADOS ADMISSÃO */}
         <div>
           <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">3. Dados de Admissão</h2>
           <div className="grid grid-cols-2 gap-4">
@@ -110,9 +162,14 @@ export default function NovoMembroPage() {
             <label className="flex flex-col text-sm">Data Batismo<input name="data_batismo" type="date" className="border p-2 rounded mt-1" /></label>
             <label className="flex flex-col text-sm">Local Batismo<input name="local_batismo" className="border p-2 rounded mt-1" /></label>
             <label className="flex flex-col text-sm">Pastor Celebrante (Batismo)<input name="pastor_batismo" className="border p-2 rounded mt-1" /></label>
-            <label className="flex flex-col text-sm">Data Profissão de Fé<input name="data_profissao_fe" type="date" className="border p-2 rounded mt-1" /></label>
-            <label className="flex flex-col text-sm">Local Profissão de Fé<input name="local_profissao_fe" className="border p-2 rounded mt-1" /></label>
-            <label className="flex flex-col text-sm">Pastor Celebrante (Prof. Fé)<input name="pastor_profissao_fe" className="border p-2 rounded mt-1" /></label>
+
+            {isComungante && (
+              <>
+                <label className="flex flex-col text-sm">Data Profissão de Fé<input name="data_profissao_fe" type="date" className="border p-2 rounded mt-1" /></label>
+                <label className="flex flex-col text-sm">Local Profissão de Fé<input name="local_profissao_fe" className="border p-2 rounded mt-1" /></label>
+                <label className="flex flex-col text-sm">Pastor Celebrante (Prof. Fé)<input name="pastor_profissao_fe" className="border p-2 rounded mt-1" /></label>
+              </>
+            )}
           </div>
         </div>
 
@@ -126,8 +183,8 @@ export default function NovoMembroPage() {
           </div>
         )}
 
-        <button type="submit" disabled={loading} className="w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold disabled:opacity-50">
-          {loading? 'Salvando...' : 'Salvar Ficha Completa'}
+        <button type="submit" disabled={loading || uploadingFoto} className="w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold disabled:opacity-50">
+          {loading? 'Salvando...' : uploadingFoto? 'Enviando foto...' : 'Salvar Ficha Completa'}
         </button>
       </form>
     </div>
