@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import Link from "next/link"
 import { revalidatePath } from "next/cache"
+import { PrintButton, OficialToggle } from "./FichaClient"
 
 export const dynamic = 'force-dynamic'
 
@@ -117,7 +118,7 @@ export default async function Page({ params }) {
             body * { visibility: hidden; }
             #ficha-print, #ficha-print * { visibility: visible; }
             #ficha-print { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
-           .no-print { display: none!important; }
+          .no-print { display: none!important; }
             input, select { border: none!important; padding: 0!important; appearance: none; background: transparent!important; }
           }
         `}</style>
@@ -125,7 +126,7 @@ export default async function Page({ params }) {
         <div className="no-print flex justify-between items-center">
           <Link href="/membros" className="text-sm text-blue-600">← Voltar para lista</Link>
           <div className="flex gap-2">
-            <button type="button" onClick={() => window.print()} className="bg-white border border-gray-300 px-4 py-2 rounded text-sm hover:bg-gray-50">🖨️ Imprimir Ficha</button>
+            <PrintButton />
             <Link href={`/membros/${m.id}/carteira`} className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">Emitir Carteira</Link>
           </div>
         </div>
@@ -232,8 +233,6 @@ export default async function Page({ params }) {
                 <label className="flex flex-col text-sm">Data Prof. Fé<input name="data_profissao_fe" type="date" defaultValue={m.data_profissao_fe} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Local Prof. Fé<input name="local_profissao_fe" defaultValue={m.local_profissao_fe} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Pastor Prof. Fé<input name="pastor_profissao_fe" defaultValue={m.pastor_profissao_fe || pastorDaIgreja || ""} placeholder={pastorDaIgreja || "Nome do pastor"} className="border p-2 rounded mt-1" /></label>
-
-                {/* ESSES DOIS SÓ APARECEM SE FOR OFICIAL */}
                 <label id="campo-data-ordenacao" className="flex flex-col text-sm">Data Ordenação<input name="data_ordenacao" type="date" defaultValue={m.data_ordenacao} className="border p-2 rounded mt-1" /></label>
                 <label id="campo-data-instalacao" className="flex flex-col text-sm">Data Instalação<input name="data_instalacao" type="date" defaultValue={m.data_instalacao} className="border p-2 rounded mt-1" /></label>
               </div>
@@ -242,31 +241,7 @@ export default async function Page({ params }) {
             <button className="no-print w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold">Salvar Ficha Completa</button>
           </form>
 
-          {/* SCRIPT QUE ESCONDE/MOSTRA OS CAMPOS - APENAS ISSO FOI ADICIONADO */}
-          <script dangerouslySetInnerHTML={{ __html: `
-            (function(){
-              function toggleOficial(){
-                var sel = document.getElementById('categoria_membro');
-                if(!sel) return;
-                var isOficial = sel.value === 'comungante_oficial';
-                var c1 = document.getElementById('campo-oficial-tipo');
-                var c2 = document.getElementById('campo-data-ordenacao');
-                var c3 = document.getElementById('campo-data-instalacao');
-                if(c1) c1.style.display = isOficial? '' : 'none';
-                if(c2) c2.style.display = isOficial? '' : 'none';
-                if(c3) c3.style.display = isOficial? '' : 'none';
-              }
-              document.addEventListener('DOMContentLoaded', function(){
-                var sel = document.getElementById('categoria_membro');
-                if(sel){ sel.addEventListener('change', toggleOficial); toggleOficial(); }
-              });
-              // tenta de novo caso o React hidrate depois
-              setTimeout(function(){
-                var sel = document.getElementById('categoria_membro');
-                if(sel){ sel.addEventListener('change', toggleOficial); toggleOficial(); }
-              }, 500);
-            })();
-          `}} />
+          <OficialToggle />
 
           <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja? `• Pastor: ${pastorDaIgreja}` : ""}</div>
         </div>
