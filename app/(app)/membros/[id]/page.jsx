@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import Link from "next/link"
 import { revalidatePath } from "next/cache"
-import { PrintButton, OficialToggle } from "./FichaClient"
+import { PrintButton, OficialToggle, FotoUpload } from "./FichaClient"
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +51,6 @@ async function updateMembro(formData) {
     if (!isNaN(parsed)) numeroRol = parsed
   }
   const categoria = formData.get('categoria_membro') || 'comungante'
-
   const dados = {
     nome_completo: formData.get('nome_completo'),
     numero_rol: numeroRol,
@@ -75,7 +74,6 @@ async function updateMembro(formData) {
     escolaridade: formData.get('escolaridade') || null,
     profissao: formData.get('profissao') || null,
     categoria_membro: categoria,
-    // Se não for oficial, limpa os campos de oficial
     oficial_tipo: categoria === 'comungante_oficial'? (formData.get('oficial_tipo') || null) : null,
     forma_admissao: formData.get('forma_admissao') || null,
     data_admissao: formData.get('data_admissao') || null,
@@ -108,9 +106,6 @@ export default async function Page({ params }) {
     const pastorDaIgreja = await getPastorDaIgreja()
     if (!m) return <div className="p-6">Membro não encontrado ID: {id} <br/><Link href="/membros" className="text-blue-600 underline">Voltar</Link></div>
 
-    const hasFoto =!!m.foto_url
-    const isFotoBase64 = m.foto_url?.startsWith('data:image')
-
     return (
       <div className="p-6 max-w-5xl mx-auto pb-20">
         <style>{`
@@ -118,7 +113,7 @@ export default async function Page({ params }) {
             body * { visibility: hidden; }
             #ficha-print, #ficha-print * { visibility: visible; }
             #ficha-print { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
-          .no-print { display: none!important; }
+         .no-print { display: none!important; }
             input, select { border: none!important; padding: 0!important; appearance: none; background: transparent!important; }
           }
         `}</style>
@@ -132,43 +127,27 @@ export default async function Page({ params }) {
         </div>
 
         <div id="ficha-print" className="mt-2 bg-white border rounded p-3">
-          <div className="flex justify-between items-start mb-4">
-            <div className="flex items-center gap-3">
-              <img src={LOGO_URL} alt="Logo IPS" className="w-14 h-14 object-contain rounded-full bg-white border p-1" />
-              <div>
-                <h1 className="text-xl font-bold leading-tight">Igreja Presbiteriana em Sucupira</h1>
-                <p className="text-sm font-bold text-[#0F3A1F]">{m.nome_completo}</p>
-                <p className="text-xs text-gray-500">Rol: {m.numero_rol || 'a definir (manual)'} • {m.status} • {m.categoria_membro || m.tipo_membro}</p>
-                {pastorDaIgreja && <p className="text-[11px] text-gray-400">Pastor: {pastorDaIgreja}</p>}
-              </div>
+          <div className="flex items-center gap-3 mb-6 border-b pb-4">
+            <img src={LOGO_URL} alt="Logo IPS" className="w-14 h-14 object-contain rounded-full bg-white border p-1" />
+            <div>
+              <h1 className="text-xl font-bold leading-tight">Igreja Presbiteriana em Sucupira</h1>
+              <p className="text-sm font-semibold text-[#0F3A1F]">Ficha de Cadastro de Membro</p>
             </div>
-            {hasFoto && <img src={m.foto_url} alt="Foto" className="w-[80px] h-[100px] object-cover rounded border" />}
           </div>
 
           <form action={updateMembro} className="space-y-8">
             <input type="hidden" name="id" value={m.id} />
             <div>
               <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">1. Dados Pessoais</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="col-span-2 flex flex-col text-sm">Nome Completo<input name="nome_completo" defaultValue={m.nome_completo} className="border p-2 rounded mt-1" /></label>
-                <label className="flex flex-col text-sm font-semibold">Nº Rol (Manual)<input name="numero_rol" type="text" placeholder="Ex: 123 - deixe vazio se não tiver" defaultValue={m.numero_rol || ""} className="border p-2 rounded mt-1" /></label>
+
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <label className="col-span-3 flex flex-col text-sm">Nome Completo<input name="nome_completo" defaultValue={m.nome_completo} className="border p-2 rounded mt-1" /></label>
+                <label className="flex flex-col text-sm font-semibold">Nº Rol (Manual)<input name="numero_rol" type="text" placeholder="Ex: 123" defaultValue={m.numero_rol || ""} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">CPF<input name="cpf" defaultValue={m.cpf} className="border p-2 rounded mt-1" /></label>
+                <FotoUpload defaultValue={m.foto_url || ""} />
+              </div>
 
-                <div className="col-span-2 flex flex-col text-sm">
-                  <span className="mb-1">Foto do Membro</span>
-                  <div className="flex gap-4 items-start border p-3 rounded bg-gray-50">
-                    {hasFoto? (
-                      <img src={m.foto_url} alt="Foto" className="w-[90px] h-[120px] object-cover rounded border bg-white" />
-                    ) : (
-                      <div className="w-[90px] h-[120px] bg-gray-200 rounded border flex items-center justify-center text-[10px] text-gray-500 text-center">SEM<br/>FOTO</div>
-                    )}
-                    <div className="flex-1">
-                      <input name="foto_url" defaultValue={m.foto_url || ""} placeholder="https://... ou data:image..." className="border p-2 rounded w-full text-xs" />
-                      {isFotoBase64 && <p className="text-[11px] text-green-700 mt-1 font-medium">✓ Foto em base64 carregada (carteirinha OK)</p>}
-                    </div>
-                  </div>
-                </div>
-
+              <div className="grid grid-cols-2 gap-4">
                 <label className="flex flex-col text-sm">Filiação Pai<input name="filiacao_pai" defaultValue={m.filiacao_pai} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Filiação Mãe<input name="filiacao_mae" defaultValue={m.filiacao_mae} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Data Nasc.<input name="data_nascimento" type="date" defaultValue={m.data_nascimento} className="border p-2 rounded mt-1" /></label>
@@ -229,10 +208,10 @@ export default async function Page({ params }) {
                 </label>
                 <label className="flex flex-col text-sm">Data Batismo<input name="data_batismo" type="date" defaultValue={m.data_batismo} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Local Batismo<input name="local_batismo" defaultValue={m.local_batismo} className="border p-2 rounded mt-1" /></label>
-                <label className="flex flex-col text-sm">Pastor Batismo<input name="pastor_batismo" defaultValue={m.pastor_batismo || pastorDaIgreja || ""} placeholder={pastorDaIgreja || "Nome do pastor"} className="border p-2 rounded mt-1" /></label>
+                <label className="flex flex-col text-sm">Pastor Batismo<input name="pastor_batismo" defaultValue={m.pastor_batismo || pastorDaIgreja || ""} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Data Prof. Fé<input name="data_profissao_fe" type="date" defaultValue={m.data_profissao_fe} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Local Prof. Fé<input name="local_profissao_fe" defaultValue={m.local_profissao_fe} className="border p-2 rounded mt-1" /></label>
-                <label className="flex flex-col text-sm">Pastor Prof. Fé<input name="pastor_profissao_fe" defaultValue={m.pastor_profissao_fe || pastorDaIgreja || ""} placeholder={pastorDaIgreja || "Nome do pastor"} className="border p-2 rounded mt-1" /></label>
+                <label className="flex flex-col text-sm">Pastor Prof. Fé<input name="pastor_profissao_fe" defaultValue={m.pastor_profissao_fe || pastorDaIgreja || ""} className="border p-2 rounded mt-1" /></label>
                 <label id="campo-data-ordenacao" className="flex flex-col text-sm">Data Ordenação<input name="data_ordenacao" type="date" defaultValue={m.data_ordenacao} className="border p-2 rounded mt-1" /></label>
                 <label id="campo-data-instalacao" className="flex flex-col text-sm">Data Instalação<input name="data_instalacao" type="date" defaultValue={m.data_instalacao} className="border p-2 rounded mt-1" /></label>
               </div>
