@@ -86,7 +86,6 @@ async function updateMembro(formData) {
     data_ordenacao: categoria === 'comungante_oficial'? (formData.get('data_ordenacao') || null) : null,
     data_instalacao: categoria === 'comungante_oficial'? (formData.get('data_instalacao') || null) : null,
     status: formData.get('status') || 'ativo',
-    // NOVOS CAMPOS DE DEMISSÃO/INATIVAÇÃO
     data_demissao: formData.get('data_demissao') || null,
     forma_demissao: formData.get('forma_demissao') || null,
     motivo_demissao: formData.get('motivo_demissao') || null,
@@ -168,8 +167,7 @@ export default async function Page({ params }) {
                 <label className="flex flex-col text-sm">Escolaridade<input name="escolaridade" defaultValue={m.escolaridade} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Profissão<input name="profissao" defaultValue={m.profissao} className="border p-2 rounded mt-1" /></label>
                 
-                {/* GRUPO CONJUGE - SÓ APARECE SE CASADO */}
-                <div id="grupo-conjuge" className="col-span-2 grid grid-cols-3 gap-4 contents">
+                <div id="grupo-conjuge" className="col-span-2 grid grid-cols-3 gap-4" style={{display: m.estado_civil === 'casado' ? 'grid' : 'none'}}>
                   <label className="flex flex-col text-sm">Nome Cônjuge<input name="nome_conjuge" defaultValue={m.nome_conjuge} className="border p-2 rounded mt-1" /></label>
                   <label className="flex flex-col text-sm">CPF Cônjuge<input name="cpf_conjuge" defaultValue={m.cpf_conjuge} className="border p-2 rounded mt-1" /></label>
                   <label className="flex flex-col text-sm">Data Casamento<input name="data_casamento" type="date" defaultValue={m.data_casamento} className="border p-2 rounded mt-1" /></label>
@@ -178,8 +176,7 @@ export default async function Page({ params }) {
                 <label className="flex flex-col text-sm">Status<select id="status_membro" name="status" defaultValue={m.status} className="border p-2 rounded mt-1"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="demitido">Demitido</option></select></label>
               </div>
 
-              {/* GRUPO DEMISSÃO / INATIVAÇÃO - SÓ APARECE SE INATIVO OU DEMITIDO */}
-              <div id="grupo-demissao" className="mt-6 bg-red-50 p-4 rounded-xl border border-red-200">
+              <div id="grupo-demissao" className="mt-6 bg-red-50 p-4 rounded-xl border border-red-200" style={{display: (m.status === 'inativo' || m.status === 'demitido') ? 'block' : 'none'}}>
                 <h3 className="font-bold text-red-700 text-sm mb-3">Dados de Demissão / Inativação</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <label className="flex flex-col text-sm">Data da Demissão/Inativação<input name="data_demissao" type="date" defaultValue={m.data_demissao} className="border p-2 rounded mt-1" /></label>
@@ -255,8 +252,7 @@ export default async function Page({ params }) {
                 <label className="flex flex-col text-sm">Local Batismo<input name="local_batismo" defaultValue={m.local_batismo} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Pastor Batismo<input name="pastor_batismo" defaultValue={m.pastor_batismo || pastorDaIgreja || ""} className="border p-2 rounded mt-1" /></label>
                 
-                {/* GRUPO PROFISSÃO DE FÉ - ESCONDE SE NÃO COMUNGANTE */}
-                <div id="grupo-prof-fe" className="col-span-2 grid grid-cols-3 gap-4 contents">
+                <div id="grupo-prof-fe" className="col-span-2 grid grid-cols-3 gap-4" style={{display: (m.categoria_membro === 'nao_comungante' || m.tipo_membro === 'nao_comungante') ? 'none' : 'grid'}}>
                   <label className="flex flex-col text-sm">Data Prof. Fé<input name="data_profissao_fe" type="date" defaultValue={m.data_profissao_fe} className="border p-2 rounded mt-1" /></label>
                   <label className="flex flex-col text-sm">Local Prof. Fé<input name="local_profissao_fe" defaultValue={m.local_profissao_fe} className="border p-2 rounded mt-1" /></label>
                   <label className="flex flex-col text-sm">Pastor Prof. Fé<input name="pastor_profissao_fe" defaultValue={m.pastor_profissao_fe || pastorDaIgreja || ""} className="border p-2 rounded mt-1" /></label>
@@ -272,33 +268,28 @@ export default async function Page({ params }) {
 
           <OficialToggle />
           
-          {/* SCRIPT DE LÓGICA CONDICIONAL DA FICHA */}
           <script dangerouslySetInnerHTML={{__html: `
             (function(){
               function applyRules(){
                 var ec = document.getElementById('estado_civil');
                 var status = document.getElementById('status_membro');
                 var cat = document.getElementById('categoria_membro');
-                
                 var gConj = document.getElementById('grupo-conjuge');
                 if(gConj){
-                  if(ec && ec.value === 'casado'){ gConj.style.display=''; }
+                  if(ec && ec.value === 'casado'){ gConj.style.display='grid'; }
                   else { gConj.style.display='none'; }
                 }
-                
                 var gDem = document.getElementById('grupo-demissao');
                 if(gDem){
-                  if(status && (status.value === 'inativo' || status.value === 'demitido')){ gDem.style.display=''; }
+                  if(status && (status.value === 'inativo' || status.value === 'demitido')){ gDem.style.display='block'; }
                   else { gDem.style.display='none'; }
                 }
-                
                 var gProf = document.getElementById('grupo-prof-fe');
                 if(gProf){
                   if(cat && cat.value === 'nao_comungante'){ gProf.style.display='none'; }
-                  else { gProf.style.display=''; }
+                  else { gProf.style.display='grid'; }
                 }
               }
-              
               document.addEventListener('DOMContentLoaded', function(){
                 var ec = document.getElementById('estado_civil');
                 var status = document.getElementById('status_membro');
@@ -308,7 +299,7 @@ export default async function Page({ params }) {
                 if(cat) cat.addEventListener('change', applyRules);
                 applyRules();
               });
-              setTimeout(applyRules, 500);
+              setTimeout(applyRules, 300);
             })();
           `}} />
 
