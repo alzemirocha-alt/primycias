@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/validar", "/carteira"];
 const DEV_PREFIX = "/desenvolvedor";
 
 export function middleware(request) {
@@ -8,6 +8,10 @@ export function middleware(request) {
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
   const isDevArea = pathname === DEV_PREFIX || pathname.startsWith(DEV_PREFIX + "/");
+
+  if (isPublic) {
+    return NextResponse.next();
+  }
 
   if (isDevArea) {
     const hasDevSession = request.cookies.has("primycias_dev_session");
@@ -21,13 +25,13 @@ export function middleware(request) {
 
   const hasSession = request.cookies.has("primycias_session");
 
-  if (!isPublic && !hasSession) {
+  if (!hasSession) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  if (isPublic && hasSession && pathname === "/login") {
+  if (pathname === "/login" && hasSession) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
