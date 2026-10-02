@@ -20,12 +20,13 @@ export default function NovoMembroPage() {
 
     const preview = URL.createObjectURL(file)
     setPreviewFoto(preview)
+
     setUploadingFoto(true)
 
     try {
       const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       )
 
       const { data: { session } } = await supabase.auth.getSession()
@@ -53,7 +54,7 @@ export default function NovoMembroPage() {
     const fd = new FormData(e.target)
     const body = Object.fromEntries(fd)
     if (fotoUrl) body.foto_url = fotoUrl
-    if (!body.numero_rol) delete body.numero_rol // agora é opcional
+    if (!body.numero_rol) delete body.numero_rol
 
     try {
       const res = await fetch("/api/membros", {
