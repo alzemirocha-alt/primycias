@@ -59,19 +59,20 @@ export function FotoUpload({ defaultValue }) {
   }
 
   return (
-    <div className="col-span-1 row-span-2 border rounded p-3 bg-gray-50 flex flex-col items-center justify-center">
+    <div className="col-span-1 row-span-2 border rounded p-3 bg-gray-50 flex flex-col items-center justify-center print:border-0 print:bg-white print:p-0">
       <input ref={inputRef} type="hidden" name="foto_url" defaultValue={defaultValue || ""} />
       {preview? (
-        <img src={preview} alt="Foto" className="w-[110px] h-[140px] object-cover rounded border bg-white mb-2" />
+        <img src={preview} alt="Foto" className="w-[110px] h-[140px] object-cover rounded border bg-white mb-2 print:mb-0 print:border-0" />
       ) : (
-        <div className="w-[110px] h-[140px] bg-gray-200 rounded border flex items-center justify-center text-[10px] text-gray-500 text-center mb-2">SEM<br/>FOTO</div>
+        <div className="w-[110px] h-[140px] bg-gray-200 rounded border flex items-center justify-center text-[10px] text-gray-500 text-center mb-2 print:hidden">SEM<br/>FOTO</div>
       )}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
-      <button type="button" onClick={() => fileRef.current?.click()} className="w-full bg-[#0F3A1F] text-white text-xs py-2 rounded hover:bg-[#164a2a]">
+      {/* Esses dois somem na impressão */}
+      <button type="button" onClick={() => fileRef.current?.click()} className="no-print w-full bg-[#0F3A1F] text-white text-xs py-2 rounded hover:bg-[#164a2a]">
         📷 {preview? 'Trocar Foto' : 'Fazer Upload'}
       </button>
       {preview && (
-        <button type="button" onClick={() => { setPreview(""); if(inputRef.current) inputRef.current.value = ""; }} className="w-full mt-1 text-[11px] text-red-600 hover:underline">Remover</button>
+        <button type="button" onClick={() => { setPreview(""); if(inputRef.current) inputRef.current.value = ""; }} className="no-print w-full mt-1 text-[11px] text-red-600 hover:underline">Remover</button>
       )}
     </div>
   )
