@@ -117,16 +117,16 @@ export default async function Page({ params }) {
             body * { visibility: hidden; }
             #ficha-print, #ficha-print * { visibility: visible; }
             #ficha-print { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
-         .no-print { display: none!important; }
+        .no-print { display: none!important; }
             input, select { border: none!important; padding: 0!important; appearance: none; background: transparent!important; }
           }
-          .modo-visualizar input, .modo-visualizar select, .modo-visualizar textarea { background:#f9fafb!important; pointer-events:none; border-color:#e5e7eb!important; }
+         .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea { background:#f9fafb!important; pointer-events:none; border-color:#e5e7eb!important; }
         `}</style>
 
         <div className="no-print flex justify-between items-center">
           <Link href="/membros" className="text-sm text-blue-600">← Voltar para lista</Link>
           <div className="flex gap-2">
-            <button id="btn-editar-ficha" type="button" className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">✏️ Editar Ficha</button>
+            <div id="container-editar-btn"></div>
             <PrintButton />
             <Link href={`/membros/${m.id}/carteira`} className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">Emitir Carteira</Link>
           </div>
@@ -168,8 +168,8 @@ export default async function Page({ params }) {
                 <label className="flex flex-col text-sm">Estado Civil<select id="estado_civil" name="estado_civil" defaultValue={m.estado_civil} className="border p-2 rounded mt-1"><option value="">Selecione</option><option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option><option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option></select></label>
                 <label className="flex flex-col text-sm">Escolaridade<input name="escolaridade" defaultValue={m.escolaridade} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Profissão<input name="profissao" defaultValue={m.profissao} className="border p-2 rounded mt-1" /></label>
-                
-                <div id="grupo-conjuge" className="col-span-2 grid grid-cols-3 gap-4" style={{display: m.estado_civil === 'casado' ? 'grid' : 'none'}}>
+
+                <div id="grupo-conjuge" className="col-span-2 grid grid-cols-3 gap-4" style={{display: m.estado_civil === 'casado'? 'grid' : 'none'}}>
                   <label className="flex flex-col text-sm">Nome Cônjuge<input name="nome_conjuge" defaultValue={m.nome_conjuge} className="border p-2 rounded mt-1" /></label>
                   <label className="flex flex-col text-sm">CPF Cônjuge<input name="cpf_conjuge" defaultValue={m.cpf_conjuge} className="border p-2 rounded mt-1" /></label>
                   <label className="flex flex-col text-sm">Data Casamento<input name="data_casamento" type="date" defaultValue={m.data_casamento} className="border p-2 rounded mt-1" /></label>
@@ -178,7 +178,7 @@ export default async function Page({ params }) {
                 <label className="flex flex-col text-sm">Status<select id="status_membro" name="status" defaultValue={m.status} className="border p-2 rounded mt-1"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="demitido">Demitido</option></select></label>
               </div>
 
-              <div id="grupo-demissao" className="mt-6 bg-red-50 p-4 rounded-xl border border-red-200" style={{display: (m.status === 'inativo' || m.status === 'demitido') ? 'block' : 'none'}}>
+              <div id="grupo-demissao" className="mt-6 bg-red-50 p-4 rounded-xl border border-red-200" style={{display: (m.status === 'inativo' || m.status === 'demitido')? 'block' : 'none'}}>
                 <h3 className="font-bold text-red-700 text-sm mb-3">Dados de Demissão / Inativação</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <label className="flex flex-col text-sm">Data da Demissão/Inativação<input name="data_demissao" type="date" defaultValue={m.data_demissao} className="border p-2 rounded mt-1" /></label>
@@ -253,8 +253,8 @@ export default async function Page({ params }) {
                 <label className="flex flex-col text-sm">Data Batismo<input name="data_batismo" type="date" defaultValue={m.data_batismo} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Local Batismo<input name="local_batismo" defaultValue={m.local_batismo} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Pastor Batismo<input name="pastor_batismo" defaultValue={m.pastor_batismo || pastorDaIgreja || ""} className="border p-2 rounded mt-1" /></label>
-                
-                <div id="grupo-prof-fe" className="col-span-2 grid grid-cols-3 gap-4" style={{display: (m.categoria_membro === 'nao_comungante' || m.tipo_membro === 'nao_comungante') ? 'none' : 'grid'}}>
+
+                <div id="grupo-prof-fe" className="col-span-2 grid grid-cols-3 gap-4" style={{display: (m.categoria_membro === 'nao_comungante' || m.tipo_membro === 'nao_comungante')? 'none' : 'grid'}}>
                   <label className="flex flex-col text-sm">Data Prof. Fé<input name="data_profissao_fe" type="date" defaultValue={m.data_profissao_fe} className="border p-2 rounded mt-1" /></label>
                   <label className="flex flex-col text-sm">Local Prof. Fé<input name="local_profissao_fe" defaultValue={m.local_profissao_fe} className="border p-2 rounded mt-1" /></label>
                   <label className="flex flex-col text-sm">Pastor Prof. Fé<input name="pastor_profissao_fe" defaultValue={m.pastor_profissao_fe || pastorDaIgreja || ""} className="border p-2 rounded mt-1" /></label>
@@ -269,86 +269,8 @@ export default async function Page({ params }) {
           </form>
 
           <OficialToggle />
-          
-          <script dangerouslySetInnerHTML={{__html: `
-            (function(){
-              var editando = false;
-              function setModo(modoEdicao){
-                editando = modoEdicao;
-                var form = document.querySelector('form');
-                var btn = document.getElementById('btn-editar-ficha');
-                var btnSalvar = document.getElementById('btn-salvar');
-                var inputs = form ? form.querySelectorAll('input, select, textarea') : [];
-                if(modoEdicao){
-                  if(btn) btn.textContent = '❌ Cancelar Edição';
-                  if(btnSalvar) btnSalvar.style.display = '';
-                  form.classList.remove('modo-visualizar');
-                  inputs.forEach(function(el){ if(el.type!=='hidden') el.disabled = false; });
-                  applyRules();
-                } else {
-                  if(btn) btn.textContent = '✏️ Editar Ficha';
-                  if(btnSalvar) btnSalvar.style.display = 'none';
-                  form.classList.add('modo-visualizar');
-                  inputs.forEach(function(el){ if(el.type!=='hidden') el.disabled = true; });
-                  applyRules();
-                }
-              }
-              function applyRules(){
-                var ec = document.getElementById('estado_civil');
-                var status = document.getElementById('status_membro');
-                var cat = document.getElementById('categoria_membro');
-                var selAdm = document.getElementById('forma_admissao');
-                var selDem = document.getElementById('forma_demissao');
-                var gConj = document.getElementById('grupo-conjuge');
-                var gDem = document.getElementById('grupo-demissao');
-                var gProf = document.getElementById('grupo-prof-fe');
-                var cOfTipo = document.getElementById('campo-oficial-tipo');
-                var cOrd = document.getElementById('campo-data-ordenacao');
-                var cInst = document.getElementById('campo-data-instalacao');
-                if(gConj) gConj.style.display = (ec && ec.value==='casado') ? 'grid' : 'none';
-                if(gDem) gDem.style.display = (status && (status.value==='inativo' || status.value==='demitido')) ? 'block' : 'none';
-                if(gProf) gProf.style.display = (cat && cat.value==='nao_comungante') ? 'none' : 'grid';
-                var isOf = cat && cat.value==='comungante_oficial';
-                if(cOfTipo) cOfTipo.style.display = isOf ? '' : 'none';
-                if(cOrd) cOrd.style.display = isOf ? '' : 'none';
-                if(cInst) cInst.style.display = isOf ? '' : 'none';
-                if(selAdm && cat){
-                  var isNaoCom = cat.value==='nao_comungante';
-                  var ogs = selAdm.querySelectorAll('optgroup');
-                  ogs.forEach(function(og){
-                    var is16 = og.label.indexOf('Art. 16')>-1;
-                    var is17 = og.label.indexOf('Art. 17')>-1;
-                    var show = isNaoCom ? is17 : is16;
-                    og.hidden = !show;
-                  });
-                }
-                if(selDem && cat){
-                  var isNaoCom2 = cat.value==='nao_comungante';
-                  var ogs2 = selDem.querySelectorAll('optgroup');
-                  ogs2.forEach(function(og){
-                    var is23 = og.label.indexOf('Art. 23')>-1;
-                    var is24 = og.label.indexOf('Art. 24')>-1;
-                    var show2 = isNaoCom2 ? is24 : is23;
-                    og.hidden = !show2;
-                  });
-                }
-              }
-              document.addEventListener('DOMContentLoaded', function(){
-                var btn = document.getElementById('btn-editar-ficha');
-                var ec = document.getElementById('estado_civil');
-                var status = document.getElementById('status_membro');
-                var cat = document.getElementById('categoria_membro');
-                if(btn) btn.addEventListener('click', function(){ setModo(!editando); });
-                if(ec) ec.addEventListener('change', applyRules);
-                if(status) status.addEventListener('change', applyRules);
-                if(cat) cat.addEventListener('change', applyRules);
-                setModo(false);
-              });
-              setTimeout(function(){ setModo(false); }, 500);
-            })();
-          `}} />
 
-          <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja ? " - Pastor: " + pastorDaIgreja : ""}</div>
+          <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja? " - Pastor: " + pastorDaIgreja : ""}</div>
         </div>
       </div>
     )
