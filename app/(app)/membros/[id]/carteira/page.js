@@ -43,30 +43,51 @@ export default async function CarteiraPage({ params }) {
     return <div className="p-10">Membro não encontrado<br/>ID: {id}<br/>Erro: {errorMsg}</div>
   }
 
+  // BUSCA DINÂMICA DA IGREJA PELO igreja_id - COLUNAS REAIS
+  let igreja = null
+  try {
+    const supabaseAdmin = getSupabaseAdmin()
+    if (m.igreja_id) {
+      const { data: ig } = await supabaseAdmin.from('igrejas').select('*').eq('id', m.igreja_id).maybeSingle()
+      if (ig) igreja = ig
+    }
+  } catch (e) {
+    console.log('Erro ao buscar igreja', e.message)
+  }
+
+  const igrejaNome = igreja?.nome || 'Igreja Presbiteriana em Sucupira'
+  const igrejaCnpj = igreja?.cnpj || '12857611000130'
+  const igrejaCep = igreja?.cep || '54280-005'
+  const igrejaEndereco = igreja?.endereco || 'Avenida General Manoel Rabelo, 5.657, Sucupira, Jaboatão dos Guararapes-PE'
+  const igrejaLogo = igreja?.logo || '/logo-sucupira.png'
+  const pastorNome = igreja?.nome_pastor_responsavel || 'Rev. Eli Roberto da Silva'
+
   const baseUrl = 'https://primycias.vercel.app'
   const validacaoUrl = `${baseUrl}/validar/${m.id}`
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(validacaoUrl)}`
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(validacaoUrl)}`
+
+  const dataAdmissao = m.data_admissao? new Date(m.data_admissao).toLocaleDateString('pt-BR') : (m.data_admissao_formatada || '---')
+  const modoAdmissao = m.modo_admissao || m.forma_admissao || '---'
+  const cpf = m.cpf || m.documento || '---'
+  const pai = m.nome_pai || m.filiacao_pai || m.pai || '---'
+  const mae = m.nome_mae || m.filiacao_mae || m.mae || '---'
 
   return (
     <div className="min-h-screen bg-gray-100 p-8 print:p-0 print:bg-white print:min-h-0">
       <style>{`
         @media print {
           html, body { margin: 0!important; padding: 0!important; background: white!important; height: auto!important; overflow: visible!important; }
-          /* MATA O LAYOUT GLOBAL */
           header, nav, aside, footer { display: none!important; }
-         .no-print { display: none!important; }
-
+        .no-print { display: none!important; }
           #print-area {
             display: block!important;
             position: absolute!important;
             top: 0!important;
             left: 0!important;
             width: 100%!important;
-            padding: 15mm!important;
+            padding: 10mm!important;
             box-sizing: border-box;
           }
-
-          /* Tira cabeçalho e rodapé do navegador com URL e data */
           @page { margin: 0!important; size: A4; }
         }
       `}</style>
@@ -77,43 +98,81 @@ export default async function CarteiraPage({ params }) {
           <PrintButton />
         </div>
 
-        <div id="print-area" className="flex flex-col gap-4 items-center justify-start">
-          <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden print:shadow-none print:border print:border-black print:rounded-lg">
-            <div className="bg-[#0F3A1F] text-white px-3 py-2 flex items-center gap-2 text-[11px] leading-none">
-              <div className="w-7 h-7 bg-white text-[#0F3A1F] rounded-full flex items-center justify-center font-bold text-[12px]">IPB</div>
-              <div>
-                <div className="font-bold">Igreja Presbiteriana do Brasil</div>
-                <div className="text-[9px] opacity-80">IPB Boa Viagem - Recife/PE</div>
+        <div id="print-area" className="flex flex-col gap-8 items-center justify-start">
+
+          {/* FRENTE */}
+          <div className="w-[600px] h-[380px] bg-white rounded-[20px] shadow-lg border-2 border-black overflow-hidden print:shadow-none">
+            <div className="bg-[#0A3D26] h-[100px] flex items-center px-5 gap-4">
+              <img src={igrejaLogo} alt="Logo" className="h-[65px] w-auto object-contain" />
+              <div className="text-white leading-[1.1]">
+                <h1 className="text-[19px] font-bold">{igrejaNome}</h1>
+                <p className="text-[11px] font-semibold mt-1">CNPJ: {igrejaCnpj} &nbsp; CEP: {igrejaCep}</p>
+                <p className="text-[11px]">{igrejaEndereco}</p>
               </div>
-              <img src={qrUrl} className="ml-auto w-9 h-9 bg-white p-0.5 rounded" alt="QR" />
             </div>
-            <div className="p-3 flex gap-3">
-              <div className="w-[80px] h-[100px] bg-gray-200 rounded overflow-hidden border flex-shrink-0">
-                {m.foto_url? <img src={m.foto_url} className="w-full h-full object-cover" alt="foto" /> : <div className="w-full h-full grid place-items-center text-[9px] text-gray-500">Sem foto</div>}
+            <div className="p-5 flex gap-6">
+              <div className="w-[145px] h-[195px] border-2 border-dashed border-black p-1.5 flex-shrink-0">
+                <div className="w-full h-full bg-gray-100 border border-black flex flex-col items-center justify-center overflow-hidden">
+                  {m.foto_url? <img src={m.foto_url} className="w-full h-full object-cover" alt="foto" /> : (
+                    <>
+                      <span className="text-2xl">📷</span>
+                      <span className="text-[10px] text-gray-500">FOTO</span>
+                      <span className="text-[18px] font-bold text-gray-600">90×120</span>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="text-[11px] leading-[1.2] flex-1">
-                <div className="font-bold text-[13px] text-[#0F3A1F] leading-tight">{m.nome_completo}</div>
-                <div className="mt-1">Rol: <b>{m.numero_rol || '---'}</b></div>
-                <div className="mt-0.5">Categoria: {m.categoria_membro || m.tipo_membro || 'Membro'}</div>
-                {m.oficial_tipo && <div>Oficial: <b>{m.oficial_tipo}</b></div>}
-                <div className="mt-2 text-[9px] text-gray-500 break-all">Valide em: {validacaoUrl}</div>
-                <div className="mt-1 text-[8px] text-gray-400">ID: {m.id.slice(0,8)}...</div>
+              <div className="flex-1 leading-[1.15]">
+                <h2 className="text-[#0A3D26] text-[22px] font-bold leading-tight mb-1">{m.nome_completo}</h2>
+                <p className="text-[18px] font-bold mt-2">Rol: {m.numero_rol || m.rol || '---'}</p>
+                <p className="text-[18px] font-bold mt-1">Membro Comungante</p>
+                {m.oficial_tipo && <p className="text-[18px] font-bold">{m.oficial_tipo}</p>}
+                <p className="text-[16px] font-bold mt-3">Data Admissão: {dataAdmissao}</p>
+                <p className="text-[16px] font-bold">Modo Admissão: {modoAdmissao}</p>
               </div>
+            </div>
+            <div className="px-5 text-[11px] -mt-1">Carteira de Membro • {igrejaNome}</div>
+          </div>
+
+          {/* VERSO - FINAL APROVADO */}
+          <div className="w-[600px] h-[380px] bg-white rounded-[20px] shadow-lg border-2 border-black overflow-hidden flex flex-col print:shadow-none">
+            <div className="bg-[#0A3D26] h-[75px] flex items-center px-5 gap-3">
+              <img src={igrejaLogo} alt="Logo" className="h-[50px] w-auto" />
+              <div className="text-white">
+                <h1 className="text-[12px] font-bold leading-[1.1]">{igrejaNome.toUpperCase()}</h1>
+              </div>
+            </div>
+
+            <div className="flex-1 p-5 flex flex-col">
+              <h2 className="text-center text-[#0A3D26] text-[24px] font-bold">Carteira de Membro</h2>
+
+              <div className="flex justify-between mt-3">
+                <div className="text-[17px] leading-[1.25] font-medium flex-1">
+                  <p>CPF: {cpf}</p>
+                  <p className="mt-1">Filiação:</p>
+                  <p>Pai: {pai}</p>
+                  <p>Mãe: {mae}</p>
+                  <p className="text-[11px] mt-3 text-gray-700">Emitida em: {new Date().toLocaleDateString('pt-BR')}</p>
+                </div>
+                <div className="w-[110px] h-[110px] flex-shrink-0 ml-4">
+                  <img src={qrUrl} className="w-full h-full object-contain" alt="QR" />
+                </div>
+              </div>
+
+              <div className="text-center mt-auto">
+                <div className="w-[300px] mx-auto">
+                  <div className="border-t border-black w-full"></div>
+                  <p className="text-[#0A3D26] text-[14px] font-bold leading-tight mt-1">{pastorNome}</p>
+                  <p className="text-[#0A3D26] text-[11px]">Pastor Titular</p>
+                </div>
+              </div>
+
+              <p className="text-[9px] text-center leading-tight mt-3 px-2">
+                Esta carteira identifica o portador como membro da {igrejaNome}. Válida mediante apresentação de documento oficial com foto.
+              </p>
             </div>
           </div>
 
-          <div className="w-[340px] h-[216px] bg-white rounded-xl shadow-lg border overflow-hidden p-3 print:shadow-none print:border print:border-black print:rounded-lg">
-            <div className="h-full border border-dashed border-gray-300 rounded-lg p-3 flex flex-col">
-              <div className="text-[10px] font-bold text-center text-[#0F3A1F]">Carteira de Membro - IPB Boa Viagem</div>
-              <div className="mt-3 text-[9px] text-gray-600 leading-relaxed">
-                Esta carteira identifica o portador como membro da Igreja Presbiteriana do Brasil - Igreja de Boa Viagem.
-              </div>
-              <div className="mt-auto flex justify-between items-end">
-                <div className="text-[8px] text-gray-400">Emitida em: {new Date().toLocaleDateString('pt-BR')}</div>
-                <div className="w-[100px] border-t border-gray-400 text-center text-[8px] pt-1">Assinatura Pastor</div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
