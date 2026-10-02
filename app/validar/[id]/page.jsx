@@ -38,7 +38,6 @@ export default async function ValidarPage({ params }) {
     if (data) igreja = data
   }
 
-  // CAMPOS DE SITUAÇÃO - tenta vários nomes possíveis da sua ficha
   const situacaoRaw = (m.situacao || m.status || m.status_membro || 'ativo').toLowerCase()
   const isAtivo =!['demitido','excluido','excluído','inativo','falecido','transferido'].includes(situacaoRaw)
 
@@ -48,13 +47,13 @@ export default async function ValidarPage({ params }) {
   const motivoDemissao = m.motivo_demissao || m.motivo_exclusao || m.motivo_saida || m.observacao_demissao || '---'
   const formaDemissao = m.forma_demissao || m.modo_demissao || ''
 
-  const igrejaNome = igreja?.nome || 'Igreja Presbiteriana em Sucupira'
-  const igrejaLogo = igreja?.logo_url || igreja?.logo || '/logo-sucupira.png'
+  // 100% DINÂMICO - SEM SUCUPIRA FIXO
+  const igrejaNome = igreja?.nome || ''
+  const igrejaLogo = igreja?.logo_url || igreja?.logo || ''
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] p-4 flex items-center justify-center">
       <div className="bg-white w-full max-w-[500px] rounded-[20px] shadow-xl border border-gray-200 overflow-hidden">
-        {/* HEADER */}
         <div className="bg-white p-5 flex items-center gap-4 border-b-2 border-[#0A3D26]">
           {igrejaLogo && <img src={igrejaLogo} className="h-[50px] w-auto" alt="logo"/>}
           <div>
@@ -76,7 +75,6 @@ export default async function ValidarPage({ params }) {
             </div>
           </div>
 
-          {/* STATUS */}
           <div className="mt-6">
             {isAtivo? (
               <div className="bg-green-50 border-2 border-green-600 rounded-xl p-4">
@@ -102,8 +100,8 @@ export default async function ValidarPage({ params }) {
           </div>
 
           <div className="mt-6 text-center">
-            <p className="text-[10px] text-gray-400">ID de validação: {m.id}</p>
-            <p className="text-[10px] text-gray-400">Esta consulta é oficial e pública para validação da carteira.</p>
+            <p className="text-[10px] text-gray-400">ID: {m.id}</p>
+            <p className="text-[10px] text-gray-400">Validação oficial • {igrejaNome}</p>
           </div>
         </div>
       </div>
