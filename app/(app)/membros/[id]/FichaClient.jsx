@@ -9,7 +9,6 @@ export function PrintButton() {
   )
 }
 
-// Seu FotoUpload original preservado
 export function FotoUpload({ defaultValue }) {
   const [preview, setPreview] = useState(defaultValue || "")
   const fileRef = useRef(null)
@@ -46,51 +45,12 @@ export function FotoUpload({ defaultValue }) {
 }
 
 export function OficialToggle() {
+  const [editando, setEditando] = useState(false)
+
   useEffect(() => {
     const form = document.querySelector('form')
     if(!form) return
-
-    let editarBtn = document.getElementById('btn-editar-ficha')
-    const headerBtns = document.querySelector('.no-print.flex.gap-2')
-
-    if(headerBtns &&!editarBtn){
-      editarBtn = document.createElement('button')
-      editarBtn.id = 'btn-editar-ficha'
-      editarBtn.type = 'button'
-      editarBtn.className = 'bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm'
-      editarBtn.textContent = '✏️ Editar Ficha'
-      headerBtns.prepend(editarBtn)
-    }
-
-    const salvarBtn = form.querySelector('#btn-salvar, button[type="submit"], button.w-full.py-3')
-    const allInputs = () => form.querySelectorAll('input, select, textarea')
-    let editando = false
-
-    function setModoVisualizar(){
-      editando = false
-      if(editarBtn) editarBtn.textContent = '✏️ Editar Ficha'
-      if(salvarBtn) salvarBtn.style.display = 'none'
-      allInputs().forEach(el => {
-        if(el.type === 'hidden') return
-        el.setAttribute('disabled','true')
-        el.classList.add('bg-gray-50','pointer-events-none')
-      })
-      document.querySelectorAll('.no-print.w-full').forEach(b => {
-        if(b.id!== 'btn-editar-ficha') b.style.display = 'none'
-      })
-    }
-
-    function setModoEdicao(){
-      editando = true
-      if(editarBtn) editarBtn.textContent = '❌ Cancelar Edição'
-      if(salvarBtn) salvarBtn.style.display = ''
-      allInputs().forEach(el => {
-        el.removeAttribute('disabled')
-        el.classList.remove('bg-gray-50','pointer-events-none')
-      })
-      document.querySelectorAll('.no-print.w-full').forEach(b => b.style.display = '')
-      applyRules()
-    }
+    const btnSalvar = document.getElementById('btn-salvar')
 
     function applyRules(){
       const selEC = document.getElementById('estado_civil')
@@ -98,26 +58,20 @@ export function OficialToggle() {
       const selCat = document.getElementById('categoria_membro')
       const selAdm = document.getElementById('forma_admissao')
       const selDem = document.getElementById('forma_demissao')
-
       const gConj = document.getElementById('grupo-conjuge')
       const gDem = document.getElementById('grupo-demissao')
       const gProf = document.getElementById('grupo-prof-fe')
-      const cOficialTipo = document.getElementById('campo-oficial-tipo')
+      const cOfTipo = document.getElementById('campo-oficial-tipo')
       const cOrd = document.getElementById('campo-data-ordenacao')
       const cInst = document.getElementById('campo-data-instalacao')
 
-      if(gConj && selEC){
-        gConj.style.display = selEC.value === 'casado'? 'grid' : 'none'
-      }
-      if(gDem && selStatus){
-        const show = selStatus.value === 'inativo' || selStatus.value === 'demitido'
-        gDem.style.display = show? 'block' : 'none'
-      }
+      if(gConj && selEC) gConj.style.display = selEC.value === 'casado'? 'grid' : 'none'
+      if(gDem && selStatus) gDem.style.display = (selStatus.value === 'inativo' || selStatus.value === 'demitido')? 'block' : 'none'
       if(selCat){
         const isNaoCom = selCat.value === 'nao_comungante'
         const isOficial = selCat.value === 'comungante_oficial'
         if(gProf) gProf.style.display = isNaoCom? 'none' : 'grid'
-        if(cOficialTipo) cOficialTipo.style.display = isOficial? '' : 'none'
+        if(cOfTipo) cOfTipo.style.display = isOficial? '' : 'none'
         if(cOrd) cOrd.style.display = isOficial? '' : 'none'
         if(cInst) cInst.style.display = isOficial? '' : 'none'
 
@@ -125,45 +79,49 @@ export function OficialToggle() {
           selAdm.querySelectorAll('optgroup').forEach(og => {
             const isArt16 = og.label.includes('Art. 16')
             const isArt17 = og.label.includes('Art. 17')
-            const show = isNaoCom? isArt17 : isArt16
-            og.hidden =!show
-            og.style.display = show? '' : 'none'
+            og.hidden = isNaoCom?!isArt17 :!isArt16
           })
         }
         if(selDem){
           selDem.querySelectorAll('optgroup').forEach(og => {
             const isArt23 = og.label.includes('Art. 23')
             const isArt24 = og.label.includes('Art. 24')
-            const show = isNaoCom? isArt24 : isArt23
-            og.hidden =!show
-            og.style.display = show? '' : 'none'
+            og.hidden = isNaoCom?!isArt24 :!isArt23
           })
         }
       }
     }
 
+    const inputs = form.querySelectorAll('input, select, textarea')
+    if(editando){
+      if(btnSalvar) btnSalvar.style.display = ''
+      form.classList.remove('modo-visualizar')
+      inputs.forEach(el => { if(el.type!=='hidden') el.disabled = false })
+      applyRules()
+    } else {
+      if(btnSalvar) btnSalvar.style.display = 'none'
+      form.classList.add('modo-visualizar')
+      inputs.forEach(el => { if(el.type!=='hidden') el.disabled = true })
+      applyRules()
+    }
+
     const selEC = document.getElementById('estado_civil')
     const selStatus = document.getElementById('status_membro')
     const selCat = document.getElementById('categoria_membro')
-    if(selEC) selEC.addEventListener('change', applyRules)
-    if(selStatus) selStatus.addEventListener('change', applyRules)
-    if(selCat) selCat.addEventListener('change', applyRules)
-
-    if(editarBtn){
-      editarBtn.onclick = () => {
-        if(editando) setModoVisualizar()
-        else setModoEdicao()
-      }
-    }
-
-    setModoVisualizar()
-    setTimeout(() => { applyRules(); setModoVisualizar(); }, 300)
+    selEC?.addEventListener('change', applyRules)
+    selStatus?.addEventListener('change', applyRules)
+    selCat?.addEventListener('change', applyRules)
 
     return () => {
-      if(selEC) selEC.removeEventListener('change', applyRules)
-      if(selStatus) selStatus.removeEventListener('change', applyRules)
-      if(selCat) selCat.removeEventListener('change', applyRules)
+      selEC?.removeEventListener('change', applyRules)
+      selStatus?.removeEventListener('change', applyRules)
+      selCat?.removeEventListener('change', applyRules)
     }
-  }, [])
-  return null
+  }, [editando])
+
+  return (
+    <button id="btn-editar-ficha" type="button" onClick={() => setEditando(e =>!e)} className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">
+      {editando? '❌ Cancelar' : '✏️ Editar Ficha'}
+    </button>
+  )
 }
