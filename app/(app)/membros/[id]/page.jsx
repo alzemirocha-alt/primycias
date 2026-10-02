@@ -112,7 +112,10 @@ export default async function Page({ params }) {
 
     return (
       <div className="p-6 max-w-5xl mx-auto pb-20">
-        <style>{`
+       <style>{`
+          #btn-salvar{display:none}
+         .modo-visualizar.no-print.w-full{display:none!important}
+         .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea{pointer-events:none; background:#f9fafb!important;}
           @media print {
             body * { visibility: hidden; }
             #ficha-print, #ficha-print * { visibility: visible; }
@@ -141,7 +144,7 @@ export default async function Page({ params }) {
             </div>
           </div>
 
-          <form action={updateMembro} className="space-y-8">
+                   <form action={updateMembro} id="ficha-form" className="space-y-8 modo-visualizar">
             <input type="hidden" name="id" value={m.id} />
             <div>
               <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">1. Dados Pessoais</h2>
