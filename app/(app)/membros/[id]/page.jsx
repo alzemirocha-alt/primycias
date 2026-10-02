@@ -231,7 +231,7 @@ export default async function Page({ params }) {
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex flex-col text-sm">Data Admissão<input name="data_admissao" type="date" defaultValue={m.data_admissao} className="border p-2 rounded mt-1" /></label>
                 <label className="col-span-2 flex flex-col text-sm">Forma Admissão
-                  <select name="forma_admissao" defaultValue={m.forma_admissao} className="border p-2 rounded mt-1">
+                  <select id="forma_admissao" name="forma_admissao" defaultValue={m.forma_admissao} className="border p-2 rounded mt-1">
                     <option value="">Selecione a forma</option>
                     <optgroup label="NÃO COMUNGANTES - Art. 17 CI/IPB">
                       <option value="Batismo na Infância, de menores apresentados pelos pais ou responsáveis - Art. 17, alínea &quot;a&quot; CI/IPB">Batismo na Infância - Art. 17, alínea &quot;a&quot; CI/IPB</option>
@@ -274,6 +274,9 @@ export default async function Page({ params }) {
                 var ec = document.getElementById('estado_civil');
                 var status = document.getElementById('status_membro');
                 var cat = document.getElementById('categoria_membro');
+                var selAdm = document.getElementById('forma_admissao');
+                var selDem = document.getElementById('forma_demissao');
+
                 var gConj = document.getElementById('grupo-conjuge');
                 if(gConj){
                   if(ec && ec.value === 'casado'){ gConj.style.display='grid'; }
@@ -289,6 +292,41 @@ export default async function Page({ params }) {
                   if(cat && cat.value === 'nao_comungante'){ gProf.style.display='none'; }
                   else { gProf.style.display='grid'; }
                 }
+
+                // REGRA NOVA: Filtra Admissão por Categoria
+                if(selAdm && cat){
+                  var optGroupsAdm = selAdm.getElementsByTagName('optgroup');
+                  for(var i=0;i<optGroupsAdm.length;i++){
+                    var og = optGroupsAdm[i];
+                    var isComunganteOG = og.label.includes('COMUNGANTES') || og.label.includes('Art. 16');
+                    var isNaoComOG = og.label.includes('NÃO COMUNGANTES') || og.label.includes('Art. 17');
+                    if(cat.value === 'nao_comungante'){
+                      og.style.display = isNaoComOG ? '' : 'none';
+                      // desabilita options do grupo errado
+                      for(var j=0;j<og.children.length;j++){ og.children[j].disabled = !isNaoComOG; }
+                    } else {
+                      og.style.display = isComunganteOG ? '' : 'none';
+                      for(var j=0;j<og.children.length;j++){ og.children[j].disabled = !isComunganteOG; }
+                    }
+                  }
+                }
+
+                // REGRA NOVA: Filtra Demissão por Categoria
+                if(selDem && cat){
+                  var optGroupsDem = selDem.getElementsByTagName('optgroup');
+                  for(var i=0;i<optGroupsDem.length;i++){
+                    var og = optGroupsDem[i];
+                    var isComOG = og.label.includes('COMUNGANTES') || og.label.includes('Art. 23');
+                    var isNaoComOG2 = og.label.includes('NÃO COMUNGANTES') || og.label.includes('Art. 24');
+                    if(cat.value === 'nao_comungante'){
+                      og.style.display = isNaoComOG2 ? '' : 'none';
+                      for(var j=0;j<og.children.length;j++){ og.children[j].disabled = !isNaoComOG2; }
+                    } else {
+                      og.style.display = isComOG ? '' : 'none';
+                      for(var j=0;j<og.children.length;j++){ og.children[j].disabled = !isComOG; }
+                    }
+                  }
+                }
               }
               document.addEventListener('DOMContentLoaded', function(){
                 var ec = document.getElementById('estado_civil');
@@ -300,6 +338,7 @@ export default async function Page({ params }) {
                 applyRules();
               });
               setTimeout(applyRules, 300);
+              setTimeout(applyRules, 1000);
             })();
           `}} />
 
