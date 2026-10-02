@@ -50,7 +50,6 @@ export function OficialToggle() {
     const form = document.querySelector('form')
     if(!form) return
 
-    // CRIA OS BOTÕES DE CONTROLE SE NÃO EXISTIREM
     let editarBtn = document.getElementById('btn-editar-ficha')
     const headerBtns = document.querySelector('.no-print.flex.gap-2')
 
@@ -63,7 +62,7 @@ export function OficialToggle() {
       headerBtns.prepend(editarBtn)
     }
 
-    const salvarBtn = form.querySelector('button[type="submit"], button.w-full.py-3')
+    const salvarBtn = form.querySelector('#btn-salvar, button[type="submit"], button.w-full.py-3')
     const allInputs = () => form.querySelectorAll('input, select, textarea')
     let editando = false
 
@@ -76,8 +75,9 @@ export function OficialToggle() {
         el.setAttribute('disabled','true')
         el.classList.add('bg-gray-50','pointer-events-none')
       })
-      // Esconde botões de foto no modo visualizar
-      document.querySelectorAll('.no-print.w-full').forEach(b => b.style.display = 'none')
+      document.querySelectorAll('.no-print.w-full').forEach(b => {
+        if(b.id!== 'btn-editar-ficha') b.style.display = 'none'
+      })
     }
 
     function setModoEdicao(){
@@ -89,7 +89,7 @@ export function OficialToggle() {
         el.classList.remove('bg-gray-50','pointer-events-none')
       })
       document.querySelectorAll('.no-print.w-full').forEach(b => b.style.display = '')
-      applyRules() // re-aplica filtros ao entrar em edição
+      applyRules()
     }
 
     function applyRules(){
@@ -106,16 +106,13 @@ export function OficialToggle() {
       const cOrd = document.getElementById('campo-data-ordenacao')
       const cInst = document.getElementById('campo-data-instalacao')
 
-      // 1. Cônjuge só se casado
       if(gConj && selEC){
         gConj.style.display = selEC.value === 'casado'? 'grid' : 'none'
       }
-      // 2. Demissão só se inativo/demitido
       if(gDem && selStatus){
         const show = selStatus.value === 'inativo' || selStatus.value === 'demitido'
         gDem.style.display = show? 'block' : 'none'
       }
-      // 3. Profissão de fé e oficial
       if(selCat){
         const isNaoCom = selCat.value === 'nao_comungante'
         const isOficial = selCat.value === 'comungante_oficial'
@@ -124,44 +121,27 @@ export function OficialToggle() {
         if(cOrd) cOrd.style.display = isOficial? '' : 'none'
         if(cInst) cInst.style.display = isOficial? '' : 'none'
 
-        // 4. FILTRA ADMISSÃO: Art.16 para comungante, Art.17 para não comungante
         if(selAdm){
-          const ogs = selAdm.querySelectorAll('optgroup')
-          ogs.forEach(og => {
+          selAdm.querySelectorAll('optgroup').forEach(og => {
             const isArt16 = og.label.includes('Art. 16')
             const isArt17 = og.label.includes('Art. 17')
-            if(isNaoCom){
-              og.style.display = isArt17? '' : 'none'
-              og.querySelectorAll('option').forEach(op => op.disabled =!isArt17 && op.value!== "")
-              // Se estiver no grupo errado, reseta
-              if(isArt16 && selAdm.value && selAdm.querySelector(`optgroup[label*="Art. 16"] option[value="${CSS.escape(selAdm.value)}"]`)){
-                // está em grupo errado, limpa
-              }
-            } else {
-              og.style.display = isArt16? '' : 'none'
-              og.querySelectorAll('option').forEach(op => op.disabled =!isArt16 && op.value!== "")
-            }
+            const show = isNaoCom? isArt17 : isArt16
+            og.hidden =!show
+            og.style.display = show? '' : 'none'
           })
         }
-        // 5. FILTRA DEMISSÃO: Art.23 para comungante, Art.24 para não comungante
         if(selDem){
-          const ogs = selDem.querySelectorAll('optgroup')
-          ogs.forEach(og => {
+          selDem.querySelectorAll('optgroup').forEach(og => {
             const isArt23 = og.label.includes('Art. 23')
             const isArt24 = og.label.includes('Art. 24')
-            if(isNaoCom){
-              og.style.display = isArt24? '' : 'none'
-              og.querySelectorAll('option').forEach(op => op.disabled =!isArt24 && op.value!== "")
-            } else {
-              og.style.display = isArt23? '' : 'none'
-              og.querySelectorAll('option').forEach(op => op.disabled =!isArt23 && op.value!== "")
-            }
+            const show = isNaoCom? isArt24 : isArt23
+            og.hidden =!show
+            og.style.display = show? '' : 'none'
           })
         }
       }
     }
 
-    // Listeners
     const selEC = document.getElementById('estado_civil')
     const selStatus = document.getElementById('status_membro')
     const selCat = document.getElementById('categoria_membro')
@@ -176,7 +156,6 @@ export function OficialToggle() {
       }
     }
 
-    // INICIA EM MODO VISUALIZAÇÃO (RELATÓRIO FECHADO)
     setModoVisualizar()
     setTimeout(() => { applyRules(); setModoVisualizar(); }, 300)
 
