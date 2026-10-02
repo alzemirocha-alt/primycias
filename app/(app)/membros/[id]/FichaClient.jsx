@@ -15,24 +15,69 @@ export function PrintButton() {
 
 export function OficialToggle() {
   useEffect(() => {
-    function toggleOficial(){
-      const sel = document.getElementById('categoria_membro')
-      if(!sel) return
-      const isOficial = sel.value === 'comungante_oficial'
-      const c1 = document.getElementById('campo-oficial-tipo')
-      const c2 = document.getElementById('campo-data-ordenacao')
-      const c3 = document.getElementById('campo-data-instalacao')
-      if(c1) c1.style.display = isOficial? '' : 'none'
-      if(c2) c2.style.display = isOficial? '' : 'none'
-      if(c3) c3.style.display = isOficial? '' : 'none'
+    function toggleAll(){
+      const selCat = document.getElementById('categoria_membro')
+      const selEC = document.getElementById('estado_civil')
+      const selStatus = document.getElementById('status_membro')
+
+      // 1. OFICIAL (seu original preservado)
+      if(selCat){
+        const isOficial = selCat.value === 'comungante_oficial'
+        const c1 = document.getElementById('campo-oficial-tipo')
+        const c2 = document.getElementById('campo-data-ordenacao')
+        const c3 = document.getElementById('campo-data-instalacao')
+        if(c1) c1.style.display = isOficial? '' : 'none'
+        if(c2) c2.style.display = isOficial? '' : 'none'
+        if(c3) c3.style.display = isOficial? '' : 'none'
+      }
+
+      // 2. CÔNJUGE - Só mostra se casado (corrige o contents)
+      const gConj = document.getElementById('grupo-conjuge')
+      if(gConj){
+        const isCasado = selEC && selEC.value === 'casado'
+        // Se tem contents, precisa esconder os filhos também
+        gConj.style.display = isCasado? '' : 'none'
+        // Garante que os inputs internos também sumam mesmo com contents
+        Array.from(gConj.children).forEach(el => {
+          el.style.display = isCasado? '' : 'none'
+        })
+      }
+
+      // 3. DEMISSÃO - Só mostra se inativo ou demitido (SEU BUG DA FOTO)
+      const gDem = document.getElementById('grupo-demissao')
+      if(gDem && selStatus){
+        const isDemitido = selStatus.value === 'inativo' || selStatus.value === 'demitido'
+        gDem.style.display = isDemitido? '' : 'none'
+      }
+
+      // 4. PROF. FÉ - Esconde se não comungante
+      const gProf = document.getElementById('grupo-prof-fe')
+      if(gProf && selCat){
+        const isNaoCom = selCat.value === 'nao_comungante'
+        gProf.style.display = isNaoCom? 'none' : ''
+        Array.from(gProf.children).forEach(el => {
+          el.style.display = isNaoCom? 'none' : ''
+        })
+      }
     }
-    const sel = document.getElementById('categoria_membro')
-    if(sel){ sel.addEventListener('change', toggleOficial); toggleOficial(); }
-    const t = setTimeout(() => {
-      const sel2 = document.getElementById('categoria_membro')
-      if(sel2){ sel2.addEventListener('change', toggleOficial); toggleOficial(); }
-    }, 500)
-    return () => clearTimeout(t)
+
+    const selCat = document.getElementById('categoria_membro')
+    const selEC = document.getElementById('estado_civil')
+    const selStatus = document.getElementById('status_membro')
+
+    if(selCat) selCat.addEventListener('change', toggleAll)
+    if(selEC) selEC.addEventListener('change', toggleAll)
+    if(selStatus) selStatus.addEventListener('change', toggleAll)
+
+    toggleAll() // roda na abertura
+
+    const t = setTimeout(toggleAll, 500) // garante que pegou depois do hidrate
+    return () => {
+      clearTimeout(t)
+      if(selCat) selCat.removeEventListener('change', toggleAll)
+      if(selEC) selEC.removeEventListener('change', toggleAll)
+      if(selStatus) selStatus.removeEventListener('change', toggleAll)
+    }
   }, [])
   return null
 }
@@ -67,7 +112,6 @@ export function FotoUpload({ defaultValue }) {
         <div className="w-[110px] h-[140px] bg-gray-200 rounded border flex items-center justify-center text-[10px] text-gray-500 text-center mb-2 print:hidden">SEM<br/>FOTO</div>
       )}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
-      {/* Esses dois somem na impressão */}
       <button type="button" onClick={() => fileRef.current?.click()} className="no-print w-full bg-[#0F3A1F] text-white text-xs py-2 rounded hover:bg-[#164a2a]">
         📷 {preview? 'Trocar Foto' : 'Fazer Upload'}
       </button>
