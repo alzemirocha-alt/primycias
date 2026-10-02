@@ -305,7 +305,6 @@ export default async function Page({ params }) {
                 var cOfTipo = document.getElementById('campo-oficial-tipo');
                 var cOrd = document.getElementById('campo-data-ordenacao');
                 var cInst = document.getElementById('campo-data-instalacao');
-
                 if(gConj) gConj.style.display = (ec && ec.value==='casado') ? 'grid' : 'none';
                 if(gDem) gDem.style.display = (status && (status.value==='inativo' || status.value==='demitido')) ? 'block' : 'none';
                 if(gProf) gProf.style.display = (cat && cat.value==='nao_comungante') ? 'none' : 'grid';
@@ -313,8 +312,6 @@ export default async function Page({ params }) {
                 if(cOfTipo) cOfTipo.style.display = isOf ? '' : 'none';
                 if(cOrd) cOrd.style.display = isOf ? '' : 'none';
                 if(cInst) cInst.style.display = isOf ? '' : 'none';
-
-                // FILTRA ADMISSÃO
                 if(selAdm && cat){
                   var isNaoCom = cat.value==='nao_comungante';
                   var ogs = selAdm.querySelectorAll('optgroup');
@@ -323,10 +320,8 @@ export default async function Page({ params }) {
                     var is17 = og.label.indexOf('Art. 17')>-1;
                     var show = isNaoCom ? is17 : is16;
                     og.hidden = !show;
-                    og.querySelectorAll('option').forEach(function(op){ if(op.value) op.hidden = !show; });
                   });
                 }
-                // FILTRA DEMISSÃO
                 if(selDem && cat){
                   var isNaoCom2 = cat.value==='nao_comungante';
                   var ogs2 = selDem.querySelectorAll('optgroup');
@@ -335,7 +330,6 @@ export default async function Page({ params }) {
                     var is24 = og.label.indexOf('Art. 24')>-1;
                     var show2 = isNaoCom2 ? is24 : is23;
                     og.hidden = !show2;
-                    og.querySelectorAll('option').forEach(function(op){ if(op.value) op.hidden = !show2; });
                   });
                 }
               }
@@ -354,7 +348,7 @@ export default async function Page({ params }) {
             })();
           `}} />
 
-          <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja? \`• Pastor: \${pastorDaIgreja}\` : ""}</div>
+          <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja ? " - Pastor: " + pastorDaIgreja : ""}</div>
         </div>
       </div>
     )
