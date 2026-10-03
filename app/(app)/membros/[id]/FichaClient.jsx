@@ -26,7 +26,7 @@ export function FotoUpload({ defaultValue }) {
   }
   return (
     <div className="col-span-1 row-span-2 border rounded p-3 bg-gray-50 flex flex-col items-center justify-center">
-      <input ref={inputRef} type="hidden" name="foto_url" defaultValue={defaultValue || ""} />
+      <input ref={inputRef} type="hidden" name="foto_url" id="foto_url_hidden" defaultValue={defaultValue || ""} />
       {preview? (
         <img src={preview} alt="Foto" className="w-[110px] h-[140px] object-cover rounded border bg-white mb-2" />
       ) : (
@@ -96,7 +96,6 @@ export function OficialToggle() {
 
   const handleToggle = () => {
     if (editando) {
-      // se estava editando e clicou em cancelar, recarrega para descartar alterações e travar de novo
       window.location.reload()
     } else {
       setEditando(true)
