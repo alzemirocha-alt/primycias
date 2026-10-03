@@ -14,12 +14,32 @@ export default function TransferenciaPage() {
   const [forma, setForma] = useState('Carta de Transferência com Destino Determinado - Art. 18, alínea "a" CI/IPB')
   const [loading, setLoading] = useState(false)
 
+  // MODIFICADO: removido eq status e adicionado tratamento de erro + busca por botão
   async function buscar(e) {
-    const termo = e.target.value
+    const termo = typeof e === 'string' ? e : e.target.value
     setBusca(termo)
-    if(termo.length < 2) return
-    const {data} = await supabase.from('membros_oficial').select('*').ilike('nome_completo', `%${termo}%`).eq('status','ativo').limit(10)
-    setResultados(data || [])
+    if(termo.length < 2) {
+      setResultados([])
+      return
+    }
+    // Tenta sem filtro de status, pq seu banco pode estar com situacao/status_membro diferente
+    const {data, error} = await supabase
+      .from('membros_oficial')
+      .select('*')
+      .ilike('nome_completo', `%${termo}%`)
+      .limit(10)
+    
+    if(error){
+      console.error('Erro busca:', error)
+      setResultados([])
+      return
+    }
+    // Filtra na mão só os não-demitidos, aceitando qualquer variação de coluna
+    const filtrados = (data || []).filter(m => {
+      const s = (m.status || m.situacao || m.status_membro || 'ativo').toLowerCase()
+      return s !== 'demitido' && s !== 'transferido'
+    })
+    setResultados(filtrados)
   }
 
   async function selecionarMembro(m) {
@@ -27,40 +47,33 @@ export default function TransferenciaPage() {
     setResultados([])
     setBusca(m.nome_completo)
     
-    // BUSCA FAMILIA PELOS NOMES DOS PAIS E CONJUGE
     let fam = []
 
-    // 1. Conjuge pelo ID
     if(m.conjuge_membro_id || m.conjuge_id){
       const idConj = m.conjuge_membro_id || m.conjuge_id
-      const {data} = await supabase.from('membros_oficial').select('*').eq('id', idConj).eq('status','ativo')
+      const {data} = await supabase.from('membros_oficial').select('*').eq('id', idConj)
       if(data) fam.push(...data)
     }
-    // 2. Conjuge pelo nome
     if(m.conjuge_nome || m.nome_conjuge){
       const nomeConj = m.conjuge_nome || m.nome_conjuge
-      const {data} = await supabase.from('membros_oficial').select('*').ilike('nome_completo', `%${nomeConj}%`).eq('status','ativo')
+      const {data} = await supabase.from('membros_oficial').select('*').ilike('nome_completo', `%${nomeConj}%`)
       if(data) fam.push(...data)
     }
-    // 3. Quem tem ele como conjuge
-    const {data: quemTemEleComoConjuge} = await supabase.from('membros_oficial').select('*').ilike('conjuge_nome', `%${m.nome_completo}%`).eq('status','ativo')
+    const {data: quemTemEleComoConjuge} = await supabase.from('membros_oficial').select('*').ilike('conjuge_nome', `%${m.nome_completo}%`)
     if(quemTemEleComoConjuge) fam.push(...quemTemEleComoConjuge)
 
-    // 4. Filhos - quem tem ele como pai ou mae
-    const {data: filhos} = await supabase.from('membros_oficial').select('*').or(`filiacao_pai.ilike.%${m.nome_completo}%,filiacao_mae.ilike.%${m.nome_completo}%`).eq('status','ativo')
+    const {data: filhos} = await supabase.from('membros_oficial').select('*').or(`filiacao_pai.ilike.%${m.nome_completo}%,filiacao_mae.ilike.%${m.nome_completo}%`)
     if(filhos) fam.push(...filhos)
 
-    // 5. Pais - se os pais dele sao membros
     if(m.filiacao_pai){
-      const {data: pai} = await supabase.from('membros_oficial').select('*').ilike('nome_completo', `%${m.filiacao_pai}%`).eq('status','ativo')
+      const {data: pai} = await supabase.from('membros_oficial').select('*').ilike('nome_completo', `%${m.filiacao_pai}%`)
       if(pai) fam.push(...pai)
     }
     if(m.filiacao_mae){
-      const {data: mae} = await supabase.from('membros_oficial').select('*').ilike('nome_completo', `%${m.filiacao_mae}%`).eq('status','ativo')
+      const {data: mae} = await supabase.from('membros_oficial').select('*').ilike('nome_completo', `%${m.filiacao_mae}%`)
       if(mae) fam.push(...mae)
     }
 
-    // remove duplicados e ele mesmo
     const unicos = fam.filter((v,i,a)=>a.findIndex(t=>t.id===v.id)===i && v.id!== m.id)
     setFamilia(unicos)
   }
@@ -69,10 +82,8 @@ export default function TransferenciaPage() {
     if(!selecionado || !igrejaDestino) return alert('Selecione membro e igreja destino')
     setLoading(true)
 
-    // Lista final de membros
     const membrosParaCarta = [selecionado, ...familia.filter(f=> incluir[f.id])]
 
-    // 1. Cria carta
     const {data: carta, error} = await supabase.from('cartas_transferencia').insert({
       igreja_id: selecionado.igreja_id,
       igreja_destino: igrejaDestino,
@@ -82,7 +93,6 @@ export default function TransferenciaPage() {
 
     if(error){ alert(error.message); setLoading(false); return }
 
-    // 2. Salva membros da carta e demite
     for(const mem of membrosParaCarta){
       const isComungante = (mem.tipo_membro || mem.categoria_membro || '').toLowerCase().includes('comungante') && !(mem.tipo_membro||'').includes('nao')
       const formaInd = isComungante ? forma : 'Transferência a pedido dos Pais ou Responsáveis e, na falta destes, a Juízo do Conselho - Art. 19, parágrafo único CI/IPB'
@@ -119,7 +129,11 @@ export default function TransferenciaPage() {
       
       <div className="mt-6 bg-white border rounded-xl p-6">
         <label className="text-sm font-semibold">Pesquisar Membro (auto-preenchimento)</label>
-        <input value={busca} onChange={buscar} placeholder="Digite nome do membro..." className="w-full border p-3 rounded-lg mt-2" />
+        {/* MODIFICADO: adicionado botão Buscar do lado */}
+        <div className="flex gap-2 mt-2">
+          <input value={busca} onChange={buscar} placeholder="Digite nome do membro..." className="flex-1 border p-3 rounded-lg" />
+          <button onClick={()=>buscar(busca)} className="bg-[#0A3D26] text-white px-6 rounded-lg font-bold">Buscar</button>
+        </div>
         {resultados.length>0 && (
           <div className="border rounded-lg mt-2 max-h-60 overflow-auto">
             {resultados.map(r=>(
