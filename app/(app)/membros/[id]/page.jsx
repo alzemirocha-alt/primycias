@@ -45,72 +45,48 @@ async function updateMembro(formData) {
   'use server'
   const supabase = getSupabase()
   const id = formData.get('id')
-  
-  const rolRaw = formData.get('numero_rol')
-  let numeroRol = null
-  if (rolRaw && String(rolRaw).trim() !== "") {
-    const parsed = parseInt(String(rolRaw).trim())
-    if (!isNaN(parsed)) numeroRol = parsed
-  }
+  const statusRaw = formData.get('status') || formData.get('status_membro')
+  const statusValue = String(statusRaw || 'ativo').toLowerCase().trim()
 
-  const statusValue = (formData.get('status') || 'ativo').toString()
-  const categoria = formData.get('categoria_membro') || 'comungante'
+  console.log("SALVANDO ID:", id, "NOVO STATUS:", statusValue)
 
   const dados = {
-    numero_rol: numeroRol,
-    nome_completo: formData.get('nome_completo'),
-    cpf: formData.get('cpf'),
-    filiacao_pai: formData.get('filiacao_pai'),
-    filiacao_mae: formData.get('filiacao_mae'),
-    data_nascimento: formData.get('data_nascimento') || null,
-    sexo: formData.get('sexo'),
-    cidade_nasc: formData.get('cidade_nasc'),
-    estado_nasc: formData.get('estado_nasc'),
-    endereco: formData.get('endereco'),
-    cep: formData.get('cep'),
-    cidade: formData.get('cidade'),
-    estado: formData.get('estado'),
-    telefone: formData.get('telefone'),
-    estado_civil: formData.get('estado_civil'),
-    escolaridade: formData.get('escolaridade'),
-    profissao: formData.get('profissao'),
-    nome_conjuge: formData.get('nome_conjuge') || null,
-    cpf_conjuge: formData.get('cpf_conjuge') || null,
-    data_casamento: formData.get('data_casamento') || null,
     status: statusValue,
     status_membro: statusValue,
     situacao: statusValue,
     data_demissao: formData.get('data_demissao') || null,
     forma_demissao: formData.get('forma_demissao') || null,
     motivo_demissao: formData.get('motivo_demissao') || null,
-    categoria_membro: categoria,
-    tipo_membro: categoria,
-    oficial_tipo: formData.get('oficial_tipo') || null,
-    forma_admissao: formData.get('forma_admissao'),
-    data_admissao: formData.get('data_admissao') || null,
-    data_batismo: formData.get('data_batismo') || null,
-    local_batismo: formData.get('local_batismo'),
-    pastor_batismo: formData.get('pastor_batismo'),
-    data_profissao_fe: formData.get('data_profissao_fe') || null,
-    local_profissao_fe: formData.get('local_profissao_fe'),
-    pastor_profissao_fe: formData.get('pastor_profissao_fe'),
-    data_ordenacao: formData.get('data_ordenacao') || null,
-    data_instalacao: formData.get('data_instalacao') || null,
-    foto_url: formData.get('foto_url') || null,
   }
 
-  try {
-    const { error } = await supabase.from('membros_oficial').update(dados).eq('id', id)
-    if (error) console.error("Erro update completo, tentando minimo", error)
-  } catch(e) {
-    console.error("Erro", e)
+  // Tenta nas duas tabelas
+  let erroOficial = null
+  let erroMembros = null
+
+  const r1 = await supabase.from('membros_oficial').update(dados).eq('id', id).select()
+  if (r1.error) {
+    erroOficial = r1.error.message
+    console.error("ERRO membros_oficial:", r1.error)
+    // tenta só situacao
+    const r1b = await supabase.from('membros_oficial').update({ situacao: statusValue, status_membro: statusValue, status: statusValue }).eq('id', id).select()
+    if (r1b.error) console.error("ERRO 2a tentativa oficial:", r1b.error)
+  }
+
+  const r2 = await supabase.from('membros').update(dados).eq('id', id).select()
+  if (r2.error) {
+    erroMembros = r2.error.message
+    console.error("ERRO membros:", r2.error)
+  }
+
+  // Se deu erro nas duas, mostra na tela em vez de redirecionar travado
+  if (r1.error && r2.error) {
+    throw new Error(`Falha ao salvar. Oficial: ${erroOficial} | Membros: ${erroMembros}`)
   }
 
   revalidatePath('/membros')
   revalidatePath(`/membros/${id}`)
   redirect(`/membros/${id}`)
 }
-
 export default async function Page({ params }) {
   try {
     const { id } = await params
