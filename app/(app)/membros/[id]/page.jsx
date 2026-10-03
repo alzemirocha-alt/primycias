@@ -1,7 +1,7 @@
-import { createClient } from "@supabase/supabase-js"
-import Link from "next/link"
-import { revalidatePath } from "next/cache"
-import { PrintButton, OficialToggle, FotoUpload } from "./FichaClient"
+import { createClient } from '@/lib/supabase-server'
+import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { PrintButton, FotoUpload, OficialToggle } from './FichaClient'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,68 +41,60 @@ async function getPastorDaIgreja() {
 }
 
 async function updateMembro(formData) {
-  "use server"
-  const supabase = getSupabase()
+  'use server'
+  const supabase = await createClient()
   const id = formData.get('id')
+  const foto = formData.get('foto_url')
+
   const rolRaw = formData.get('numero_rol')
   let numeroRol = null
-  if (rolRaw && String(rolRaw).trim()!== "") {
+  if (rolRaw && String(rolRaw).trim() !== "") {
     const parsed = parseInt(String(rolRaw).trim())
     if (!isNaN(parsed)) numeroRol = parsed
   }
+
   const categoria = formData.get('categoria_membro') || 'comungante'
   const dados = {
-    nome_completo: formData.get('nome_completo'),
     numero_rol: numeroRol,
-    cpf: formData.get('cpf') || null,
-    foto_url: formData.get('foto_url') || null,
-    filiacao_pai: formData.get('filiacao_pai') || null,
-    filiacao_mae: formData.get('filiacao_mae') || null,
-    endereco: formData.get('endereco') || null,
-    cep: formData.get('cep') || null,
-    cidade: formData.get('cidade') || null,
-    estado: formData.get('estado') || null,
-    cidade_nasc: formData.get('cidade_nasc') || null,
-    estado_nasc: formData.get('estado_nasc') || null,
+    nome_completo: formData.get('nome_completo'),
     data_nascimento: formData.get('data_nascimento') || null,
-    telefone: formData.get('telefone') || null,
-    sexo: formData.get('sexo') || null,
-    estado_civil: formData.get('estado_civil') || null,
+    estado_civil: formData.get('estado_civil'),
     nome_conjuge: formData.get('nome_conjuge') || null,
-    cpf_conjuge: formData.get('cpf_conjuge') || null,
     data_casamento: formData.get('data_casamento') || null,
-    escolaridade: formData.get('escolaridade') || null,
-    profissao: formData.get('profissao') || null,
+    endereco_rua: formData.get('endereco_rua'),
+    endereco_bairro: formData.get('endereco_bairro'),
+    endereco_cidade: formData.get('endereco_cidade'),
+    endereco_cep: formData.get('endereco_cep'),
+    telefone: formData.get('telefone'),
+    email: formData.get('email'),
     categoria_membro: categoria,
-    oficial_tipo: categoria === 'comungante_oficial'? (formData.get('oficial_tipo') || null) : null,
-    forma_admissao: formData.get('forma_admissao') || null,
+    status_membro: formData.get('status_membro'),
+    forma_admissao: formData.get('forma_admissao'),
     data_admissao: formData.get('data_admissao') || null,
-    data_batismo: formData.get('data_batismo') || null,
-    local_batismo: formData.get('local_batismo') || null,
-    pastor_batismo: formData.get('pastor_batismo') || null,
-    data_profissao_fe: formData.get('data_profissao_fe') || null,
-    local_profissao_fe: formData.get('local_profissao_fe') || null,
-    pastor_profissao_fe: formData.get('pastor_profissao_fe') || null,
-    data_ordenacao: categoria === 'comungante_oficial'? (formData.get('data_ordenacao') || null) : null,
-    data_instalacao: categoria === 'comungante_oficial'? (formData.get('data_instalacao') || null) : null,
-    status: formData.get('status') || 'ativo',
-    data_demissao: formData.get('data_demissao') || null,
     forma_demissao: formData.get('forma_demissao') || null,
-    motivo_demissao: formData.get('motivo_demissao') || null,
+    data_demissao: formData.get('data_demissao') || null,
+    pastor_profissao_fe: formData.get('pastor_profissao_fe'),
+    data_profissao_fe: formData.get('data_profissao_fe') || null,
+    data_batismo: formData.get('data_batismo') || null,
+    oficial_tipo: formData.get('oficial_tipo') || null,
+    data_ordenacao: formData.get('data_ordenacao') || null,
+    data_instalacao: formData.get('data_instalacao') || null,
     situacao: formData.get('status') || 'ativo',
-    tipo_membro: categoria
+    tipo_membro: categoria,
   }
+  if (foto !== null) dados.foto_url = foto
+
   if (dados.cpf_conjuge) {
     try {
       const { data: conj } = await supabase.from('membros_oficial').select('id').eq('cpf', dados.cpf_conjuge).maybeSingle()
       if (conj) dados.conjuge_membro_id = conj.id
     } catch {}
   }
+
   await supabase.from('membros_oficial').update(dados).eq('id', id)
   revalidatePath('/membros')
-  revalidatePath(`/membros/${id}`)
+  redirect(`/membros/${id}`)
 }
-
 export default async function Page({ params }) {
   try {
     const { id } = await params
