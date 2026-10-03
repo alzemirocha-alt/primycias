@@ -44,33 +44,27 @@ export default function TransferenciaPage() {
   async function emitirCarta() {
     if(!selecionado ||!igrejaDestino) return alert('Selecione membro e igreja destino')
     setLoading(true)
-    const membrosParaCarta = [selecionado,...familia.filter(f=> incluir[f.id])]
-    const {data: carta, error} = await supabase.from('cartas_transferencia').insert({
-      igreja_id: selecionado.igreja_id,
-      igreja_destino: igrejaDestino,
-      forma_transferencia: forma,
-      data_emissao: new Date().toISOString().split('T')[0]
-    }).select().single()
-    if(error){ alert(error.message); setLoading(false); return }
-    for(const mem of membrosParaCarta){
-      const formaInd = getFormaIndividual(mem, forma)
-      const isComungante = formaInd === forma
-      const formaDemissao = isComungante? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB' : 'Carta dos Pais/Resp. a juízo do Conselho - Art. 24, alínea "a"'
-      await supabase.from('cartas_membros').insert({
-        carta_id: carta.id,
-        membro_id: mem.id,
-        nome_completo: mem.nome_completo,
-        tipo_membro: mem.tipo_membro || mem.categoria_membro,
-        forma_transferencia_individual: formaInd
+    try {
+      const familiaIds = familia.filter(f=> incluir[f.id]).map(f=> f.id)
+      const res = await fetch('/api/membros/emitir-carta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selecionado,
+          familiaIds,
+          igrejaDestino,
+          forma
+        })
       })
-      await supabase.from('membros_oficial').update({
-        status: 'demitido', situacao: 'demitido', status_membro: 'demitido',
-        data_demissao: carta.data_emissao, forma_demissao: formaDemissao, data_transferencia: carta.data_emissao
-      }).eq('id', mem.id)
+      const json = await res.json()
+      if(!res.ok) throw new Error(json.error)
+
+      alert('Carta emitida com sucesso!')
+      window.location.href = `/membros/relatorios?carta=${json.cartaId}`
+    } catch(e){
+      alert('Erro: ' + e.message)
+      setLoading(false)
     }
-    alert('Carta emitida com sucesso!')
-    window.location.href = `/membros/relatorios?carta=${carta.id}`
-    setLoading(false)
   }
 
   return (
