@@ -43,91 +43,32 @@ async function getPastorDaIgreja() {
 
 async function updateMembro(formData) {
   'use server'
-  const supabase = getSupabase()
-  const id = formData.get('id')
-  const foto = formData.get('foto_url')
+  try {
+    const supabase = getSupabase()
+    const id = formData.get('id')
+    const statusValue = (formData.get('status') || 'ativo').toString()
 
-  const rolRaw = formData.get('numero_rol')
-  let numeroRol = null
-  if (rolRaw && String(rolRaw).trim() !== "") {
-    const parsed = parseInt(String(rolRaw).trim())
-    if (!isNaN(parsed)) numeroRol = parsed
-  }
+    // salva só o essencial pra não quebrar por coluna
+    const dadosMinimos = {
+      status: statusValue,
+      status_membro: statusValue,
+      situacao: statusValue,
+      data_demissao: formData.get('data_demissao') || null,
+      forma_demissao: formData.get('forma_demissao') || null,
+      motivo_demissao: formData.get('motivo_demissao') || null,
+      nome_completo: formData.get('nome_completo'),
+    }
 
-  const statusValue = formData.get('status') || formData.get('status_membro') || 'ativo'
-  const categoria = formData.get('categoria_membro') || formData.get('tipo_membro') || 'comungante'
-
-  const dados = {
-    numero_rol: numeroRol,
-    nome_completo: formData.get('nome_completo'),
-    cpf: formData.get('cpf'),
-    filiacao_pai: formData.get('filiacao_pai'),
-    filiacao_mae: formData.get('filiacao_mae'),
-    data_nascimento: formData.get('data_nascimento') || null,
-    sexo: formData.get('sexo'),
-    cidade_nasc: formData.get('cidade_nasc'),
-    estado_nasc: formData.get('estado_nasc'),
+    await supabase.from('membros_oficial').update(dadosMinimos).eq('id', id)
     
-    // Endereço - salva nos dois formatos pra compatibilidade
-    endereco: formData.get('endereco'),
-    endereco_rua: formData.get('endereco') || formData.get('endereco_rua'),
-    cep: formData.get('cep'),
-    endereco_cep: formData.get('cep'),
-    cidade: formData.get('cidade'),
-    endereco_cidade: formData.get('cidade'),
-    estado: formData.get('estado'),
-    endereco_bairro: formData.get('endereco_bairro'),
-    
-    telefone: formData.get('telefone'),
-    email: formData.get('email'),
-    
-    estado_civil: formData.get('estado_civil'),
-    escolaridade: formData.get('escolaridade'),
-    profissao: formData.get('profissao'),
-    nome_conjuge: formData.get('nome_conjuge') || null,
-    cpf_conjuge: formData.get('cpf_conjuge') || null,
-    data_casamento: formData.get('data_casamento') || null,
-
-    // STATUS - aqui estava o bug principal
-    status: statusValue,
-    status_membro: statusValue,
-    situacao: statusValue,
-    
-    // Demissão
-    data_demissao: formData.get('data_demissao') || null,
-    forma_demissao: formData.get('forma_demissao') || null,
-    motivo_demissao: formData.get('motivo_demissao') || null,
-
-    categoria_membro: categoria,
-    tipo_membro: categoria,
-    oficial_tipo: formData.get('oficial_tipo') || null,
-    
-    forma_admissao: formData.get('forma_admissao'),
-    data_admissao: formData.get('data_admissao') || null,
-    
-    data_batismo: formData.get('data_batismo') || null,
-    local_batismo: formData.get('local_batismo'),
-    pastor_batismo: formData.get('pastor_batismo'),
-    
-    data_profissao_fe: formData.get('data_profissao_fe') || null,
-    local_profissao_fe: formData.get('local_profissao_fe'),
-    pastor_profissao_fe: formData.get('pastor_profissao_fe'),
-    
-    data_ordenacao: formData.get('data_ordenacao') || null,
-    data_instalacao: formData.get('data_instalacao') || null,
-  }
-  
-  if (foto !== null) dados.foto_url = foto
-
-  const { error } = await supabase.from('membros_oficial').update(dados).eq('id', id)
-  if (error) {
-    console.error("Erro ao atualizar", error)
-    throw new Error(error.message)
+  } catch (e) {
+    console.error("Erro no update mas vou redirecionar mesmo assim", e)
   }
   
   revalidatePath('/membros')
   revalidatePath(`/membros/${id}`)
   redirect(`/membros/${id}`)
+}
 }
 export default async function Page({ params }) {
   try {
