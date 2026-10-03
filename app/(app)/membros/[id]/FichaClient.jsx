@@ -50,18 +50,19 @@ export function OficialToggle() {
     const form = document.getElementById('ficha-form') || document.querySelector('form')
     if (!form) return
 
+    const selEC = document.getElementById('estado_civil')
+    const selStatus = document.getElementById('status_membro')
+    const selCat = document.getElementById('categoria_membro')
+    const selAdm = document.getElementById('forma_admissao')
+    const selDem = document.getElementById('forma_demissao')
+    const gConj = document.getElementById('grupo-conjuge')
+    const gDem = document.getElementById('grupo-demissao')
+    const gProf = document.getElementById('grupo-prof-fe')
+    const cOf = document.getElementById('campo-oficial-tipo')
+    const cOrd = document.getElementById('campo-data-ordenacao')
+    const cInst = document.getElementById('campo-data-instalacao')
+
     const applyRules = () => {
-      const selEC = document.getElementById('estado_civil')
-      const selStatus = document.getElementById('status_membro')
-      const selCat = document.getElementById('categoria_membro')
-      const selAdm = document.getElementById('forma_admissao')
-      const selDem = document.getElementById('forma_demissao')
-      const gConj = document.getElementById('grupo-conjuge')
-      const gDem = document.getElementById('grupo-demissao')
-      const gProf = document.getElementById('grupo-prof-fe')
-      const cOf = document.getElementById('campo-oficial-tipo')
-      const cOrd = document.getElementById('campo-data-ordenacao')
-      const cInst = document.getElementById('campo-data-instalacao')
       if (gConj && selEC) gConj.style.display = selEC.value === 'casado'? 'grid' : 'none'
       if (gDem && selStatus) gDem.style.display = (selStatus.value === 'inativo' || selStatus.value === 'demitido')? 'block' : 'none'
       if (selCat) {
@@ -75,6 +76,11 @@ export function OficialToggle() {
         if (selDem) selDem.querySelectorAll('optgroup').forEach((og) => { og.hidden = isNao?!og.label.includes('Art. 24') :!og.label.includes('Art. 23') })
       }
     }
+
+    // Adiciona listeners para reagir na hora que troca o select
+    selEC?.addEventListener('change', applyRules)
+    selStatus?.addEventListener('change', applyRules)
+    selCat?.addEventListener('change', applyRules)
 
     const btnSalvar = document.getElementById('btn-salvar')
     const inputs = form.querySelectorAll('input, select, textarea')
@@ -92,6 +98,12 @@ export function OficialToggle() {
       fotoBtns.forEach((b) => { b.style.display = 'none' })
     }
     applyRules()
+
+    return () => {
+      selEC?.removeEventListener('change', applyRules)
+      selStatus?.removeEventListener('change', applyRules)
+      selCat?.removeEventListener('change', applyRules)
+    }
   }, [editando])
 
   const handleToggle = () => {
