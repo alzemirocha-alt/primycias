@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -133,6 +133,7 @@ export default async function Page({ params }) {
 
           <form action={updateMembro} id="ficha-form" className="space-y-8 modo-visualizar">
             <input type="hidden" name="id" value={m.id} />
+            <input type="hidden" name="foto_url" id="foto_url_hidden" defaultValue={m.foto_url || ""} />
             <div>
               <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">1. Dados Pessoais</h2>
 
