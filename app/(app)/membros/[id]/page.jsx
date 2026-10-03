@@ -45,43 +45,88 @@ async function updateMembro(formData) {
   'use server'
   const supabase = getSupabase()
   const id = formData.get('id')
-  const statusRaw = formData.get('status') || formData.get('status_membro')
-  const statusValue = String(statusRaw || 'ativo').toLowerCase().trim()
 
-  console.log("SALVANDO ID:", id, "NOVO STATUS:", statusValue)
+  // Rol pode ser texto vazio, trata pra não quebrar
+  const rolRaw = formData.get('numero_rol')
+  let numeroRol = null
+  if (rolRaw && String(rolRaw).trim() !== "") {
+    const parsed = parseInt(String(rolRaw).trim())
+    if (!isNaN(parsed)) numeroRol = parsed
+  }
 
+  const statusValue = String(formData.get('status') || formData.get('status_membro') || 'ativo').toLowerCase().trim()
+  const categoria = formData.get('categoria_membro') || formData.get('tipo_membro') || 'comungante'
+
+  // AGORA SALVA TUDO, não só a demissão
   const dados = {
+    numero_rol: numeroRol,
+    nome_completo: formData.get('nome_completo'),
+    cpf: formData.get('cpf'),
+    filiacao_pai: formData.get('filiacao_pai'),
+    filiacao_mae: formData.get('filiacao_mae'),
+    data_nascimento: formData.get('data_nascimento') || null,
+    sexo: formData.get('sexo'),
+    cidade_nasc: formData.get('cidade_nasc'),
+    estado_nasc: formData.get('estado_nasc'),
+    endereco: formData.get('endereco'),
+    cep: formData.get('cep'),
+    cidade: formData.get('cidade'),
+    estado: formData.get('estado'),
+    telefone: formData.get('telefone'),
+    estado_civil: formData.get('estado_civil'),
+    escolaridade: formData.get('escolaridade'),
+    profissao: formData.get('profissao'),
+    nome_conjuge: formData.get('nome_conjuge') || null,
+    cpf_conjuge: formData.get('cpf_conjuge') || null,
+    data_casamento: formData.get('data_casamento') || null,
+    // status corrigido - salva nas 3 colunas possíveis
     status: statusValue,
     status_membro: statusValue,
     situacao: statusValue,
     data_demissao: formData.get('data_demissao') || null,
     forma_demissao: formData.get('forma_demissao') || null,
     motivo_demissao: formData.get('motivo_demissao') || null,
+    categoria_membro: categoria,
+    tipo_membro: categoria,
+    oficial_tipo: formData.get('oficial_tipo') || null,
+    forma_admissao: formData.get('forma_admissao') || null,
+    data_admissao: formData.get('data_admissao') || null,
+    data_batismo: formData.get('data_batismo') || null,
+    local_batismo: formData.get('local_batismo') || null,
+    pastor_batismo: formData.get('pastor_batismo') || null,
+    data_profissao_fe: formData.get('data_profissao_fe') || null,
+    local_profissao_fe: formData.get('local_profissao_fe') || null,
+    pastor_profissao_fe: formData.get('pastor_profissao_fe') || null,
+    data_ordenacao: formData.get('data_ordenacao') || null,
+    data_instalacao: formData.get('data_instalacao') || null,
+    foto_url: formData.get('foto_url') || null,
   }
 
-  // Tenta nas duas tabelas
-  let erroOficial = null
-  let erroMembros = null
-
-  const r1 = await supabase.from('membros_oficial').update(dados).eq('id', id).select()
-  if (r1.error) {
-    erroOficial = r1.error.message
-    console.error("ERRO membros_oficial:", r1.error)
-    // tenta só situacao
-    const r1b = await supabase.from('membros_oficial').update({ situacao: statusValue, status_membro: statusValue, status: statusValue }).eq('id', id).select()
-    if (r1b.error) console.error("ERRO 2a tentativa oficial:", r1b.error)
+  // tenta salvar, se falhar por coluna inexistente, tenta só o essencial pra não quebrar a página
+  const { error } = await supabase.from('membros_oficial').update(dados).eq('id', id)
+  if (error) {
+    console.error("Erro ao salvar completo:", error.message)
+    const fallback = {
+      status: statusValue,
+      status_membro: statusValue,
+      situacao: statusValue,
+      data_demissao: dados.data_demissao,
+      forma_demissao: dados.forma_demissao,
+      motivo_demissao: dados.motivo_demissao,
+    }
+    const { error: err2 } = await supabase.from('membros_oficial').update(fallback).eq('id', id)
+    if (err2) {
+      console.error("Erro no fallback:", err2.message)
+      throw new Error(`Falha ao salvar: ${err2.message}`)
+    }
   }
 
-  const r2 = await supabase.from('membros').update(dados).eq('id', id).select()
-  if (r2.error) {
-    erroMembros = r2.error.message
-    console.error("ERRO membros:", r2.error)
-  }
-
-  // Se deu erro nas duas, mostra na tela em vez de redirecionar travado
-  if (r1.error && r2.error) {
-    throw new Error(`Falha ao salvar. Oficial: ${erroOficial} | Membros: ${erroMembros}`)
-  }
+  // tenta manter sincronizado com a tabela antiga se ela existir
+  await supabase.from('membros').update({
+    status: statusValue,
+    situacao: statusValue,
+    data_demissao: dados.data_demissao,
+  }).eq('id', id)
 
   revalidatePath('/membros')
   revalidatePath(`/membros/${id}`)
