@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js"
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -38,8 +40,11 @@ export default async function ValidarPage({ params }) {
     if (data) igreja = data
   }
 
-  const situacaoRaw = (m.situacao || m.status || m.status_membro || 'ativo').toLowerCase()
-  const isAtivo =!['demitido','excluido','excluído','inativo','falecido','transferido'].includes(situacaoRaw)
+  // CORREÇÃO - verifica TODOS os campos de status, não só o primeiro
+  const todosStatus = [m.situacao, m.status, m.status_membro].filter(Boolean).map(v => String(v).toLowerCase().trim())
+  const situacaoRaw = todosStatus[0] || 'ativo'
+  const isDemitido = todosStatus.some(s => ['demitido','excluido','excluído','inativo','falecido','transferido'].includes(s))
+  const isAtivo =!isDemitido
 
   const dataAdmissao = m.data_admissao? new Date(m.data_admissao).toLocaleDateString('pt-BR') : '---'
   const dataDemissao = m.data_demissao || m.data_exclusao || m.data_saida || null
@@ -47,7 +52,6 @@ export default async function ValidarPage({ params }) {
   const motivoDemissao = m.motivo_demissao || m.motivo_exclusao || m.motivo_saida || m.observacao_demissao || '---'
   const formaDemissao = m.forma_demissao || m.modo_demissao || ''
 
-  // 100% DINÂMICO - SEM SUCUPIRA FIXO
   const igrejaNome = igreja?.nome || ''
   const igrejaLogo = igreja?.logo_url || igreja?.logo || ''
 
