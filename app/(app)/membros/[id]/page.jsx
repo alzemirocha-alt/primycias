@@ -54,42 +54,81 @@ async function updateMembro(formData) {
     if (!isNaN(parsed)) numeroRol = parsed
   }
 
-  const categoria = formData.get('categoria_membro') || 'comungante'
+  const statusValue = formData.get('status') || formData.get('status_membro') || 'ativo'
+  const categoria = formData.get('categoria_membro') || formData.get('tipo_membro') || 'comungante'
+
   const dados = {
     numero_rol: numeroRol,
     nome_completo: formData.get('nome_completo'),
+    cpf: formData.get('cpf'),
+    filiacao_pai: formData.get('filiacao_pai'),
+    filiacao_mae: formData.get('filiacao_mae'),
     data_nascimento: formData.get('data_nascimento') || null,
-    estado_civil: formData.get('estado_civil'),
-    nome_conjuge: formData.get('nome_conjuge') || null,
-    data_casamento: formData.get('data_casamento') || null,
-    endereco_rua: formData.get('endereco_rua'),
+    sexo: formData.get('sexo'),
+    cidade_nasc: formData.get('cidade_nasc'),
+    estado_nasc: formData.get('estado_nasc'),
+    
+    // Endereço - salva nos dois formatos pra compatibilidade
+    endereco: formData.get('endereco'),
+    endereco_rua: formData.get('endereco') || formData.get('endereco_rua'),
+    cep: formData.get('cep'),
+    endereco_cep: formData.get('cep'),
+    cidade: formData.get('cidade'),
+    endereco_cidade: formData.get('cidade'),
+    estado: formData.get('estado'),
     endereco_bairro: formData.get('endereco_bairro'),
-    endereco_cidade: formData.get('endereco_cidade'),
-    endereco_cep: formData.get('endereco_cep'),
+    
     telefone: formData.get('telefone'),
     email: formData.get('email'),
+    
+    estado_civil: formData.get('estado_civil'),
+    escolaridade: formData.get('escolaridade'),
+    profissao: formData.get('profissao'),
+    nome_conjuge: formData.get('nome_conjuge') || null,
+    cpf_conjuge: formData.get('cpf_conjuge') || null,
+    data_casamento: formData.get('data_casamento') || null,
+
+    // STATUS - aqui estava o bug principal
+    status: statusValue,
+    status_membro: statusValue,
+    situacao: statusValue,
+    
+    // Demissão
+    data_demissao: formData.get('data_demissao') || null,
+    forma_demissao: formData.get('forma_demissao') || null,
+    motivo_demissao: formData.get('motivo_demissao') || null,
+
     categoria_membro: categoria,
-    status_membro: formData.get('status_membro'),
+    tipo_membro: categoria,
+    oficial_tipo: formData.get('oficial_tipo') || null,
+    
     forma_admissao: formData.get('forma_admissao'),
     data_admissao: formData.get('data_admissao') || null,
-    forma_demissao: formData.get('forma_demissao') || null,
-    data_demissao: formData.get('data_demissao') || null,
-    pastor_profissao_fe: formData.get('pastor_profissao_fe'),
-    data_profissao_fe: formData.get('data_profissao_fe') || null,
+    
     data_batismo: formData.get('data_batismo') || null,
-    oficial_tipo: formData.get('oficial_tipo') || null,
+    local_batismo: formData.get('local_batismo'),
+    pastor_batismo: formData.get('pastor_batismo'),
+    
+    data_profissao_fe: formData.get('data_profissao_fe') || null,
+    local_profissao_fe: formData.get('local_profissao_fe'),
+    pastor_profissao_fe: formData.get('pastor_profissao_fe'),
+    
     data_ordenacao: formData.get('data_ordenacao') || null,
     data_instalacao: formData.get('data_instalacao') || null,
-    situacao: formData.get('status') || 'ativo',
-    tipo_membro: categoria,
   }
+  
   if (foto !== null) dados.foto_url = foto
 
-  await supabase.from('membros_oficial').update(dados).eq('id', id)
+  const { error } = await supabase.from('membros_oficial').update(dados).eq('id', id)
+  if (error) {
+    console.error("Erro ao atualizar", error)
+    throw new Error(error.message)
+  }
+  
   revalidatePath('/membros')
+  revalidatePath(`/membros/${id}`)
   redirect(`/membros/${id}`)
 }
-
 export default async function Page({ params }) {
   try {
     const { id } = await params
