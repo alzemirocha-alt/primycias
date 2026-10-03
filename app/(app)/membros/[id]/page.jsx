@@ -119,7 +119,7 @@ async function updateMembro(formData) {
   revalidatePath(`/validacao/${id}`)
   revalidatePath(`/v/${id}`)
   redirect(`/membros/${id}`)
-
+}
 export default async function Page({ params }) {
   try {
     const { id } = await params
