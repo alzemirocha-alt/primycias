@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { PrintButton, FotoUpload, OficialToggle } from './FichaClient'
 
 export const dynamic = 'force-dynamic'
-
 const LOGO_URL = "https://ebqvtoqpoxaklhheaeve.supabase.co/storage/v1/object/public/logos/Code_Generated_Image.png"
 
 function getSupabase() {
@@ -45,100 +44,86 @@ async function updateMembro(formData) {
   'use server'
   const supabase = getSupabase()
   const id = formData.get('id')
+  try {
+    const rolRaw = formData.get('numero_rol')
+    let numeroRol = null
+    if (rolRaw && String(rolRaw).trim() !== "") {
+      const p = parseInt(String(rolRaw).trim())
+      if (!isNaN(p)) numeroRol = p
+    }
+    const statusValue = String(formData.get('status') || 'ativo').toLowerCase().trim()
+    const categoria = formData.get('categoria_membro') || formData.get('tipo_membro') || 'comungante'
 
-  // Rol pode ser texto vazio, trata pra não quebrar
-  const rolRaw = formData.get('numero_rol')
-  let numeroRol = null
-  if (rolRaw && String(rolRaw).trim() !== "") {
-    const parsed = parseInt(String(rolRaw).trim())
-    if (!isNaN(parsed)) numeroRol = parsed
-  }
-
-  const statusValue = String(formData.get('status') || formData.get('status_membro') || 'ativo').toLowerCase().trim()
-  const categoria = formData.get('categoria_membro') || formData.get('tipo_membro') || 'comungante'
-
-  // AGORA SALVA TUDO, não só a demissão
-  const dados = {
-    numero_rol: numeroRol,
-    nome_completo: formData.get('nome_completo'),
-    cpf: formData.get('cpf'),
-    filiacao_pai: formData.get('filiacao_pai'),
-    filiacao_mae: formData.get('filiacao_mae'),
-    data_nascimento: formData.get('data_nascimento') || null,
-    sexo: formData.get('sexo'),
-    cidade_nasc: formData.get('cidade_nasc'),
-    estado_nasc: formData.get('estado_nasc'),
-    endereco: formData.get('endereco'),
-    cep: formData.get('cep'),
-    cidade: formData.get('cidade'),
-    estado: formData.get('estado'),
-    telefone: formData.get('telefone'),
-    estado_civil: formData.get('estado_civil'),
-    escolaridade: formData.get('escolaridade'),
-    profissao: formData.get('profissao'),
-    nome_conjuge: formData.get('nome_conjuge') || null,
-    cpf_conjuge: formData.get('cpf_conjuge') || null,
-    data_casamento: formData.get('data_casamento') || null,
-    // status corrigido - salva nas 3 colunas possíveis
-    status: statusValue,
-    status_membro: statusValue,
-    situacao: statusValue,
-    data_demissao: formData.get('data_demissao') || null,
-    forma_demissao: formData.get('forma_demissao') || null,
-    motivo_demissao: formData.get('motivo_demissao') || null,
-    categoria_membro: categoria,
-    tipo_membro: categoria,
-    oficial_tipo: formData.get('oficial_tipo') || null,
-    forma_admissao: formData.get('forma_admissao') || null,
-    data_admissao: formData.get('data_admissao') || null,
-    data_batismo: formData.get('data_batismo') || null,
-    local_batismo: formData.get('local_batismo') || null,
-    pastor_batismo: formData.get('pastor_batismo') || null,
-    data_profissao_fe: formData.get('data_profissao_fe') || null,
-    local_profissao_fe: formData.get('local_profissao_fe') || null,
-    pastor_profissao_fe: formData.get('pastor_profissao_fe') || null,
-    data_ordenacao: formData.get('data_ordenacao') || null,
-    data_instalacao: formData.get('data_instalacao') || null,
-    foto_url: formData.get('foto_url') || null,
-  }
-
-  // tenta salvar, se falhar por coluna inexistente, tenta só o essencial pra não quebrar a página
-  const { error } = await supabase.from('membros_oficial').update(dados).eq('id', id)
-  if (error) {
-    console.error("Erro ao salvar completo:", error.message)
-    const fallback = {
+    const dados = {
+      numero_rol: numeroRol,
+      nome_completo: formData.get('nome_completo'),
+      cpf: formData.get('cpf'),
+      filiacao_pai: formData.get('filiacao_pai'),
+      filiacao_mae: formData.get('filiacao_mae'),
+      data_nascimento: formData.get('data_nascimento') || null,
+      sexo: formData.get('sexo'),
+      cidade_nasc: formData.get('cidade_nasc'),
+      estado_nasc: formData.get('estado_nasc'),
+      endereco: formData.get('endereco'),
+      cep: formData.get('cep'),
+      cidade: formData.get('cidade'),
+      estado: formData.get('estado'),
+      telefone: formData.get('telefone'),
+      estado_civil: formData.get('estado_civil'),
+      escolaridade: formData.get('escolaridade'),
+      profissao: formData.get('profissao'),
+      nome_conjuge: formData.get('nome_conjuge') || null,
+      cpf_conjuge: formData.get('cpf_conjuge') || null,
+      data_casamento: formData.get('data_casamento') || null,
       status: statusValue,
       status_membro: statusValue,
       situacao: statusValue,
-      data_demissao: dados.data_demissao,
-      forma_demissao: dados.forma_demissao,
-      motivo_demissao: dados.motivo_demissao,
+      data_demissao: formData.get('data_demissao') || null,
+      forma_demissao: formData.get('forma_demissao') || null,
+      motivo_demissao: formData.get('motivo_demissao') || null,
+      categoria_membro: categoria,
+      tipo_membro: categoria,
+      oficial_tipo: formData.get('oficial_tipo') || null,
+      forma_admissao: formData.get('forma_admissao'),
+      data_admissao: formData.get('data_admissao') || null,
+      data_batismo: formData.get('data_batismo') || null,
+      local_batismo: formData.get('local_batismo'),
+      pastor_batismo: formData.get('pastor_batismo'),
+      data_profissao_fe: formData.get('data_profissao_fe') || null,
+      local_profissao_fe: formData.get('local_profissao_fe'),
+      pastor_profissao_fe: formData.get('pastor_profissao_fe'),
+      data_ordenacao: formData.get('data_ordenacao') || null,
+      data_instalacao: formData.get('data_instalacao') || null,
+      foto_url: formData.get('foto_url') || null,
     }
-    const { error: err2 } = await supabase.from('membros_oficial').update(fallback).eq('id', id)
-    if (err2) {
-      console.error("Erro no fallback:", err2.message)
-      throw new Error(`Falha ao salvar: ${err2.message}`)
+
+    const { error } = await supabase.from('membros_oficial').update(dados).eq('id', id)
+    if (error) {
+      console.error("Erro save completo:", error.message)
+      await supabase.from('membros_oficial').update({
+        status: statusValue,
+        status_membro: statusValue,
+        situacao: statusValue,
+        data_demissao: dados.data_demissao,
+        forma_demissao: dados.forma_demissao,
+        motivo_demissao: dados.motivo_demissao,
+      }).eq('id', id)
     }
+    await supabase.from('membros').update({ status: statusValue, situacao: statusValue }).eq('id', id)
+  } catch (e) {
+    console.error("updateMembro erro:", e)
   }
-
-  // tenta manter sincronizado com a tabela antiga se ela existir
-  await supabase.from('membros').update({
-    status: statusValue,
-    situacao: statusValue,
-    data_demissao: dados.data_demissao,
-  }).eq('id', id)
-
   revalidatePath('/membros')
   revalidatePath(`/membros/${id}`)
   redirect(`/membros/${id}`)
 }
+
 export default async function Page({ params }) {
   try {
     const { id } = await params
     const m = await getMembro(id)
     const pastorDaIgreja = await getPastorDaIgreja()
     if (!m) return <div className="p-6">Membro não encontrado ID: {id} <br/><Link href="/membros" className="text-blue-600 underline">Voltar</Link></div>
-
     return (
       <div className="p-6 max-w-5xl mx-auto pb-20">
        <style>{`
@@ -154,7 +139,6 @@ export default async function Page({ params }) {
           }
          .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea { background:#f9fafb!important; pointer-events:none; border-color:#e5e7eb!important; }
         `}</style>
-
         <div className="no-print flex justify-between items-center">
           <Link href="/membros" className="text-sm text-blue-600">← Voltar para lista</Link>
           <div className="flex gap-2 items-center">
@@ -163,7 +147,6 @@ export default async function Page({ params }) {
             <Link href={`/membros/${m.id}/carteira`} className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">Emitir Carteira</Link>
           </div>
         </div>
-
         <div id="ficha-print" className="mt-2 bg-white border rounded p-3">
           <div className="flex items-center gap-3 mb-6 border-b pb-4">
             <img src={LOGO_URL} alt="Logo IPS" className="w-14 h-14 object-contain rounded-full bg-white border p-1" />
@@ -172,7 +155,6 @@ export default async function Page({ params }) {
               <p className="text-sm font-semibold text-[#0F3A1F]">Ficha de Cadastro de Membro</p>
             </div>
           </div>
-
           <form action={updateMembro} id="ficha-form" className="space-y-8 modo-visualizar">
             <input type="hidden" name="id" value={m.id} />
             <input type="hidden" name="foto_url" id="foto_url_hidden" defaultValue={m.foto_url || ""} />
