@@ -22,7 +22,6 @@ export default function RelatoriosPage(){
 
   async function carregar(){
     setLoading(true)
-    // 1. PUXA DADOS DA IGREJA DINÂMICO - tenta varias tabelas possíveis
     let dadosIgreja = null
     const tabelas = ['dados_igreja','igreja','igrejas','config_igreja','configuracoes']
     for(let t of tabelas){
@@ -30,7 +29,6 @@ export default function RelatoriosPage(){
       if(data){ dadosIgreja = data; break }
     }
     setIgreja(dadosIgreja)
-
     const { data: m } = await supabase.from('membros_oficial').select('*').limit(5000).order('nome_completo')
     const { data: c } = await supabase.from('cartas_transferencia').select('*').order('data_emissao',{ascending:false}).limit(100)
     setMembros(m||[])
@@ -46,17 +44,23 @@ export default function RelatoriosPage(){
   }
 
   async function buscarCartaPorMembro(){
-    if(!buscaCarta) return
+    if(!buscaCarta){ carregar(); return }
     const { data } = await supabase.from('cartas_membros').select('carta_id, cartas_transferencia(*)').ilike('nome_completo', `%${buscaCarta}%`).limit(20)
     const unicas = {}
     data?.forEach(d=>{ if(d.cartas_transferencia) unicas[d.carta_id]=d.cartas_transferencia })
     setCartas(Object.values(unicas))
   }
 
+  // --- FUNÇÃO CORRIGIDA QUE NÃO ABRIA ---
   async function abrirCarta(id){
+    setAba('cartas')
     const { data: c } = await supabase.from('cartas_transferencia').select('*').eq('id', id).single()
     const { data: m } = await supabase.from('cartas_membros').select('*').eq('carta_id', id)
-    setCartaAberta(c); setMembrosCarta(m||[]); setAba('cartas')
+    setCartaAberta(c)
+    setMembrosCarta(m||[])
+    setTimeout(()=>{
+      document.getElementById('detalhe-carta')?.scrollIntoView({behavior:'smooth', block:'start'})
+    },100)
   }
 
   function filtrarAtivos(){
@@ -86,10 +90,14 @@ export default function RelatoriosPage(){
   }
 
   useEffect(()=>{ carregar() },[])
+  useEffect(()=>{
+    const params = new URLSearchParams(window.location.search)
+    const cartaId = params.get('carta')
+    if(cartaId) abrirCarta(cartaId)
+  },[])
 
   if(loading) return <div className="p-10">Carregando relatórios...</div>
 
-  // NOME DINAMICO
   const nomeIgreja = igreja?.nome_igreja || igreja?.nome || igreja?.razao_social || "Igreja"
   const enderecoIgreja = igreja?.endereco || igreja?.endereco_completo || `${igreja?.cidade||''} - ${igreja?.estado||''}`
   const cnpjIgreja = igreja?.cnpj || igreja?.documento || ""
@@ -112,7 +120,6 @@ export default function RelatoriosPage(){
       </div>
 
       <div className="bg-white border rounded-xl p-8 shadow-sm" id="print">
-        {/* CABECALHO DINAMICO PUXADO DO CADASTRO */}
         <div className="flex gap-4 border-b pb-4 mb-6 items-center">
           {logoIgreja ? <img src={logoIgreja} className="w-16 h-16 object-contain rounded" /> : <div className="w-14 h-14 bg-[#0A3D26] rounded flex items-center justify-center text-white font-bold">IPB</div>}
           <div>
@@ -195,10 +202,14 @@ export default function RelatoriosPage(){
               {cartas.map(c=><div key={c.id} onClick={()=>abrirCarta(c.id)} className="border p-3 rounded hover:bg-gray-50 cursor-pointer flex justify-between text-sm"><div><b>{c.igreja_destino}</b> - {new Date(c.data_emissao).toLocaleDateString('pt-BR')}</div><span className="text-xs bg-black text-white px-2 py-1 rounded">Abrir</span></div>)}
             </div>
             {cartaAberta && (
-              <div>
-                <h4 className="font-bold">Carta para: {cartaAberta.igreja_destino}</h4>
+              <div id="detalhe-carta" className="border-2 border-[#0A3D26] rounded-xl p-6 bg-gray-50">
+                <h4 className="font-bold text-lg">Carta para: {cartaAberta.igreja_destino}</h4>
                 <p className="text-xs text-gray-600">Emitida em: {new Date(cartaAberta.data_emissao).toLocaleDateString('pt-BR')} às {new Date(cartaAberta.data_emissao).toLocaleTimeString('pt-BR')}</p>
-                <ol className="list-decimal ml-6 mt-4 text-sm space-y-2">{membrosCarta.map((m,i)=><li key={i}><b>{m.nome_completo}</b> - {m.tipo_membro}<br/><i className="text-xs">{m.forma_transferencia_individual}</i></li>)}</ol>
+                <ol className="list-decimal ml-6 mt-4 text-sm space-y-2 bg-white p-4 rounded border">
+                  {membrosCarta.length===0 && <li className="text-red-500">Nenhum membro vinculado - verifique cartas_membros no Supabase</li>}
+                  {membrosCarta.map((m,i)=><li key={i}><b>{m.nome_completo}</b> - {m.tipo_membro}<br/><i className="text-xs">{m.forma_transferencia_individual}</i></li>)}
+                </ol>
+                <div className="mt-10 grid grid-cols-2 gap-10 text-sm text-center"><div className="border-t pt-2">Pastor</div><div className="border-t pt-2">Secretário</div></div>
               </div>
             )}
           </div>
