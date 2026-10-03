@@ -113,10 +113,12 @@ async function updateMembro(formData) {
   } catch (e) {
     console.error("updateMembro erro:", e)
   }
-  revalidatePath('/membros')
+   revalidatePath('/membros')
   revalidatePath(`/membros/${id}`)
+  revalidatePath(`/validar/${id}`)
+  revalidatePath(`/validacao/${id}`)
+  revalidatePath(`/v/${id}`)
   redirect(`/membros/${id}`)
-}
 
 export default async function Page({ params }) {
   try {
