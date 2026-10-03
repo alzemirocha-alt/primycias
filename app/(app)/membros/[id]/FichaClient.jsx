@@ -71,59 +71,41 @@ export function OficialToggle() {
         if (cOf) cOf.style.display = isOf? '' : 'none'
         if (cOrd) cOrd.style.display = isOf? '' : 'none'
         if (cInst) cInst.style.display = isOf? '' : 'none'
-        if (selAdm) {
-          selAdm.querySelectorAll('optgroup').forEach((og) => {
-            og.hidden = isNao?!og.label.includes('Art. 17') :!og.label.includes('Art. 16')
-          })
-        }
-        if (selDem) {
-          selDem.querySelectorAll('optgroup').forEach((og) => {
-            og.hidden = isNao?!og.label.includes('Art. 24') :!og.label.includes('Art. 23')
-          })
-        }
+        if (selAdm) selAdm.querySelectorAll('optgroup').forEach((og) => { og.hidden = isNao?!og.label.includes('Art. 17') :!og.label.includes('Art. 16') })
+        if (selDem) selDem.querySelectorAll('optgroup').forEach((og) => { og.hidden = isNao?!og.label.includes('Art. 24') :!og.label.includes('Art. 23') })
       }
     }
 
-    const lock = (isEdit) => {
-      const btnSalvar = document.getElementById('btn-salvar')
-      const inputs = form.querySelectorAll('input, select, textarea')
-      const fotoBtns = document.querySelectorAll('[data-foto-action]')
-      if (isEdit) {
-        if (btnSalvar) btnSalvar.style.display = 'block'
-        form.classList.remove('modo-visualizar')
-        inputs.forEach((el) => { if (el.type!== 'hidden') el.disabled = false })
-        fotoBtns.forEach((b) => { b.style.display = '' })
-      } else {
-        if (btnSalvar) btnSalvar.style.display = 'none'
-        form.classList.add('modo-visualizar')
-        inputs.forEach((el) => { if (el.type!== 'hidden') el.disabled = true })
-        fotoBtns.forEach((b) => { b.style.display = 'none' })
-      }
-      applyRules()
+    const btnSalvar = document.getElementById('btn-salvar')
+    const inputs = form.querySelectorAll('input, select, textarea')
+    const fotoBtns = document.querySelectorAll('[data-foto-action]')
+
+    if (editando) {
+      if (btnSalvar) btnSalvar.style.display = 'block'
+      form.classList.remove('modo-visualizar')
+      inputs.forEach((el) => { if (el.type!== 'hidden') el.disabled = false })
+      fotoBtns.forEach((b) => { b.style.display = '' })
+    } else {
+      if (btnSalvar) btnSalvar.style.display = 'none'
+      form.classList.add('modo-visualizar')
+      inputs.forEach((el) => { if (el.type!== 'hidden') el.disabled = true })
+      fotoBtns.forEach((b) => { b.style.display = 'none' })
     }
-
-    lock(editando)
-    const t = setTimeout(() => lock(editando), 200)
-
-    const ec = document.getElementById('estado_civil')
-    const st = document.getElementById('status_membro')
-    const cat = document.getElementById('categoria_membro')
-    const h = () => applyRules()
-    ec?.addEventListener('change', h)
-    st?.addEventListener('change', h)
-    cat?.addEventListener('change', h)
-
-    return () => {
-      clearTimeout(t)
-      ec?.removeEventListener('change', h)
-      st?.removeEventListener('change', h)
-      cat?.removeEventListener('change', h)
-    }
+    applyRules()
   }, [editando])
 
+  const handleToggle = () => {
+    if (editando) {
+      // se estava editando e clicou em cancelar, recarrega para descartar alterações e travar de novo
+      window.location.reload()
+    } else {
+      setEditando(true)
+    }
+  }
+
   return (
-    <button id="btn-editar-ficha" type="button" onClick={() => setEditando((e) =>!e)} className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">
-      {editando? 'Cancelar' : 'Editar Ficha'}
+    <button id="btn-editar-ficha" type="button" onClick={handleToggle} className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">
+      {editando? '❌ Cancelar' : '✏️ Editar Ficha'}
     </button>
   )
 }
