@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { PrintButton, FotoUpload, OficialToggle } from './FichaClient'
 
 export const dynamic = 'force-dynamic'
@@ -42,7 +43,7 @@ async function getPastorDaIgreja() {
 
 async function updateMembro(formData) {
   'use server'
-  const supabase = await createClient()
+  const supabase = getSupabase()
   const id = formData.get('id')
   const foto = formData.get('foto_url')
 
@@ -84,17 +85,11 @@ async function updateMembro(formData) {
   }
   if (foto !== null) dados.foto_url = foto
 
-  if (dados.cpf_conjuge) {
-    try {
-      const { data: conj } = await supabase.from('membros_oficial').select('id').eq('cpf', dados.cpf_conjuge).maybeSingle()
-      if (conj) dados.conjuge_membro_id = conj.id
-    } catch {}
-  }
-
   await supabase.from('membros_oficial').update(dados).eq('id', id)
   revalidatePath('/membros')
   redirect(`/membros/${id}`)
 }
+
 export default async function Page({ params }) {
   try {
     const { id } = await params
@@ -136,7 +131,7 @@ export default async function Page({ params }) {
             </div>
           </div>
 
-                   <form action={updateMembro} id="ficha-form" className="space-y-8 modo-visualizar">
+          <form action={updateMembro} id="ficha-form" className="space-y-8 modo-visualizar">
             <input type="hidden" name="id" value={m.id} />
             <div>
               <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">1. Dados Pessoais</h2>
