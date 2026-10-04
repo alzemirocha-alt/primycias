@@ -30,12 +30,13 @@ export default function RelatoriosPage(){
         nome: viewIgreja.igreja_nome,
         endereco: viewIgreja.igreja_endereco,
         cnpj: viewIgreja.igreja_cnpj,
-        logo_url: viewIgreja.igreja_logo_url,
-        cidade: viewIgreja.igreja_cidade,
+        logo_url: viewIgreja.igreja_logo_url || viewIgreja.logo_url,
+        cidade: viewIgreja.cidade,
         pastor_nome: viewIgreja.pastor_nome_completo,
-        pastor_cargo: viewIgreja.pastor_cargo,
+        secretario_nome: viewIgreja.secretario_nome_completo,
+        pastor_cargo: 'Pastor Efetivo',
         email: viewIgreja.igreja_email,
-        logo: viewIgreja.igreja_logo
+        logo: viewIgreja.igreja_logo_url || viewIgreja.logo_url
       }
     } else {
       const tabelas = ['dados_igreja','igreja','igrejas','config_igreja','configuracoes']
@@ -45,8 +46,9 @@ export default function RelatoriosPage(){
       }
     }
     setIgreja(dadosIgreja)
-    const { data: m } = await supabase.from('membros_oficial').select('*').limit(5000).order('nome_completo')
-    const { data: c } = await supabase.from('cartas_transferencia').select('*').order('data_emissao',{ascending:false}).limit(100)
+    // CORREÇÃO: USA VIEW QUE JÁ TRAZ oficio CORRETO
+    const { data: m } = await supabase.from('vw_relatorio_membros').select('*').limit(5000).order('nome_completo')
+    const { data: c } = await supabase.from('vw_carta_transferencia_dinamica').select('*').order('created_at',{ascending:false}).limit(100)
     setMembros(m||[])
     setCartas(c||[])
     setLoading(false)
@@ -55,7 +57,7 @@ export default function RelatoriosPage(){
   async function buscarBatismo(v){
     setBuscaBatismo(v)
     if(v.length<2){ setResultBatismo([]); return }
-    const { data } = await supabase.from('membros_oficial').select('*').ilike('nome_completo', `%${v}%`).limit(10)
+    const { data } = await supabase.from('vw_relatorio_membros').select('*').ilike('nome_completo', `%${v}%`).limit(10)
     setResultBatismo(data||[])
   }
 
@@ -75,26 +77,31 @@ export default function RelatoriosPage(){
       const { data: cFallback } = await supabase.from('cartas_transferencia').select('*').eq('id', id).single()
       c = cFallback
     }
-    const { data: m } = await supabase.from('cartas_membros').select('*').eq('carta_id', id)
+    // PEGA MEMBROS DA CARTA COM DADOS DE BATISMO CORRETOS
+    const { data: m } = await supabase.from('cartas_membros').select('*, vw_relatorio_membros!inner(data_batismo, local_batismo, pastor_batismo, data_profissao_fe, data_ordenacao, oficio)').eq('carta_id', id)
+    // fallback se não tiver view
+    let membrosFinal = m
+    if(!m || m.length===0){
+      const { data: m2 } = await supabase.from('cartas_membros').select('*').eq('carta_id', id)
+      membrosFinal = m2
+    }
     setCartaAberta(c)
-    setMembrosCarta(m||[])
+    setMembrosCarta(membrosFinal||[])
     setTimeout(()=>{
       document.getElementById('detalhe-carta')?.scrollIntoView({behavior:'smooth', block:'start'})
     },100)
   }
 
   function filtrarAtivos(){
-    let f = membros.filter(m=> (m.status||'').toLowerCase()==='ativo' || (m.situacao||'').toLowerCase()==='ativo')
-    if(filtroTipo==='comungante') f=f.filter(m=> (m.tipo_membro||'').toLowerCase().includes('comungante') &&!m.tipo_membro.toLowerCase().includes('não') &&!m.tipo_membro.toLowerCase().includes('nao'))
-    if(filtroTipo==='nao') f=f.filter(m=> (m.tipo_membro||'').toLowerCase().includes('não') || (m.tipo_membro||'').toLowerCase().includes('nao'))
+    let f = membros.filter(m=> (m.status||'').toLowerCase()==='ativo' || (m.situacao||'').toLowerCase()==='ativo' || (m.status_membro||'').toLowerCase()==='ativo')
+    if(filtroTipo==='comungante') f=f.filter(m=>!( (m.oficio||'').toLowerCase().includes('não') || (m.oficio||'').toLowerCase().includes('nao') ) && (m.oficio||'').toLowerCase()!=='comungante' || (m.categoria_membro||'').toLowerCase().includes('comungante'))
+    if(filtroTipo==='nao') f=f.filter(m=> (m.oficio||'').toLowerCase().includes('não') || (m.oficio||'').toLowerCase().includes('nao') || (m.oficio||'').toLowerCase()==='comungante')
     if(busca) f=f.filter(m=> m.nome_completo.toLowerCase().includes(busca.toLowerCase()))
     return f
   }
 
   function filtrarDemitidos(){
-    let f = membros.filter(m=> (m.status||'').toLowerCase().includes('demitido') || (m.situacao||'').toLowerCase().includes('demitido'))
-    if(filtroTipo==='comungante') f=f.filter(m=> (m.tipo_membro||'').toLowerCase().includes('comungante'))
-    if(filtroTipo==='nao') f=f.filter(m=> (m.tipo_membro||'').toLowerCase().includes('não') || (m.tipo_membro||'').toLowerCase().includes('nao'))
+    let f = membros.filter(m=> (m.status||'').toLowerCase().includes('demitido') || (m.situacao||'').toLowerCase().includes('demitido') || (m.status_membro||'').toLowerCase().includes('demitido'))
     return f
   }
 
@@ -102,10 +109,10 @@ export default function RelatoriosPage(){
     total: membros.length,
     masc: membros.filter(m=> (m.sexo||'').toLowerCase().startsWith('m')).length,
     fem: membros.filter(m=> (m.sexo||'').toLowerCase().startsWith('f')).length,
-    batizados: membros.filter(m=> m.data_batismo || (m.modo_admissao||'').toLowerCase().includes('batismo')).length,
-    profissao: membros.filter(m=> (m.modo_admissao||'').toLowerCase().includes('profiss')).length,
-    admitidos: membros.filter(m=> (m.status||'').toLowerCase()==='ativo').length,
-    demitidos: membros.filter(m=> (m.status||'').toLowerCase().includes('demitido')).length,
+    batizados: membros.filter(m=> m.data_batismo).length,
+    profissao: membros.filter(m=> m.data_profissao_fe).length,
+    admitidos: membros.filter(m=> (m.status_membro||m.status||'').toLowerCase()==='ativo').length,
+    demitidos: membros.filter(m=> (m.status_membro||m.status||'').toLowerCase().includes('demitido')).length,
     transferidos: cartas.length
   }
 
@@ -156,8 +163,8 @@ export default function RelatoriosPage(){
               <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} className="border p-2 rounded text-sm"><option value="todos">Todos</option><option value="comungante">Comungante</option><option value="nao">Não Comungante</option></select>
               <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar nome..." className="border p-2 rounded text-sm flex-1" />
             </div>
-            <table className="w-full text-xs border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2">Tipo</th><th className="border p-2">Data Admissão</th><th className="border p-2">Modo Admissão</th></tr></thead>
-            <tbody>{filtrarAtivos().slice(0,500).map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2">{m.tipo_membro}</td><td className="border p-2">{m.data_admissao?new Date(m.data_admissao).toLocaleDateString('pt-BR'):'---'}</td><td className="border p-2">{m.modo_admissao||'---'}</td></tr>)}</tbody></table>
+            <table className="w-full text-xs border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2">Ofício</th><th className="border p-2">Admissão</th><th className="border p-2">Batismo</th><th className="border p-2">Profissão</th></tr></thead>
+            <tbody>{filtrarAtivos().slice(0,500).map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2">{m.oficio||'---'}</td><td className="border p-2">{m.data_admissao?new Date(m.data_admissao).toLocaleDateString('pt-BR'):'---'}</td><td className="border p-2">{m.data_batismo?new Date(m.data_batismo).toLocaleDateString('pt-BR'):'---'}</td><td className="border p-2">{m.data_profissao_fe?new Date(m.data_profissao_fe).toLocaleDateString('pt-BR'):'---'}</td></tr>)}</tbody></table>
           </div>
         )}
 
@@ -170,15 +177,15 @@ export default function RelatoriosPage(){
             <h3 className="font-bold text-center">Relação de Membros para {tipoAssembleia}</h3>
             <p className="text-center text-sm mb-4">{nomeIgreja} - Data: {new Date(dataAssembleia).toLocaleDateString('pt-BR')}</p>
             <table className="w-full text-sm border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2 w-48">Assinatura</th></tr></thead>
-            <tbody>{membros.filter(m=> (m.tipo_membro||'').toLowerCase().includes('comungante') &&!m.tipo_membro.toLowerCase().includes('não') && (m.status||'').toLowerCase()==='ativo').map(m=><tr key={m.id}><td className="border p-3">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2"></td></tr>)}</tbody></table>
+            <tbody>{membros.filter(m=> (m.status_membro||m.status||'').toLowerCase()==='ativo').map(m=><tr key={m.id}><td className="border p-3">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2"></td></tr>)}</tbody></table>
           </div>
         )}
 
         {aba==='demitidos' && (
           <div>
             <h3 className="font-bold text-center text-lg mb-4">Relação de Membros Demitidos - {nomeIgreja}</h3>
-            <table className="w-full text-xs border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2">Tipo</th><th className="border p-2">Data Demissão</th><th className="border p-2">Modo Demissão</th></tr></thead>
-            <tbody>{filtrarDemitidos().map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2">{m.tipo_membro}</td><td className="border p-2">{m.data_demissao?new Date(m.data_demissao).toLocaleDateString('pt-BR'):'---'}</td><td className="border p-2">{m.modo_demissao||'---'}</td></tr>)}</tbody></table>
+            <table className="w-full text-xs border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2">Ofício</th><th className="border p-2">Data Demissão</th><th className="border p-2">Motivo</th></tr></thead>
+            <tbody>{filtrarDemitidos().map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2">{m.oficio||m.tipo_membro||'---'}</td><td className="border p-2">{m.data_demissao?new Date(m.data_demissao).toLocaleDateString('pt-BR'):'---'}</td><td className="border p-2">{m.motivo_demissao||m.forma_demissao||'---'}</td></tr>)}</tbody></table>
           </div>
         )}
 
@@ -197,15 +204,15 @@ export default function RelatoriosPage(){
           <div>
             <h3 className="font-bold text-center text-lg mb-4">Certificado de Batismo - {nomeIgreja}</h3>
             <div className="mb-4"><input value={buscaBatismo} onChange={e=>buscarBatismo(e.target.value)} placeholder="Pesquisar membro..." className="border p-3 rounded-lg w-full" />
-            {resultBatismo.length>0 && <div className="border rounded mt-2 max-h-40 overflow-auto">{resultBatismo.map(r=><div key={r.id} onClick={()=>{setMembroBatismo(r); setResultBatismo([]); setBuscaBatismo(r.nome_completo)}} className="p-2 hover:bg-gray-100 cursor-pointer text-sm">{r.nome_completo}</div>)}</div>}
+            {resultBatismo.length>0 && <div className="border rounded mt-2 max-h-40 overflow-auto">{resultBatismo.map(r=><div key={r.id} onClick={()=>{setMembroBatismo(r); setResultBatismo([]); setBuscaBatismo(r.nome_completo)}} className="p-2 hover:bg-gray-100 cursor-pointer text-sm">{r.nome_completo} - {r.data_batismo?new Date(r.data_batismo).toLocaleDateString('pt-BR'):'s/ batismo'}</div>)}</div>}
             </div>
             {membroBatismo && (
               <div className="text-center py-10 px-8 border-2 border-double">
                 <h2 className="font-bold">{nomeIgreja}</h2>
                 <h2 className="text-xl font-bold mt-4">CERTIFICADO DE BATISMO</h2>
-                <p className="mt-8 text-sm leading-7">Certificamos que <b>{membroBatismo.nome_completo}</b>, filho(a) de {membroBatismo.filiacao_pai||'---'} e {membroBatismo.filiacao_mae||'---'}, foi batizado(a) em <b>{membroBatismo.data_batismo?new Date(membroBatismo.data_batismo).toLocaleDateString('pt-BR'):'__/__/____'}</b>.</p>
-                <p className="mt-4 text-sm">Pastor Celebrante: _________________________</p>
-                <div className="mt-20 grid grid-cols-2 gap-10 text-sm"><div className="border-t pt-2">Secretário</div><div className="border-t pt-2">Pastor</div></div>
+                <p className="mt-8 text-sm leading-7">Certificamos que <b>{membroBatismo.nome_completo}</b>, filho(a) de {membroBatismo.filiacao_pai||'---'} e {membroBatismo.filiacao_mae||'---'}, foi batizado(a) em <b>{membroBatismo.data_batismo?new Date(membroBatismo.data_batismo).toLocaleDateString('pt-BR'):'__/__/____'}</b> {membroBatismo.local_batismo? ` em ${membroBatismo.local_batismo}`:''}.</p>
+                <p className="mt-4 text-sm">Pastor Celebrante: {membroBatismo.pastor_batismo || igreja?.pastor_nome || '____________________'}</p>
+                <div className="mt-20 grid grid-cols-2 gap-10 text-sm"><div className="border-t pt-2">{igreja?.secretario_nome||'Secretário'}</div><div className="border-t pt-2">{igreja?.pastor_nome||'Pastor'}</div></div>
               </div>
             )}
           </div>
@@ -218,34 +225,33 @@ export default function RelatoriosPage(){
               <button onClick={buscarCartaPorMembro} className="bg-[#0A3D26] text-white px-4 rounded text-sm">Buscar</button>
             </div>
             <div className="space-y-2 mb-6 max-h-64 overflow-auto print:hidden">
-              {cartas.map(c=><div key={c.id} onClick={()=>abrirCarta(c.id)} className="border p-3 rounded hover:bg-gray-50 cursor-pointer flex justify-between text-sm"><div><b>{c.igreja_destino}</b> - {new Date(c.data_emissao).toLocaleDateString('pt-BR')}</div><span className="text-xs bg-black text-white px-2 py-1 rounded">Abrir</span></div>)}
+              {cartas.map(c=><div key={c.carta_id || c.id} onClick={()=>abrirCarta(c.carta_id || c.id)} className="border p-3 rounded hover:bg-gray-50 cursor-pointer flex justify-between text-sm"><div><b>{c.igreja_destino}</b> - {c.data_emissao? new Date(c.data_emissao).toLocaleDateString('pt-BR') : ''} - Ata {c.ata_numero||''}</div><span className="text-xs bg-black text-white px-2 py-1 rounded">Abrir</span></div>)}
             </div>
 
             {cartaAberta && (
               <div id="detalhe-carta" className="bg-white p-8 md:p-10 max-w-[780px] mx-auto text-black leading-normal">
-                {/* CABEÇALHO 100% DINÂMICO - IGUAL FOTO */}
                 <div className="flex flex-col items-center text-center">
                   <div className="flex items-start justify-center gap-3">
-                    {(cartaAberta.igreja_logo_url || cartaAberta.igreja_logo || logoIgreja) && (
-                      <img src={cartaAberta.igreja_logo_url || cartaAberta.igreja_logo || logoIgreja} className="w-16 h-20 object-contain mt-1" alt="logo" />
+                    {(cartaAberta.igreja_logo_url || cartaAberta.logo_url || logoIgreja) && (
+                      <img src={cartaAberta.igreja_logo_url || cartaAberta.logo_url || logoIgreja} className="w-16 h-20 object-contain mt-1" alt="logo" />
                     )}
                     <div className="text-center">
                       <h1 className="font-bold text-[20px] leading-[20px] text-[#0A3D26] uppercase">
-                        {cartaAberta.igreja_origem_nome || nomeIgreja}
+                        {cartaAberta.igreja_nome || nomeIgreja}
                       </h1>
-                      <p className="text-[11px] mt-1">Organizada em {cartaAberta.data_organizacao? new Date(cartaAberta.data_organizacao).toLocaleDateString('pt-BR') : '20 de Janeiro de 1959'}</p>
+                      <p className="text-[11px] mt-1">Organizada em 20 de Janeiro de 1959</p>
                       <p className="text-[10px] font-semibold">Sínodo Central de Pernambuco / Presbitério Centro de Pernambuco</p>
                       <p className="text-[10px]">{cartaAberta.igreja_endereco || enderecoIgreja}</p>
                       <p className="text-[10px]">CNPJ: {cartaAberta.igreja_cnpj || cnpjIgreja}</p>
                       <p className="text-[10px]">E-mail: {cartaAberta.igreja_email || igreja?.email || ''}</p>
-                      <p className="text-[11px] font-bold mt-1">Pastor Efetivo: {cartaAberta.pastor_origem_nome || igreja?.pastor_nome || ''}</p>
+                      <p className="text-[11px] font-bold mt-1">Pastor Efetivo: {cartaAberta.pastor_nome_completo || igreja?.pastor_nome || ''}</p>
                     </div>
                     <div className="w-16 h-20 hidden md:block"></div>
                   </div>
                 </div>
 
                 <div className="text-right text-[13px] mt-10">
-                  {cartaAberta.igreja_cidade || igreja?.cidade || 'Jaboatão dos Guararapes'}, {new Date(cartaAberta.data_emissao).toLocaleDateString('pt-BR', {day:'2-digit', month:'long', year:'numeric'})}.
+                  {cartaAberta.cidade || igreja?.cidade || 'Jaboatão dos Guararapes'}, {cartaAberta.data_emissao? new Date(cartaAberta.data_emissao).toLocaleDateString('pt-BR', {day:'2-digit', month:'long', year:'numeric'}) : new Date().toLocaleDateString('pt-BR', {day:'2-digit', month:'long', year:'numeric'})}.
                 </div>
 
                 <div className="mt-8 text-[13px]">
@@ -263,9 +269,9 @@ export default function RelatoriosPage(){
                   <p>Amados irmãos, Graça e Paz em Cristo Jesus!</p>
                   <br/>
                   <p className="indent-8">
-                    O Conselho da {cartaAberta.igreja_origem_nome || nomeIgreja}, reunido em {new Date(cartaAberta.data_emissao).toLocaleDateString('pt-BR')} (Ata nº {cartaAberta.ata_numero || '___'}), resolveu expedir Carta de Transferência, em atendimento ao pedido recebido do egrégio Conselho dos irmãos: {' '}
+                    O Conselho da {cartaAberta.igreja_nome || nomeIgreja}, reunido em {cartaAberta.data_reuniao_conselho? new Date(cartaAberta.data_reuniao_conselho).toLocaleDateString('pt-BR') : new Date(cartaAberta.data_emissao).toLocaleDateString('pt-BR')} (Ata nº {cartaAberta.ata_numero || '___'}), resolveu expedir Carta de Transferência, em atendimento ao pedido recebido do egrégio Conselho dos irmãos: {' '}
                     {membrosCarta.map((m,i)=>{
-                      const isNao = (m.tipo_membro||'').toLowerCase().includes('nao') || (m.tipo_membro||'').toLowerCase().includes('não')
+                      const isNao = (m.tipo_membro||'').toLowerCase().includes('nao') || (m.tipo_membro||'').toLowerCase().includes('não') || (m.oficio||'').toLowerCase()==='comungante'
                       const art = isNao? ' (Artigo 24, alínea "a" da CI/IPB)' : ' (Artigo 23, alínea "d" da CI/IPB)'
                       const sep = i < membrosCarta.length-2? ', ' : i===membrosCarta.length-2? ' e ' : ''
                       return <span key={m.id}><b>{m.nome_completo}</b>{art}{sep}</span>
@@ -277,11 +283,10 @@ export default function RelatoriosPage(){
                   <div className="mt-3 space-y-5">
                     {membrosCarta.map(m=>(
                       <div key={m.id} className="text-[13px] leading-5">
-                        <p className="font-bold">{m.nome_completo}</p>
-                        <p>Batismo: {m.data_batismo? new Date(m.data_batismo).toLocaleDateString('pt-BR') : '___'} {m.batismo_local? ` - ${m.batismo_local}`:''}</p>
-                        {m.data_batismo_profissao || m.data_profissao? <p>Pública Profissão de Fé: {new Date(m.data_batismo_profissao || m.data_profissao).toLocaleDateString('pt-BR')}</p> : null}
-                        <p>Oficiante: {m.oficiante_batismo || m.oficiante || cartaAberta.pastor_origem_nome || '___'}</p>
-                        {(m.data_profissao || m.data_batismo_profissao) && <p>Oficiante Profissão: {m.oficiante_profissao || cartaAberta.pastor_origem_nome || '___'}</p>}
+                        <p className="font-bold">{m.nome_completo} - {m.oficio || m.tipo_membro || ''}</p>
+                        <p>Batismo: {m.data_batismo? new Date(m.data_batismo).toLocaleDateString('pt-BR') : m.vw_relatorio_membros?.data_batismo? new Date(m.vw_relatorio_membros.data_batismo).toLocaleDateString('pt-BR') : '___'} {m.local_batismo||m.vw_relatorio_membros?.local_batismo? ` - ${m.local_batismo||m.vw_relatorio_membros?.local_batismo}`:''}</p>
+                        {(m.data_profissao_fe || m.vw_relatorio_membros?.data_profissao_fe) && <p>Pública Profissão de Fé: {new Date(m.data_profissao_fe || m.vw_relatorio_membros?.data_profissao_fe).toLocaleDateString('pt-BR')}</p>}
+                        <p>Oficiante: {m.pastor_batismo || m.vw_relatorio_membros?.pastor_batismo || cartaAberta.pastor_nome_completo || '___'}</p>
                       </div>
                     ))}
                   </div>
@@ -294,14 +299,14 @@ export default function RelatoriosPage(){
 
                 <div className="mt-20 grid grid-cols-2 gap-8 text-[11px] leading-4">
                   <div className="text-left">
-                    <p className="font-bold border-t border-black pt-1 inline-block">{cartaAberta.pastor_origem_nome || igreja?.pastor_nome}</p>
-                    <p>Pres. do Conselho da {cartaAberta.igreja_origem_nome || nomeIgreja}</p>
+                    <p className="font-bold border-t border-black pt-1 inline-block">{cartaAberta.pastor_nome_completo || igreja?.pastor_nome}</p>
+                    <p>Pres. do Conselho da {cartaAberta.igreja_nome || nomeIgreja}</p>
                   </div>
                   <div className="text-left">
                     <p className="font-bold border-t border-black pt-1 inline-block">
-                      {igreja?.secretario_nome || 'Secretário do Conselho'}
+                      {cartaAberta.secretario_nome_completo || igreja?.secretario_nome || 'Secretário do Conselho'}
                     </p>
-                    <p>Sec. do Conselho da {cartaAberta.igreja_origem_nome || nomeIgreja}</p>
+                    <p>Sec. do Conselho da {cartaAberta.igreja_nome || nomeIgreja}</p>
                   </div>
                 </div>
               </div>
