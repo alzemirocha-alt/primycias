@@ -1,4 +1,4 @@
-iimport { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 
 export async function POST(req) {
   const supabase = createClient(
