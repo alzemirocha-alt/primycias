@@ -10,10 +10,11 @@ export async function POST(req) {
   const { selecionado, familiaIds, igrejaDestino, forma, ataNumero, dataReuniao } = body
 
   function getFormaIndividual(membro, formaComungante){
+    // CORREÇÃO: USA COLUNAS REAIS - oficial_tipo, tipo_membro, categoria_membro
     const tipo = (membro.tipo_membro || membro.categoria_membro || '').toLowerCase()
-    const isComungante = tipo.includes('comungante') &&!tipo.includes('nao') &&!tipo.includes('não')
-    if(isComungante) return formaComungante
-    return 'Transferência a pedido dos Pais ou Responsáveis e, na falta destes, a Juízo do Conselho - Art. 19, parágrafo único CI/IPB'
+    const isNao = tipo.includes('nao') || tipo.includes('não')
+    if(isNao) return 'Transferência a pedido dos Pais ou Responsáveis e, na falta destes, a Juízo do Conselho - Art. 19, parágrafo único CI/IPB'
+    return formaComungante
   }
 
   try {
@@ -29,14 +30,14 @@ export async function POST(req) {
 
     if(errCarta) throw errCarta
 
-    // 1.1 - NOVO: Busca dados dinâmicos da igreja/pastor pela view
+    // 1.1 - Busca dados dinâmicos da igreja/pastor pela view
     const { data: dadosIgreja } = await supabase
-    .from('vw_igreja_completa')
-    .select('*')
-    .eq('igreja_id', selecionado.igreja_id)
-    .single()
+   .from('vw_igreja_completa')
+   .select('*')
+   .eq('igreja_id', selecionado.igreja_id)
+   .single()
 
-    // 2. Busca todos os membros
+    // 2. Busca todos os membros COM TODAS AS COLUNAS DA FICHA
     const ids = [selecionado.id,...(familiaIds||[])].filter(Boolean)
     const { data: membros } = await supabase.from('membros_oficial').select('*').in('id', ids)
 
@@ -46,19 +47,32 @@ export async function POST(req) {
       lista = ids.map(id => map.get(String(id)) || (String(id)===String(selecionado.id)? selecionado : null)).filter(Boolean)
     }
 
-    // 3. Insere cada um e demite
+    // 3. Insere cada um e demite - CORRIGIDO PARA SALVAR TODA A FICHA
     for(const mem of lista){
       const formaInd = getFormaIndividual(mem, forma)
-      const isComungante = formaInd === forma
-      const formaDemissao = isComungante
-      ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
+      const tipoLower = (mem.tipo_membro || mem.categoria_membro || '').toLowerCase()
+      const isNao = tipoLower.includes('nao') || tipoLower.includes('não')
+      const formaDemissao =!isNao
+     ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
         : 'Carta dos Pais/Resp. a juízo do Conselho - Art. 24, alínea "a"'
 
+      // CORREÇÃO PRINCIPAL: SALVA TODOS OS DADOS DA FICHA NA CARTA
+      // Assim mesmo se o membro for demitido, a carta ainda tem batismo, local, pastor, oficial_tipo
       await supabase.from('cartas_membros').insert({
         carta_id: carta.id,
         membro_id: mem.id,
         nome_completo: mem.nome_completo,
         tipo_membro: mem.tipo_membro || mem.categoria_membro,
+        // NOVOS CAMPOS QUE FALTAVAM - ESSA É A CORREÇÃO DO ___
+        oficial_tipo: mem.oficial_tipo,
+        categoria_membro: mem.categoria_membro,
+        data_batismo: mem.data_batismo,
+        local_batismo: mem.local_batismo,
+        pastor_batismo: mem.pastor_batismo,
+        data_profissao_fe: mem.data_profissao_fe,
+        local_profissao_fe: mem.local_profissao_fe,
+        pastor_profissao_fe: mem.pastor_profissao_fe,
+        data_ordenacao: mem.data_ordenacao,
         forma_transferencia_individual: formaInd
       })
 
