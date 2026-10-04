@@ -92,19 +92,42 @@ export default function RelatoriosPage(){
       const { data: cFallback } = await supabase.from('cartas_transferencia').select('*').eq('id', id).single()
       c = cFallback
     }
+    // CORREÇÃO: PUXA DIRETO DA FICHA membros_oficial
     const { data: vinculos } = await supabase.from('cartas_membros').select('*').eq('carta_id', id)
     const ids = (vinculos||[]).map(v=> v.membro_id || v.membros_oficial_id).filter(Boolean)
-    let membrosComDados = vinculos||[]
+    let membrosComDados = []
+
     if(ids.length>0){
-      const { data: dados } = await supabase.from('vw_relatorio_membros').select('*').in('id', ids)
-      if(dados && dados.length>0){
-        membrosComDados = vinculos.map(v=>{
-          const id = v.membro_id || v.membros_oficial_id
-          const d = dados.find(x=> x.id===id)
-          return {...v,...d, id: d?.id || v.id, nome_completo: d?.nome_completo || v.nome_completo }
-        })
-      }
+      const { data: fichas } = await supabase.from('membros_oficial').select('*').in('id', ids)
+      membrosComDados = (fichas||[]).map(f => ({
+        id: f.id,
+        nome_completo: f.nome_completo,
+        oficio: f.oficio || f.tipo_oficial || f.tipo_membro || '',
+        data_batismo: f.data_batismo,
+        local_batismo: f.local_batismo,
+        pastor_batismo: f.pastor_batismo,
+        data_profissao_fe: f.data_profissao_fe || f.data_profissao,
+        local_profissao_fe: f.local_profissao_fe || f.local_profissao,
+        pastor_profissao_fe: f.pastor_profissao_fe || f.pastor_profissao,
+        data_ordenacao: f.data_ordenacao,
+        local_ordenacao: f.local_ordenacao,
+        pastor_ordenacao: f.pastor_ordenacao
+      }))
+
+      // CORREÇÃO ORDEM: 1- Oficial, 2- Comungante, 3- Não comungante
+      membrosComDados.sort((a,b)=>{
+        const getPrioridade = (m)=>{
+          const of = (m.oficio||'').toLowerCase()
+          if(of.includes('presb') || of.includes('diac') || of.includes('pastor') || of.includes('evang') || of.includes('oficial')) return 1
+          if(of.includes('nao') || of.includes('não') || of.includes('n_comungante')) return 3
+          return 2
+        }
+        return getPrioridade(a) - getPrioridade(b)
+      })
+    } else {
+      membrosComDados = vinculos||[]
     }
+
     setCartaAberta(c)
     setMembrosCarta(membrosComDados||[])
     setTimeout(()=>{ document.getElementById('detalhe-carta')?.scrollIntoView({behavior:'smooth', block:'start'}) },100)
@@ -290,7 +313,7 @@ export default function RelatoriosPage(){
                     O Conselho da {cartaAberta.igreja_nome || nomeIgreja}, reunido em {formatarDataBR(cartaAberta.data_reuniao_conselho || cartaAberta.data_emissao)} (Ata nº {cartaAberta.ata_numero || '___'}), resolveu expedir Carta de Transferência, em atendimento ao pedido recebido do egrégio Conselho dos irmãos: {' '}
                     {membrosCarta.map((m,i)=>{
                       const of = (m.oficio||'').toLowerCase()
-                      const isNao = of.includes('nao') || of.includes('não') || of==='comungante'
+                      const isNao = of.includes('nao') || of.includes('não')
                       const art = isNao? ' (Artigo 24, alínea "a" da CI/IPB)' : ' (Artigo 23, alínea "d" da CI/IPB)'
                       const sep = i < membrosCarta.length-2? ', ' : i===membrosCarta.length-2? ' e ' : ''
                       return <span key={m.id}><b>{m.nome_completo}</b>{art}{sep}</span>
@@ -300,20 +323,26 @@ export default function RelatoriosPage(){
                   <p className="mt-6 font-bold">Segue dados dos irmãos:</p>
 
                   <div className="mt-3 space-y-5">
-                    {membrosCarta.map(m=>(
+                    {membrosCarta.map(m=>{
+                      const of = (m.oficio||'').toLowerCase()
+                      const isNaoComungante = of.includes('nao') || of.includes('não')
+                      return (
                       <div key={m.id} className="text-[13px] leading-5">
                         <p className="font-bold">{m.nome_completo} - {m.oficio || ''}</p>
-                        <p>Batismo: {m.data_batismo? formatarDataBR(m.data_batismo) : '___'} {m.local_batismo? ` - ${m.local_batismo}`:''}</p>
+                        <p>Data do Batismo: {m.data_batismo? formatarDataBR(m.data_batismo) : '___'}</p>
+                        <p>Local Batismo: {m.local_batismo || '___'}</p>
                         <p>Pastor Batismo: {m.pastor_batismo || '___'}</p>
-                        {m.data_profissao_fe && (
+
+                        {!isNaoComungante && (
                           <>
-                            <p className="mt-1">Pública Profissão de Fé: {formatarDataBR(m.data_profissao_fe)} {m.local_profissao_fe? ` - ${m.local_profissao_fe}`:''}</p>
-                            <p>Pastor Profissão de Fé: {m.pastor_profissao_fe || cartaAberta.pastor_nome_completo || '___'}</p>
+                            <p className="mt-1">Data Prof. Fé: {m.data_profissao_fe? formatarDataBR(m.data_profissao_fe) : '___'}</p>
+                            <p>Local Prof. Fé: {m.local_profissao_fe || '___'}</p>
+                            <p>Pastor Prof. Fé: {m.pastor_profissao_fe || '___'}</p>
                           </>
                         )}
-                        {m.data_ordenacao && <p>Ordenação: {formatarDataBR(m.data_ordenacao)} {m.local_ordenacao? ` - ${m.local_ordenacao}`:''} - Pastor: {m.pastor_ordenacao||'___'}</p>}
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
 
                   <p className="mt-8 indent-8">
