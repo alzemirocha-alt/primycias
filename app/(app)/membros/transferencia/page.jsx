@@ -12,6 +12,9 @@ export default function TransferenciaPage() {
   const [igrejaDestino, setIgrejaDestino] = useState('')
   const [forma, setForma] = useState('Carta de Transferência com Destino Determinado - Art. 18, alínea "a" CI/IPB')
   const [loading, setLoading] = useState(false)
+  // NOVOS CAMPOS - PARA NÃO DAR ERRO NA VIEW
+  const [ataNumero, setAtaNumero] = useState('')
+  const [dataReuniao, setDataReuniao] = useState(new Date().toISOString().slice(0,10))
 
   function getFormaIndividual(membro, formaComungante){
     const tipo = (membro.tipo_membro || membro.categoria_membro || '').toLowerCase()
@@ -43,6 +46,8 @@ export default function TransferenciaPage() {
 
   async function emitirCarta() {
     if(!selecionado ||!igrejaDestino) return alert('Selecione membro e igreja destino')
+    if(!ataNumero) return alert('Informe o Nº da Ata')
+    if(!dataReuniao) return alert('Informe a Data da Reunião do Conselho')
     setLoading(true)
     try {
       const familiaIds = familia.filter(f=> incluir[f.id]).map(f=> f.id)
@@ -53,7 +58,9 @@ export default function TransferenciaPage() {
           selecionado,
           familiaIds,
           igrejaDestino,
-          forma
+          forma,
+          ataNumero,
+          dataReuniao
         })
       })
       const json = await res.json()
@@ -125,6 +132,15 @@ export default function TransferenciaPage() {
             </div>
 
             <div className="mt-6 grid gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col text-sm font-bold">Nº da Ata do Conselho *
+                  <input value={ataNumero} onChange={e=>setAtaNumero(e.target.value)} placeholder="Ex: 12/2024" className="border p-3 rounded-lg mt-1" />
+                </label>
+                <label className="flex flex-col text-sm font-bold">Data da Reunião do Conselho *
+                  <input type="date" value={dataReuniao} onChange={e=>setDataReuniao(e.target.value)} className="border p-3 rounded-lg mt-1" />
+                </label>
+              </div>
+
               <label className="flex flex-col text-sm">Forma de Transferência (válida para comungantes)
                 <select value={forma} onChange={e=>setForma(e.target.value)} className="border p-3 rounded-lg mt-1">
                   <option>Carta de Transferência com Destino Determinado - Art. 18, alínea "a" CI/IPB</option>
