@@ -102,7 +102,7 @@ export default function RelatoriosPage(){
       membrosComDados = (fichas||[]).map(f => ({
         id: f.id,
         nome_completo: f.nome_completo,
-        oficio: f.oficio || f.tipo_oficial || f.tipo_membro || '',
+        oficial: f.oficial || f.tipo_oficial || f.tipo_membro || '',
         data_batismo: f.data_batismo,
         local_batismo: f.local_batismo,
         pastor_batismo: f.pastor_batismo,
@@ -110,14 +110,12 @@ export default function RelatoriosPage(){
         local_profissao_fe: f.local_profissao_fe || f.local_profissao,
         pastor_profissao_fe: f.pastor_profissao_fe || f.pastor_profissao,
         data_ordenacao: f.data_ordenacao,
-        local_ordenacao: f.local_ordenacao,
-        pastor_ordenacao: f.pastor_ordenacao
       }))
 
       // CORREÇÃO ORDEM: 1- Oficial, 2- Comungante, 3- Não comungante
       membrosComDados.sort((a,b)=>{
         const getPrioridade = (m)=>{
-          const of = (m.oficio||'').toLowerCase()
+          const of = (m.oficial||'').toLowerCase()
           if(of.includes('presb') || of.includes('diac') || of.includes('pastor') || of.includes('evang') || of.includes('oficial')) return 1
           if(of.includes('nao') || of.includes('não') || of.includes('n_comungante')) return 3
           return 2
@@ -135,8 +133,8 @@ export default function RelatoriosPage(){
 
   function filtrarAtivos(){
     let f = membros.filter(m=> (m.status||'').toLowerCase()==='ativo' || (m.situacao||'').toLowerCase()==='ativo' || (m.status_membro||'').toLowerCase()==='ativo')
-    if(filtroTipo==='comungante') f=f.filter(m=>!( (m.oficio||'').toLowerCase().includes('não') || (m.oficio||'').toLowerCase().includes('nao') ) && (m.oficio||'').toLowerCase()!=='comungante' || (m.categoria_membro||'').toLowerCase().includes('comungante'))
-    if(filtroTipo==='nao') f=f.filter(m=> (m.oficio||'').toLowerCase().includes('não') || (m.oficio||'').toLowerCase().includes('nao') || (m.oficio||'').toLowerCase()==='comungante')
+    if(filtroTipo==='comungante') f=f.filter(m=>!( (m.oficial||'').toLowerCase().includes('não') || (m.oficial||'').toLowerCase().includes('nao') ) && (m.oficial||'').toLowerCase()!=='comungante' || (m.categoria_membro||'').toLowerCase().includes('comungante'))
+    if(filtroTipo==='nao') f=f.filter(m=> (m.oficial||'').toLowerCase().includes('não') || (m.oficial||'').toLowerCase().includes('nao') || (m.oficial||'').toLowerCase()==='comungante')
     if(busca) f=f.filter(m=> m.nome_completo.toLowerCase().includes(busca.toLowerCase()))
     return f
   }
@@ -205,7 +203,7 @@ export default function RelatoriosPage(){
               <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar nome..." className="border p-2 rounded text-sm flex-1" />
             </div>
             <table className="w-full text-xs border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2">Ofício</th><th className="border p-2">Admissão</th><th className="border p-2">Batismo</th><th className="border p-2">Profissão</th></tr></thead>
-            <tbody>{filtrarAtivos().slice(0,500).map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2">{m.oficio||'---'}</td><td className="border p-2">{m.data_admissao?formatarDataBR(m.data_admissao):'---'}</td><td className="border p-2">{m.data_batismo?formatarDataBR(m.data_batismo):'---'}</td><td className="border p-2">{m.data_profissao_fe?formatarDataBR(m.data_profissao_fe):'---'}</td></tr>)}</tbody></table>
+            <tbody>{filtrarAtivos().slice(0,500).map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2">{m.oficial||'---'}</td><td className="border p-2">{m.data_admissao?formatarDataBR(m.data_admissao):'---'}</td><td className="border p-2">{m.data_batismo?formatarDataBR(m.data_batismo):'---'}</td><td className="border p-2">{m.data_profissao_fe?formatarDataBR(m.data_profissao_fe):'---'}</td></tr>)}</tbody></table>
           </div>
         )}
 
@@ -226,7 +224,7 @@ export default function RelatoriosPage(){
           <div>
             <h3 className="font-bold text-center text-lg mb-4">Relação de Membros Demitidos - {nomeIgreja}</h3>
             <table className="w-full text-xs border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2">Ofício</th><th className="border p-2">Data Demissão</th><th className="border p-2">Motivo</th></tr></thead>
-            <tbody>{filtrarDemitidos().map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2">{m.oficio||m.tipo_membro||'---'}</td><td className="border p-2">{m.data_demissao?formatarDataBR(m.data_demissao):'---'}</td><td className="border p-2">{m.motivo_demissao||m.forma_demissao||'---'}</td></tr>)}</tbody></table>
+            <tbody>{filtrarDemitidos().map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2">{m.oficial||m.tipo_membro||'---'}</td><td className="border p-2">{m.data_demissao?formatarDataBR(m.data_demissao):'---'}</td><td className="border p-2">{m.motivo_demissao||m.forma_demissao||'---'}</td></tr>)}</tbody></table>
           </div>
         )}
 
@@ -312,7 +310,7 @@ export default function RelatoriosPage(){
                   <p className="indent-8">
                     O Conselho da {cartaAberta.igreja_nome || nomeIgreja}, reunido em {formatarDataBR(cartaAberta.data_reuniao_conselho || cartaAberta.data_emissao)} (Ata nº {cartaAberta.ata_numero || '___'}), resolveu expedir Carta de Transferência, em atendimento ao pedido recebido do egrégio Conselho dos irmãos: {' '}
                     {membrosCarta.map((m,i)=>{
-                      const of = (m.oficio||'').toLowerCase()
+                      const of = (m.oficial||'').toLowerCase()
                       const isNao = of.includes('nao') || of.includes('não')
                       const art = isNao? ' (Artigo 24, alínea "a" da CI/IPB)' : ' (Artigo 23, alínea "d" da CI/IPB)'
                       const sep = i < membrosCarta.length-2? ', ' : i===membrosCarta.length-2? ' e ' : ''
@@ -324,11 +322,11 @@ export default function RelatoriosPage(){
 
                   <div className="mt-3 space-y-5">
                     {membrosCarta.map(m=>{
-                      const of = (m.oficio||'').toLowerCase()
+                      const of = (m.oficial||'').toLowerCase()
                       const isNaoComungante = of.includes('nao') || of.includes('não')
                       return (
                       <div key={m.id} className="text-[13px] leading-5">
-                        <p className="font-bold">{m.nome_completo} - {m.oficio || ''}</p>
+                        <p className="font-bold">{m.nome_completo} - {m.oficial || ''}</p>
                         <p>Data do Batismo: {m.data_batismo? formatarDataBR(m.data_batismo) : '___'}</p>
                         <p>Local Batismo: {m.local_batismo || '___'}</p>
                         <p>Pastor Batismo: {m.pastor_batismo || '___'}</p>
