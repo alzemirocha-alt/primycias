@@ -12,15 +12,25 @@ export default function TransferenciaPage() {
   const [igrejaDestino, setIgrejaDestino] = useState('')
   const [forma, setForma] = useState('Carta de Transferência com Destino Determinado - Art. 18, alínea "a" CI/IPB')
   const [loading, setLoading] = useState(false)
-  // NOVOS CAMPOS - PARA NÃO DAR ERRO NA VIEW
   const [ataNumero, setAtaNumero] = useState('')
   const [dataReuniao, setDataReuniao] = useState(new Date().toISOString().slice(0,10))
 
+  // CORREÇÃO: USA COLUNAS REAIS - oficial_tipo, tipo_membro, categoria_membro
+  function formatarTipo(m){
+    if(m.oficial_tipo) return m.oficial_tipo
+    const t = (m.tipo_membro || m.categoria_membro || '').toLowerCase()
+    if(t.includes('nao') || t.includes('não')) return 'Não Comungante'
+    if(t.includes('oficial')) return 'Oficial'
+    return 'Comungante'
+  }
+
   function getFormaIndividual(membro, formaComungante){
     const tipo = (membro.tipo_membro || membro.categoria_membro || '').toLowerCase()
-    const isComungante = tipo.includes('comungante') &&!tipo.includes('nao') &&!tipo.includes('não')
-    if(isComungante) return formaComungante
-    return 'Transferência a pedido dos Pais ou Responsáveis e, na falta destes, a Juízo do Conselho - Art. 19, parágrafo único CI/IPB'
+    const temOficial = !!membro.oficial_tipo
+    const isNao = tipo.includes('nao') || tipo.includes('não')
+    // Oficial e Comungante = Art 23, Não Comungante = Art 24
+    if(isNao) return 'Transferência a pedido dos Pais ou Responsáveis e, na falta destes, a Juízo do Conselho - Art. 19, parágrafo único CI/IPB'
+    return formaComungante
   }
 
   async function buscar(e) {
@@ -38,7 +48,6 @@ export default function TransferenciaPage() {
     setBusca(m.nome_completo)
     setFamilia([])
     setIncluir({})
-    // BUSCA FAMILIA PELA API
     const res = await fetch(`/api/membros/familia?id=${m.id}&nome=${encodeURIComponent(m.nome_completo)}`)
     const dataFam = await res.json()
     setFamilia(dataFam || [])
@@ -87,7 +96,7 @@ export default function TransferenciaPage() {
           <div className="border rounded-lg mt-2 max-h-60 overflow-auto">
             {resultados.map(r=>(
               <div key={r.id} onClick={()=>selecionarMembro(r)} className="p-3 hover:bg-gray-100 cursor-pointer border-b">
-                <b>{r.nome_completo}</b> <span className="text-xs text-gray-500">- {r.tipo_membro} - Rol {r.numero_rol||'---'}</span>
+                <b>{r.nome_completo}</b> <span className="text-xs text-gray-500">- {formatarTipo(r)} {r.oficial_tipo ? `(${r.oficial_tipo})` : ''} - Rol {r.numero_rol||'---'}</span>
               </div>
             ))}
           </div>
@@ -95,7 +104,7 @@ export default function TransferenciaPage() {
         {selecionado && (
           <div className="mt-6">
             <div className="bg-green-50 border border-green-600 rounded-lg p-4">
-              <b>Selecionado:</b> {selecionado.nome_completo} ({selecionado.tipo_membro})<br/>
+              <b>Selecionado:</b> {selecionado.nome_completo} ({formatarTipo(selecionado)})<br/>
               <span className="text-xs">Pai: {selecionado.filiacao_pai||'---'} | Mãe: {selecionado.filiacao_mae||'---'} | Cônjuge: {selecionado.conjuge_nome||selecionado.nome_conjuge||'---'}</span>
             </div>
 
@@ -105,13 +114,12 @@ export default function TransferenciaPage() {
                 <div className="space-y-3">
                   {familia.map(f=>{
                     const formaInd = getFormaIndividual(f, forma)
-                    const isComungante = formaInd === forma
                     return (
                       <label key={f.id} className="flex gap-3 bg-white p-4 rounded-lg border shadow-sm cursor-pointer">
                         <input type="checkbox" checked={!!incluir[f.id]} onChange={e=> setIncluir({...incluir, [f.id]: e.target.checked})} className="mt-1" />
                         <div className="flex-1">
                           <div className="font-bold">{f.nome_completo}</div>
-                          <div className="text-xs text-gray-600">Tipo: {f.tipo_membro || f.categoria_membro} - Rol: {f.numero_rol||'---'}</div>
+                          <div className="text-xs text-gray-600">Tipo: {formatarTipo(f)} - Rol: {f.numero_rol||'---'}</div>
                           <div className="text-xs mt-1 p-2 bg-gray-100 rounded"><b>Forma:</b> {formaInd}</div>
                         </div>
                       </label>
@@ -124,9 +132,9 @@ export default function TransferenciaPage() {
             <div className="mt-6 border-t pt-6">
               <h3 className="font-bold mb-2">Resumo dos que irão na carta:</h3>
               <div className="bg-gray-50 border rounded-lg p-3 space-y-2">
-                <div className="flex justify-between text-sm"><span>1. {selecionado.nome_completo}</span><span className="text-xs text-gray-600">{getFormaIndividual(selecionado, forma)}</span></div>
+                <div className="flex justify-between text-sm"><span>1. {selecionado.nome_completo} - {formatarTipo(selecionado)}</span><span className="text-xs text-gray-600">{getFormaIndividual(selecionado, forma)}</span></div>
                 {familia.filter(f=>incluir[f.id]).map((f,i)=>(
-                  <div key={f.id} className="flex justify-between text-sm"><span>{i+2}. {f.nome_completo}</span><span className="text-xs text-gray-600">{getFormaIndividual(f, forma)}</span></div>
+                  <div key={f.id} className="flex justify-between text-sm"><span>{i+2}. {f.nome_completo} - {formatarTipo(f)}</span><span className="text-xs text-gray-600">{getFormaIndividual(f, forma)}</span></div>
                 ))}
               </div>
             </div>
