@@ -7,7 +7,7 @@ export async function POST(req) {
   )
 
   const body = await req.json()
-  const { selecionado, familiaIds, igrejaDestino, forma } = body
+  const { selecionado, familiaIds, igrejaDestino, forma, ataNumero, dataReuniao } = body
 
   function getFormaIndividual(membro, formaComungante){
     const tipo = (membro.tipo_membro || membro.categoria_membro || '').toLowerCase()
@@ -17,11 +17,13 @@ export async function POST(req) {
   }
 
   try {
-    // 1. Cria a carta
+    // 1. Cria a carta - AGORA COM ATA E DATA DA REUNIÃO
     const { data: carta, error: errCarta } = await supabase.from('cartas_transferencia').insert({
       igreja_id: selecionado.igreja_id,
       igreja_destino: igrejaDestino,
       forma_transferencia: forma,
+      ata_numero: ataNumero,
+      data_reuniao_conselho: dataReuniao,
       data_emissao: new Date().toISOString().split('T')[0]
     }).select().single()
 
@@ -29,10 +31,10 @@ export async function POST(req) {
 
     // 1.1 - NOVO: Busca dados dinâmicos da igreja/pastor pela view
     const { data: dadosIgreja } = await supabase
-     .from('vw_igreja_completa')
-     .select('*')
-     .eq('igreja_id', selecionado.igreja_id)
-     .single()
+    .from('vw_igreja_completa')
+    .select('*')
+    .eq('igreja_id', selecionado.igreja_id)
+    .single()
 
     // 2. Busca todos os membros
     const ids = [selecionado.id,...(familiaIds||[])].filter(Boolean)
@@ -49,7 +51,7 @@ export async function POST(req) {
       const formaInd = getFormaIndividual(mem, forma)
       const isComungante = formaInd === forma
       const formaDemissao = isComungante
-       ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
+      ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
         : 'Carta dos Pais/Resp. a juízo do Conselho - Art. 24, alínea "a"'
 
       await supabase.from('cartas_membros').insert({
@@ -75,8 +77,9 @@ export async function POST(req) {
       ok: true,
       cartaId: carta.id,
       igrejaOrigem: dadosIgreja?.igreja_nome,
-      pastorOrigem: dadosIgreja?.pastor_nome_completo, // AGORA DINÂMICO - Glaucio, Alzemir, etc vem daqui
-      pastorCargo: dadosIgreja?.pastor_cargo
+      pastorOrigem: dadosIgreja?.pastor_nome_completo,
+      pastorCargo: dadosIgreja?.pastor_cargo,
+      secretarioNome: dadosIgreja?.secretario_nome_completo
     })
   } catch(e){
     return Response.json({ error: e.message }, { status: 400 })
