@@ -23,10 +23,25 @@ export default function RelatoriosPage(){
   async function carregar(){
     setLoading(true)
     let dadosIgreja = null
-    const tabelas = ['dados_igreja','igreja','igrejas','config_igreja','configuracoes']
-    for(let t of tabelas){
-      const { data } = await supabase.from(t).select('*').limit(1).maybeSingle()
-      if(data){ dadosIgreja = data; break }
+    // NOVO: tenta primeiro a view dinâmica (pastor correto por igreja)
+    const { data: viewIgreja } = await supabase.from('vw_igreja_completa').select('*').limit(1).maybeSingle()
+    if(viewIgreja){
+      dadosIgreja = {
+        nome_igreja: viewIgreja.igreja_nome,
+        nome: viewIgreja.igreja_nome,
+        endereco: viewIgreja.igreja_endereco,
+        cnpj: viewIgreja.igreja_cnpj,
+        logo_url: viewIgreja.igreja_logo_url,
+        cidade: viewIgreja.igreja_cidade,
+        pastor_nome: viewIgreja.pastor_nome_completo,
+        pastor_cargo: viewIgreja.pastor_cargo
+      }
+    } else {
+      const tabelas = ['dados_igreja','igreja','igrejas','config_igreja','configuracoes']
+      for(let t of tabelas){
+        const { data } = await supabase.from(t).select('*').limit(1).maybeSingle()
+        if(data){ dadosIgreja = data; break }
+      }
     }
     setIgreja(dadosIgreja)
     const { data: m } = await supabase.from('membros_oficial').select('*').limit(5000).order('nome_completo')
@@ -51,10 +66,17 @@ export default function RelatoriosPage(){
     setCartas(Object.values(unicas))
   }
 
-  // --- FUNÇÃO CORRIGIDA QUE NÃO ABRIA ---
+  // --- FUNÇÃO CORRIGIDA DINÂMICA ---
   async function abrirCarta(id){
     setAba('cartas')
-    const { data: c } = await supabase.from('cartas_transferencia').select('*').eq('id', id).single()
+    // NOVO: busca pela view dinâmica - traz pastor e igreja corretos da carta
+    const { data: cView } = await supabase.from('vw_carta_transferencia_dinamica').select('*').eq('carta_id', id).single()
+    let c = cView
+    if(!cView){
+      // fallback se view ainda não criada
+      const { data: cFallback } = await supabase.from('cartas_transferencia').select('*').eq('id', id).single()
+      c = cFallback
+    }
     const { data: m } = await supabase.from('cartas_membros').select('*').eq('carta_id', id)
     setCartaAberta(c)
     setMembrosCarta(m||[])
@@ -65,7 +87,7 @@ export default function RelatoriosPage(){
 
   function filtrarAtivos(){
     let f = membros.filter(m=> (m.status||'').toLowerCase()==='ativo' || (m.situacao||'').toLowerCase()==='ativo')
-    if(filtroTipo==='comungante') f=f.filter(m=> (m.tipo_membro||'').toLowerCase().includes('comungante') && !m.tipo_membro.toLowerCase().includes('não') && !m.tipo_membro.toLowerCase().includes('nao'))
+    if(filtroTipo==='comungante') f=f.filter(m=> (m.tipo_membro||'').toLowerCase().includes('comungante') &&!m.tipo_membro.toLowerCase().includes('não') &&!m.tipo_membro.toLowerCase().includes('nao'))
     if(filtroTipo==='nao') f=f.filter(m=> (m.tipo_membro||'').toLowerCase().includes('não') || (m.tipo_membro||'').toLowerCase().includes('nao'))
     if(busca) f=f.filter(m=> m.nome_completo.toLowerCase().includes(busca.toLowerCase()))
     return f
@@ -121,7 +143,7 @@ export default function RelatoriosPage(){
 
       <div className="bg-white border rounded-xl p-8 shadow-sm" id="print">
         <div className="flex gap-4 border-b pb-4 mb-6 items-center">
-          {logoIgreja ? <img src={logoIgreja} className="w-16 h-16 object-contain rounded" /> : <div className="w-14 h-14 bg-[#0A3D26] rounded flex items-center justify-center text-white font-bold">IPB</div>}
+          {logoIgreja? <img src={logoIgreja} className="w-16 h-16 object-contain rounded" /> : <div className="w-14 h-14 bg-[#0A3D26] rounded flex items-center justify-center text-white font-bold">IPB</div>}
           <div>
             <h2 className="font-bold text-lg">{nomeIgreja}</h2>
             <p className="text-xs text-gray-600">{enderecoIgreja} {cnpjIgreja? `| ${cnpjIgreja}`:''} {igreja?.data_organizacao? `| Organizada em ${new Date(igreja.data_organizacao).toLocaleDateString('pt-BR')}`:''}</p>
@@ -150,7 +172,7 @@ export default function RelatoriosPage(){
             <h3 className="font-bold text-center">Relação de Membros para {tipoAssembleia}</h3>
             <p className="text-center text-sm mb-4">{nomeIgreja} - Data: {new Date(dataAssembleia).toLocaleDateString('pt-BR')}</p>
             <table className="w-full text-sm border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2 w-48">Assinatura</th></tr></thead>
-            <tbody>{membros.filter(m=> (m.tipo_membro||'').toLowerCase().includes('comungante') && !m.tipo_membro.toLowerCase().includes('não') && (m.status||'').toLowerCase()==='ativo').map(m=><tr key={m.id}><td className="border p-3">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2"></td></tr>)}</tbody></table>
+            <tbody>{membros.filter(m=> (m.tipo_membro||'').toLowerCase().includes('comungante') &&!m.tipo_membro.toLowerCase().includes('não') && (m.status||'').toLowerCase()==='ativo').map(m=><tr key={m.id}><td className="border p-3">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2"></td></tr>)}</tbody></table>
           </div>
         )}
 
@@ -193,7 +215,7 @@ export default function RelatoriosPage(){
 
         {aba==='cartas' && (
           <div>
-            <h3 className="font-bold text-center text-lg mb-4">Relatório de Cartas de Transferência - {nomeIgreja}</h3>
+            <h3 className="font-bold text-center text-lg mb-4">Relatório de Cartas de Transferência - {cartaAberta?.igreja_origem_nome || nomeIgreja}</h3>
             <div className="flex gap-2 mb-4">
               <input value={buscaCarta} onChange={e=>setBuscaCarta(e.target.value)} placeholder="Pesquisar por nome do membro na carta..." className="border p-2 rounded flex-1 text-sm" />
               <button onClick={buscarCartaPorMembro} className="bg-[#0A3D26] text-white px-4 rounded text-sm">Buscar</button>
@@ -203,13 +225,29 @@ export default function RelatoriosPage(){
             </div>
             {cartaAberta && (
               <div id="detalhe-carta" className="border-2 border-[#0A3D26] rounded-xl p-6 bg-gray-50">
+                {/* CABEÇALHO DINÂMICO DA CARTA */}
+                <div className="flex gap-3 items-center mb-4 border-b pb-3">
+                  { (cartaAberta.igreja_logo_url || logoIgreja) && <img src={cartaAberta.igreja_logo_url || logoIgreja} className="w-14 h-14 object-contain" />}
+                  <div>
+                    <h4 className="font-bold">{cartaAberta.igreja_origem_nome || nomeIgreja}</h4>
+                    <p className="text-[11px] text-gray-600">{cartaAberta.igreja_cnpj || cnpjIgreja} - {cartaAberta.igreja_endereco || enderecoIgreja}</p>
+                    <p className="text-[11px] text-gray-600">Pastor: {cartaAberta.pastor_origem_nome || igreja?.pastor_nome || '---'} - {cartaAberta.pastor_origem_cargo || 'Pastor'}</p>
+                  </div>
+                </div>
+
                 <h4 className="font-bold text-lg">Carta para: {cartaAberta.igreja_destino}</h4>
-                <p className="text-xs text-gray-600">Emitida em: {new Date(cartaAberta.data_emissao).toLocaleDateString('pt-BR')} às {new Date(cartaAberta.data_emissao).toLocaleTimeString('pt-BR')}</p>
+                <p className="text-xs text-gray-600">Emitida em: {new Date(cartaAberta.data_emissao).toLocaleDateString('pt-BR')} às {new Date(cartaAberta.data_emissao).toLocaleTimeString('pt-BR')} - Forma: {cartaAberta.forma_transferencia || cartaAberta.forma_transferencia_individual}</p>
                 <ol className="list-decimal ml-6 mt-4 text-sm space-y-2 bg-white p-4 rounded border">
                   {membrosCarta.length===0 && <li className="text-red-500">Nenhum membro vinculado - verifique cartas_membros no Supabase</li>}
                   {membrosCarta.map((m,i)=><li key={i}><b>{m.nome_completo}</b> - {m.tipo_membro}<br/><i className="text-xs">{m.forma_transferencia_individual}</i></li>)}
                 </ol>
-                <div className="mt-10 grid grid-cols-2 gap-10 text-sm text-center"><div className="border-t pt-2">Pastor</div><div className="border-t pt-2">Secretário</div></div>
+                <div className="mt-10 grid grid-cols-2 gap-10 text-sm text-center">
+                  <div className="border-t pt-2">
+                    <b>{cartaAberta.pastor_origem_nome || igreja?.pastor_nome || 'Pastor'}</b>
+                    <div className="text-xs">{cartaAberta.pastor_origem_cargo || 'Pastor'}</div>
+                  </div>
+                  <div className="border-t pt-2">Secretário</div>
+                </div>
               </div>
             )}
           </div>
