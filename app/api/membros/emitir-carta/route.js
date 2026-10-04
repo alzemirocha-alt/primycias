@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+iimport { createClient } from '@supabase/supabase-js'
 
 export async function POST(req) {
   const supabase = createClient(
@@ -27,37 +27,38 @@ export async function POST(req) {
 
     if(errCarta) throw errCarta
 
-    // 2. Busca todos os membros que vão na carta - CORRIGIDO com fallback
+    // 1.1 - NOVO: Busca dados dinâmicos da igreja/pastor pela view
+    const { data: dadosIgreja } = await supabase
+     .from('vw_igreja_completa')
+     .select('*')
+     .eq('igreja_id', selecionado.igreja_id)
+     .single()
+
+    // 2. Busca todos os membros
     const ids = [selecionado.id,...(familiaIds||[])].filter(Boolean)
-    const { data: membros, error: errMembros } = await supabase.from('membros_oficial').select('*').in('id', ids)
+    const { data: membros } = await supabase.from('membros_oficial').select('*').in('id', ids)
 
-    if(errMembros) throw errMembros
-
-    // Se não achou no banco (por causa de tipo de id), usa o que veio do front
     let lista = membros && membros.length>0? membros : [selecionado]
-    // Se veio 1 mas deveria vir mais, completa com o selecionado
     if(ids.length>1 && lista.length===1){
       const map = new Map(lista.map(m=>[String(m.id), m]))
       lista = ids.map(id => map.get(String(id)) || (String(id)===String(selecionado.id)? selecionado : null)).filter(Boolean)
     }
 
-    // 3. Insere cada um e demite - CORRIGIDO com checagem de erro
+    // 3. Insere cada um e demite
     for(const mem of lista){
       const formaInd = getFormaIndividual(mem, forma)
       const isComungante = formaInd === forma
       const formaDemissao = isComungante
-      ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
+       ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
         : 'Carta dos Pais/Resp. a juízo do Conselho - Art. 24, alínea "a"'
 
-      const { error: errIns } = await supabase.from('cartas_membros').insert({
+      await supabase.from('cartas_membros').insert({
         carta_id: carta.id,
         membro_id: mem.id,
         nome_completo: mem.nome_completo,
         tipo_membro: mem.tipo_membro || mem.categoria_membro,
         forma_transferencia_individual: formaInd
       })
-
-      if(errIns) throw errIns
 
       await supabase.from('membros_oficial').update({
         status: 'demitido',
@@ -69,7 +70,14 @@ export async function POST(req) {
       }).eq('id', mem.id)
     }
 
-    return Response.json({ ok: true, cartaId: carta.id })
+    // 4. Retorna já com dados dinâmicos para o PDF usar
+    return Response.json({
+      ok: true,
+      cartaId: carta.id,
+      igrejaOrigem: dadosIgreja?.igreja_nome,
+      pastorOrigem: dadosIgreja?.pastor_nome_completo, // AGORA DINÂMICO - Glaucio, Alzemir, etc vem daqui
+      pastorCargo: dadosIgreja?.pastor_cargo
+    })
   } catch(e){
     return Response.json({ error: e.message }, { status: 400 })
   }
