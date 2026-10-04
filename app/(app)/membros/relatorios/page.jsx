@@ -23,7 +23,6 @@ export default function RelatoriosPage(){
   async function carregar(){
     setLoading(true)
     let dadosIgreja = null
-    // NOVO: tenta primeiro a view dinâmica (pastor correto por igreja)
     const { data: viewIgreja } = await supabase.from('vw_igreja_completa').select('*').limit(1).maybeSingle()
     if(viewIgreja){
       dadosIgreja = {
@@ -34,7 +33,9 @@ export default function RelatoriosPage(){
         logo_url: viewIgreja.igreja_logo_url,
         cidade: viewIgreja.igreja_cidade,
         pastor_nome: viewIgreja.pastor_nome_completo,
-        pastor_cargo: viewIgreja.pastor_cargo
+        pastor_cargo: viewIgreja.pastor_cargo,
+        email: viewIgreja.igreja_email,
+        logo: viewIgreja.igreja_logo
       }
     } else {
       const tabelas = ['dados_igreja','igreja','igrejas','config_igreja','configuracoes']
@@ -66,14 +67,11 @@ export default function RelatoriosPage(){
     setCartas(Object.values(unicas))
   }
 
-  // --- FUNÇÃO CORRIGIDA DINÂMICA ---
   async function abrirCarta(id){
     setAba('cartas')
-    // NOVO: busca pela view dinâmica - traz pastor e igreja corretos da carta
     const { data: cView } = await supabase.from('vw_carta_transferencia_dinamica').select('*').eq('carta_id', id).single()
     let c = cView
     if(!cView){
-      // fallback se view ainda não criada
       const { data: cFallback } = await supabase.from('cartas_transferencia').select('*').eq('id', id).single()
       c = cFallback
     }
@@ -123,7 +121,7 @@ export default function RelatoriosPage(){
   const nomeIgreja = igreja?.nome_igreja || igreja?.nome || igreja?.razao_social || "Igreja"
   const enderecoIgreja = igreja?.endereco || igreja?.endereco_completo || `${igreja?.cidade||''} - ${igreja?.estado||''}`
   const cnpjIgreja = igreja?.cnpj || igreja?.documento || ""
-  const logoIgreja = igreja?.logo_url || igreja?.url_logo || null
+  const logoIgreja = igreja?.logo_url || igreja?.url_logo || igreja?.logo || null
 
   return (
     <div className="p-6 max-w-7xl mx-auto bg-gray-50 min-h-screen">
@@ -142,7 +140,7 @@ export default function RelatoriosPage(){
       </div>
 
       <div className="bg-white border rounded-xl p-8 shadow-sm" id="print">
-        <div className="flex gap-4 border-b pb-4 mb-6 items-center">
+        <div className="flex gap-4 border-b pb-4 mb-6 items-center print:hidden">
           {logoIgreja? <img src={logoIgreja} className="w-16 h-16 object-contain rounded" /> : <div className="w-14 h-14 bg-[#0A3D26] rounded flex items-center justify-center text-white font-bold">IPB</div>}
           <div>
             <h2 className="font-bold text-lg">{nomeIgreja}</h2>
@@ -215,45 +213,103 @@ export default function RelatoriosPage(){
 
         {aba==='cartas' && (
           <div>
-            <h3 className="font-bold text-center text-lg mb-4">Relatório de Cartas de Transferência - {cartaAberta?.igreja_origem_nome || nomeIgreja}</h3>
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4 print:hidden">
               <input value={buscaCarta} onChange={e=>setBuscaCarta(e.target.value)} placeholder="Pesquisar por nome do membro na carta..." className="border p-2 rounded flex-1 text-sm" />
               <button onClick={buscarCartaPorMembro} className="bg-[#0A3D26] text-white px-4 rounded text-sm">Buscar</button>
             </div>
-            <div className="space-y-2 mb-6 max-h-64 overflow-auto">
+            <div className="space-y-2 mb-6 max-h-64 overflow-auto print:hidden">
               {cartas.map(c=><div key={c.id} onClick={()=>abrirCarta(c.id)} className="border p-3 rounded hover:bg-gray-50 cursor-pointer flex justify-between text-sm"><div><b>{c.igreja_destino}</b> - {new Date(c.data_emissao).toLocaleDateString('pt-BR')}</div><span className="text-xs bg-black text-white px-2 py-1 rounded">Abrir</span></div>)}
             </div>
+
             {cartaAberta && (
-              <div id="detalhe-carta" className="border-2 border-[#0A3D26] rounded-xl p-6 bg-gray-50">
-                {/* CABEÇALHO DINÂMICO DA CARTA */}
-                <div className="flex gap-3 items-center mb-4 border-b pb-3">
-                  { (cartaAberta.igreja_logo_url || logoIgreja) && <img src={cartaAberta.igreja_logo_url || logoIgreja} className="w-14 h-14 object-contain" />}
-                  <div>
-                    <h4 className="font-bold">{cartaAberta.igreja_origem_nome || nomeIgreja}</h4>
-                    <p className="text-[11px] text-gray-600">{cartaAberta.igreja_cnpj || cnpjIgreja} - {cartaAberta.igreja_endereco || enderecoIgreja}</p>
-                    <p className="text-[11px] text-gray-600">Pastor: {cartaAberta.pastor_origem_nome || igreja?.pastor_nome || '---'} - {cartaAberta.pastor_origem_cargo || 'Pastor'}</p>
+              <div id="detalhe-carta" className="bg-white p-8 md:p-10 max-w-[780px] mx-auto text-black leading-normal">
+                {/* CABEÇALHO 100% DINÂMICO - IGUAL FOTO */}
+                <div className="flex flex-col items-center text-center">
+                  <div className="flex items-start justify-center gap-3">
+                    {(cartaAberta.igreja_logo_url || cartaAberta.igreja_logo || logoIgreja) && (
+                      <img src={cartaAberta.igreja_logo_url || cartaAberta.igreja_logo || logoIgreja} className="w-16 h-20 object-contain mt-1" alt="logo" />
+                    )}
+                    <div className="text-center">
+                      <h1 className="font-bold text-[20px] leading-[20px] text-[#0A3D26] uppercase">
+                        {cartaAberta.igreja_origem_nome || nomeIgreja}
+                      </h1>
+                      <p className="text-[11px] mt-1">Organizada em {cartaAberta.data_organizacao? new Date(cartaAberta.data_organizacao).toLocaleDateString('pt-BR') : '20 de Janeiro de 1959'}</p>
+                      <p className="text-[10px] font-semibold">Sínodo Central de Pernambuco / Presbitério Centro de Pernambuco</p>
+                      <p className="text-[10px]">{cartaAberta.igreja_endereco || enderecoIgreja}</p>
+                      <p className="text-[10px]">CNPJ: {cartaAberta.igreja_cnpj || cnpjIgreja}</p>
+                      <p className="text-[10px]">E-mail: {cartaAberta.igreja_email || igreja?.email || ''}</p>
+                      <p className="text-[11px] font-bold mt-1">Pastor Efetivo: {cartaAberta.pastor_origem_nome || igreja?.pastor_nome || ''}</p>
+                    </div>
+                    <div className="w-16 h-20 hidden md:block"></div>
                   </div>
                 </div>
 
-                <h4 className="font-bold text-lg">Carta para: {cartaAberta.igreja_destino}</h4>
-                <p className="text-xs text-gray-600">Emitida em: {new Date(cartaAberta.data_emissao).toLocaleDateString('pt-BR')} às {new Date(cartaAberta.data_emissao).toLocaleTimeString('pt-BR')} - Forma: {cartaAberta.forma_transferencia || cartaAberta.forma_transferencia_individual}</p>
-                <ol className="list-decimal ml-6 mt-4 text-sm space-y-2 bg-white p-4 rounded border">
-                  {membrosCarta.length===0 && <li className="text-red-500">Nenhum membro vinculado - verifique cartas_membros no Supabase</li>}
-                  {membrosCarta.map((m,i)=><li key={i}><b>{m.nome_completo}</b> - {m.tipo_membro}<br/><i className="text-xs">{m.forma_transferencia_individual}</i></li>)}
-                </ol>
-                <div className="mt-10 grid grid-cols-2 gap-10 text-sm text-center">
-                  <div className="border-t pt-2">
-                    <b>{cartaAberta.pastor_origem_nome || igreja?.pastor_nome || 'Pastor'}</b>
-                    <div className="text-xs">{cartaAberta.pastor_origem_cargo || 'Pastor'}</div>
+                <div className="text-right text-[13px] mt-10">
+                  {cartaAberta.igreja_cidade || igreja?.cidade || 'Jaboatão dos Guararapes'}, {new Date(cartaAberta.data_emissao).toLocaleDateString('pt-BR', {day:'2-digit', month:'long', year:'numeric'})}.
+                </div>
+
+                <div className="mt-8 text-[13px]">
+                  <p>À</p>
+                  <p className="font-bold uppercase">{cartaAberta.igreja_destino}</p>
+                </div>
+
+                <div className="text-center my-6 text-[13px] italic">
+                  Oh! Como é bom e agradável viverem unidos os irmãos!<br/>(Salmos 133.1)
+                </div>
+
+                <div className="text-[13px] leading-[22px] text-justify">
+                  <p><b>Assunto:</b> Resposta à solicitação de transferência de membros</p>
+                  <br/>
+                  <p>Amados irmãos, Graça e Paz em Cristo Jesus!</p>
+                  <br/>
+                  <p className="indent-8">
+                    O Conselho da {cartaAberta.igreja_origem_nome || nomeIgreja}, reunido em {new Date(cartaAberta.data_emissao).toLocaleDateString('pt-BR')} (Ata nº {cartaAberta.ata_numero || '___'}), resolveu expedir Carta de Transferência, em atendimento ao pedido recebido do egrégio Conselho dos irmãos: {' '}
+                    {membrosCarta.map((m,i)=>{
+                      const isNao = (m.tipo_membro||'').toLowerCase().includes('nao') || (m.tipo_membro||'').toLowerCase().includes('não')
+                      const art = isNao? ' (Artigo 24, alínea "a" da CI/IPB)' : ' (Artigo 23, alínea "d" da CI/IPB)'
+                      const sep = i < membrosCarta.length-2? ', ' : i===membrosCarta.length-2? ' e ' : ''
+                      return <span key={m.id}><b>{m.nome_completo}</b>{art}{sep}</span>
+                    })} consequentemente baixados do rol de membros desta Igreja.
+                  </p>
+
+                  <p className="mt-6 font-bold">Segue dados dos irmãos:</p>
+
+                  <div className="mt-3 space-y-5">
+                    {membrosCarta.map(m=>(
+                      <div key={m.id} className="text-[13px] leading-5">
+                        <p className="font-bold">{m.nome_completo}</p>
+                        <p>Batismo: {m.data_batismo? new Date(m.data_batismo).toLocaleDateString('pt-BR') : '___'} {m.batismo_local? ` - ${m.batismo_local}`:''}</p>
+                        {m.data_batismo_profissao || m.data_profissao? <p>Pública Profissão de Fé: {new Date(m.data_batismo_profissao || m.data_profissao).toLocaleDateString('pt-BR')}</p> : null}
+                        <p>Oficiante: {m.oficiante_batismo || m.oficiante || cartaAberta.pastor_origem_nome || '___'}</p>
+                        {(m.data_profissao || m.data_batismo_profissao) && <p>Oficiante Profissão: {m.oficiante_profissao || cartaAberta.pastor_origem_nome || '___'}</p>}
+                      </div>
+                    ))}
                   </div>
-                  <div className="border-t pt-2">Secretário</div>
+
+                  <p className="mt-8 indent-8">
+                    Sendo somente o que se nos apresenta para o momento, firmamo-nos no amor de Cristo, o Senhor da Igreja.
+                  </p>
+                  <p className="mt-4">Pelos laços da cruz,</p>
+                </div>
+
+                <div className="mt-20 grid grid-cols-2 gap-8 text-[11px] leading-4">
+                  <div className="text-left">
+                    <p className="font-bold border-t border-black pt-1 inline-block">{cartaAberta.pastor_origem_nome || igreja?.pastor_nome}</p>
+                    <p>Pres. do Conselho da {cartaAberta.igreja_origem_nome || nomeIgreja}</p>
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold border-t border-black pt-1 inline-block">
+                      {igreja?.secretario_nome || 'Secretário do Conselho'}
+                    </p>
+                    <p>Sec. do Conselho da {cartaAberta.igreja_origem_nome || nomeIgreja}</p>
+                  </div>
                 </div>
               </div>
             )}
           </div>
         )}
       </div>
-      <style>{`@media print { button{display:none} }`}</style>
+      <style>{`@media print {.print\\:hidden{display:none} button{display:none} body{background:white} #print{border:none;box-shadow:none;padding:0} }`}</style>
     </div>
   )
 }
