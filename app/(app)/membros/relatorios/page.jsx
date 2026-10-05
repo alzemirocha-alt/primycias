@@ -65,6 +65,36 @@ function isDemitido(m){
   const s = `${m.status||''} ${m.status_membro||''} ${m.situacao||''}`.toLowerCase()
   return s.includes('demitido') || s.includes('exclu') || s.includes('falec')
 }
+// HELPERS MOVIMENTAÇÃO
+function parseData(d){ if(!d) return null; const s=String(d).split('T')[0]; return new Date(s+'T12:00:00') }
+function inPeriodo(dataStr, ini, fim){ const dt=parseData(dataStr); if(!dt) return false; return dt>=ini && dt<=fim }
+function ativoEm(dataLimite, m){
+  const adm=parseData(m.data_admissao); const dem=parseData(m.data_demissao||m.data_exclusao)
+  if(!adm) return false
+  if(adm>dataLimite) return false
+  if(dem && dem<=dataLimite) return false
+  return true
+}
+function classificarAdmissao(m){
+  const f=`${m.forma_admissao||''} ${m.forma_de_admissao||''}`.toLowerCase()
+  if(f.includes('profiss') && f.includes('batis')) return 'Profissão de Fé e Batismo'
+  if(f.includes('profiss')) return 'Profissão de Fé'
+  if(f.includes('transfer')) return 'Transferência'
+  if(f.includes('jurisdic')) return 'Jurisdição'
+  if(f.includes('restaur')) return 'Restauração'
+  if(f.includes('designac')||f.includes('presbiterio')||f.includes('presbitério')) return 'Designação do Presbitério'
+  if(f.includes('batis')||f.includes('nasc')) return 'Batismo'
+  return 'Transferência'
+}
+function classificarDemissao(m){
+  const f=`${m.forma_demissao||''} ${m.motivo_demissao||''}`.toLowerCase()
+  if(f.includes('transfer')) return 'Transferência'
+  if(f.includes('falec')) return 'Falecimento'
+  if(f.includes('exclu')||f.includes('disciplina')) return 'Exclusão'
+  if(f.includes('ordenac')) return 'Ordenação'
+  if(f.includes('jurisdic')) return 'Jurisdição ex-officio'
+  return 'Transferência'
+}
 
 export default function RelatoriosPage(){
   const [aba, setAba] = useState('ativos')
@@ -82,6 +112,9 @@ export default function RelatoriosPage(){
   const [membroBatismo, setMembroBatismo] = useState(null)
   const [cartaAberta, setCartaAberta] = useState(null)
   const [membrosCarta, setMembrosCarta] = useState([])
+  const [mesIni, setMesIni] = useState('2026-01')
+  const [mesFim, setMesFim] = useState('2026-12')
+  const [modalMov, setModalMov] = useState(null)
   const refCarta = useRef(null)
 
   async function carregar(){
@@ -108,17 +141,13 @@ export default function RelatoriosPage(){
       }
     }
     setIgreja(dadosIgreja)
-
     let lista = []
     try{
       let res = await fetch('/api/relatorios/membros', { cache: 'no-store' })
-      if(!res.ok){
-        res = await fetch('/api/membros', { cache: 'no-store' })
-      }
+      if(!res.ok){ res = await fetch('/api/membros', { cache: 'no-store' }) }
       const json = await res.json()
       if(Array.isArray(json)) lista = json
     }catch(e){ console.log('api relatorio erro', e) }
-
     if(lista.length===0){
       const { data: m } = await supabase.from('vw_relatorio_membros').select('*').limit(5000).order('nome_completo')
       if(m && m.length>0) lista = m
@@ -221,13 +250,10 @@ export default function RelatoriosPage(){
     return f
   }
   function filtrarDemitidos(){ return membros.filter(m=> isDemitido(m)) }
-
-  // MODIFICADO: AGORA ABRE FICHA COMPLETA
   function abrirFichaDemitido(m){
     try{ localStorage.setItem('fromDemitidos','1') }catch{}
     window.location.href = `/membros/${m.id}`
   }
-
   function imprimirCartaLimpa(){
     document.body.classList.add('imprimindo-carta')
     setTimeout(()=>{ window.print(); setTimeout(()=> document.body.classList.remove('imprimindo-carta'), 500) },100)
@@ -235,6 +261,23 @@ export default function RelatoriosPage(){
   function imprimirRelatorio(){
     document.body.classList.add('imprimindo-relatorio')
     setTimeout(()=>{ window.print(); setTimeout(()=> document.body.classList.remove('imprimindo-relatorio'), 500) },100)
+  }
+
+  // CALCULO PERIODO - PADRÃO JAN/2026 A DEZ/2026
+  const ini = parseData(mesIni+'-01')
+  const fim = (()=>{ const [a,m]=mesFim.split('-'); const last=new Date(parseInt(a),parseInt(m),0); return new Date(last.getFullYear(), last.getMonth(), last.getDate(), 12,0,0) })()
+  const fimAnoAnterior = new Date(ini); fimAnoAnterior.setDate(0); fimAnoAnterior.setHours(12,0,0,0)
+  const comungantesAnoAnterior = membros.filter(m=>!isNaoComungante(m) && ativoEm(fimAnoAnterior, m))
+  const naoAnoAnterior = membros.filter(m=> isNaoComungante(m) && ativoEm(fimAnoAnterior, m))
+  const admNoPeriodo = membros.filter(m=> inPeriodo(m.data_admissao, ini, fim))
+  const demNoPeriodo = membros.filter(m=> inPeriodo(m.data_demissao, ini, fim))
+
+  function contar(lista, cat, isAdm){
+    let f=lista
+    if(cat) f=f.filter(m=> (isAdm?classificarAdmissao(m):classificarDemissao(m))===cat)
+    const masc=f.filter(m=> (m.sexo||'').toLowerCase().startsWith('m')).length
+    const fem=f.filter(m=> (m.sexo||'').toLowerCase().startsWith('f')).length
+    return {lista:f, masc, fem, total:f.length}
   }
 
   const stats = {
@@ -245,7 +288,6 @@ export default function RelatoriosPage(){
     profissao: membros.filter(m=> m.data_profissao_fe).length,
     admitidos: membros.filter(m=> (m.status_membro||m.status||'').toLowerCase()==='ativo').length,
     demitidos: membros.filter(m=> (m.status_membro||m.status||'').toLowerCase().includes('demitido')).length,
-    transferidos: membros.filter(m=> (m.status_membro||'').toLowerCase().includes('demitido')).length
   }
 
   useEffect(()=>{ carregar() },[])
@@ -374,7 +416,99 @@ export default function RelatoriosPage(){
             </div>
           )}
           {aba==='movimentacao' && (
-            <div><h3 className="font-bold text-center text-lg mb-6">Relatório de Movimentação - {nomeIgreja}</h3><div className="grid grid-cols-3 gap-4 text-sm"><div className="border p-4 rounded"><b>Por Sexo</b><div>Masc: {stats.masc}</div><div>Fem: {stats.fem}</div></div><div className="border p-4 rounded"><b>Movimentações</b><div>Batizados: {stats.batizados}</div><div>Profissão Fé: {stats.profissao}</div><div>Admitidos: {stats.admitidos}</div><div>Demitidos: {stats.demitidos}</div></div><div className="border p-4 rounded"><b>Total</b><div className="text-2xl font-bold">{stats.total}</div></div></div></div>
+            <div>
+              <div className="flex flex-wrap justify-between gap-4 mb-6 no-print">
+                <div>
+                  <h3 className="font-bold text-[20px] text-[#0A3D26]">MOVIMENTAÇÃO DE MEMBROS</h3>
+                  <p className="text-xs text-gray-600">Padrão: Janeiro/2026 a Dezembro/2026 • Saldo Inicial = Fechamento de {formatarDataBR(fimAnoAnterior)} (31/12/2025)</p>
+                  <p className="text-xs">Período: <b>{formatarDataLongaBR(ini)} a {formatarDataLongaBR(fim)}</b></p>
+                </div>
+                <div className="flex gap-2 items-end bg-yellow-50 border p-3 rounded-xl">
+                  <div><label className="text-[10px] font-bold block">MÊS INICIAL</label><input type="month" value={mesIni} onChange={e=>setMesIni(e.target.value)} className="border p-2 rounded text-sm" /></div>
+                  <div><label className="text-[10px] font-bold block">MÊS FINAL</label><input type="month" value={mesFim} onChange={e=>setMesFim(e.target.value)} className="border p-2 rounded text-sm" /></div>
+                  <div className="text-[10px] text-gray-500 ml-2">Nunca inferior a 1 mês completo</div>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="border rounded-xl overflow-hidden">
+                  <div className="bg-[#0A3D26] text-white px-4 py-2 font-bold text-sm">COMUNGANTES</div>
+                  <div className="p-3">
+                    <p className="font-bold text-xs mb-2">A D M I S S Ã O</p>
+                    <table className="w-full text-xs">
+                      <thead><tr className="text-[11px] text-gray-500"><th className="text-left"></th><th>MASC.</th><th>FEM.</th><th className="bg-gray-200">TOTAL</th></tr></thead>
+                      <tbody>
+                        {['Profissão de Fé','Profissão de Fé e Batismo','Transferência','Jurisdição','Restauração','Designação do Presbitério'].map(cat=>{
+                          const {masc,fem,total,lista}=contar(admNoPeriodo.filter(m=>!isNaoComungante(m)), cat, true)
+                          return <tr key={cat} className="border-b"><td className="py-1">{cat}:</td><td className="text-center"><button onClick={()=>total>0&&setModalMov({titulo:cat, lista})} className="bg-yellow-100 border px-2 rounded font-bold hover:bg-yellow-200">{masc}</button></td><td className="text-center"><button onClick={()=>total>0&&setModalMov({titulo:cat, lista})} className="bg-yellow-100 border px-2 rounded font-bold hover:bg-yellow-200">{fem}</button></td><td className="text-center bg-gray-100"><button onClick={()=>total>0&&setModalMov({titulo:cat, lista})} className="bg-gray-300 px-2 rounded font-bold">{total}</button></td></tr>
+                        })}
+                      </tbody>
+                    </table>
+                    <p className="font-bold text-xs mt-4 mb-2">D E M I S S Ã O</p>
+                    <table className="w-full text-xs">
+                      <tbody>
+                        {['Transferência','Falecimento','Exclusão','Ordenação'].map(cat=>{
+                          const {masc,fem,total,lista}=contar(demNoPeriodo.filter(m=>!isNaoComungante(m)), cat, false)
+                          return <tr key={cat} className="border-b"><td className="py-1">{cat}:</td><td className="text-center"><button onClick={()=>total>0&&setModalMov({titulo:cat+' - Demissão', lista})} className="bg-yellow-100 border px-2 rounded font-bold">{masc}</button></td><td className="text-center"><button onClick={()=>total>0&&setModalMov({titulo:cat+' - Demissão', lista})} className="bg-yellow-100 border px-2 rounded font-bold">{fem}</button></td><td className="text-center bg-gray-100"><button onClick={()=>total>0&&setModalMov({titulo:cat+' - Demissão', lista})} className="bg-gray-300 px-2 rounded font-bold">{total}</button></td></tr>
+                        })}
+                      </tbody>
+                    </table>
+                    <div className="bg-gray-50 mt-4 p-2 rounded text-xs space-y-1">
+                      <div className="flex justify-between"><span>Diferença (Adm - Dem):</span><span className="bg-green-200 px-2 rounded font-bold">{contar(admNoPeriodo.filter(m=>!isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>!isNaoComungante(m))).total}</span></div>
+                      <div className="flex justify-between"><span>Comungantes Ano Anterior (31/12/2025):</span><span className="bg-gray-300 px-2 rounded">{comungantesAnoAnterior.length}</span></div>
+                      <div className="flex justify-between"><span>Comungantes Ano Atual:</span><span className="bg-yellow-300 px-2 rounded font-bold">{comungantesAnoAnterior.length + contar(admNoPeriodo.filter(m=>!isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>!isNaoComungante(m))).total}</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border rounded-xl overflow-hidden">
+                  <div className="bg-yellow-100 px-4 py-2 font-bold text-sm">NÃO-COMUNGANTES</div>
+                  <div className="p-3">
+                    <p className="font-bold text-xs mb-2">A D M I S S Ã O</p>
+                    <table className="w-full text-xs">
+                      <thead><tr className="text-[11px] text-gray-500"><th className="text-left"></th><th>MASC.</th><th>FEM.</th><th className="bg-gray-200">TOTAL</th></tr></thead>
+                      <tbody>
+                        {['Batismo','Transferência','Jurisdição'].map(cat=>{
+                          const {masc,fem,total,lista}=contar(admNoPeriodo.filter(m=>isNaoComungante(m)), cat, true)
+                          return <tr key={cat} className="border-b"><td className="py-1">{cat}:</td><td className="text-center"><button onClick={()=>total>0&&setModalMov({titulo:cat+' - Não-Comungantes', lista})} className="bg-yellow-100 border px-2 rounded font-bold">{masc}</button></td><td className="text-center"><button onClick={()=>total>0&&setModalMov({titulo:cat+' - Não-Comungantes', lista})} className="bg-yellow-100 border px-2 rounded font-bold">{fem}</button></td><td className="text-center bg-gray-100"><button onClick={()=>total>0&&setModalMov({titulo:cat+' - Não-Comungantes', lista})} className="bg-gray-300 px-2 rounded font-bold">{total}</button></td></tr>
+                        })}
+                      </tbody>
+                    </table>
+                    <p className="font-bold text-xs mt-4 mb-2">D E M I S S Ã O</p>
+                    <table className="w-full text-xs">
+                      <tbody>
+                        {['Profissão de Fé','Transferência','Falecimento','Exclusão'].map(cat=>{
+                          const {masc,fem,total,lista}=contar(demNoPeriodo.filter(m=>isNaoComungante(m)), cat, false)
+                          return <tr key={cat} className="border-b"><td className="py-1">{cat}:</td><td className="text-center"><button onClick={()=>total>0&&setModalMov({titulo:cat+' - Dem Não-Comungantes', lista})} className="bg-yellow-100 border px-2 rounded font-bold">{masc}</button></td><td className="text-center"><button onClick={()=>total>0&&setModalMov({titulo:cat+' - Dem Não-Comungantes', lista})} className="bg-yellow-100 border px-2 rounded font-bold">{fem}</button></td><td className="text-center bg-gray-100"><button onClick={()=>total>0&&setModalMov({titulo:cat+' - Dem Não-Comungantes', lista})} className="bg-gray-300 px-2 rounded font-bold">{total}</button></td></tr>
+                        })}
+                      </tbody>
+                    </table>
+                    <div className="bg-gray-50 mt-4 p-2 rounded text-xs space-y-1">
+                      <div className="flex justify-between"><span>Diferença (Adm - Dem):</span><span className="bg-green-200 px-2 rounded font-bold">{contar(admNoPeriodo.filter(m=>isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>isNaoComungante(m))).total}</span></div>
+                      <div className="flex justify-between"><span>Não-Comungantes Ano Anterior:</span><span className="bg-gray-300 px-2 rounded">{naoAnoAnterior.length}</span></div>
+                      <div className="flex justify-between"><span>Não-Comungantes Ano Atual:</span><span className="bg-yellow-300 px-2 rounded font-bold">{naoAnoAnterior.length + contar(admNoPeriodo.filter(m=>isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>isNaoComungante(m))).total}</span></div>
+                      <div className="flex justify-between font-bold border-t pt-1"><span>ROL ATUAL TOTAL:</span><span className="bg-[#0A3D26] text-white px-2 rounded">{(comungantesAnoAnterior.length + contar(admNoPeriodo.filter(m=>!isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>!isNaoComungante(m))).total) + (naoAnoAnterior.length + contar(admNoPeriodo.filter(m=>isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>isNaoComungante(m))).total)}</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {modalMov && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
+                  <div className="bg-white w-full max-w-md h-full overflow-auto p-4">
+                    <div className="flex justify-between border-b pb-2 mb-3"><h3 className="font-bold text-sm">{modalMov.titulo} - {modalMov.lista.length} membros</h3><button onClick={()=>setModalMov(null)} className="border px-2 rounded">✕</button></div>
+                    <div className="space-y-2">
+                      {modalMov.lista.map(m=>(
+                        <div key={m.id} className="border rounded p-2 text-xs cursor-pointer hover:bg-gray-50" onClick={()=>abrirFichaDemitido(m)}>
+                          <div className="font-bold">{m.nome_completo} - {formatarCPF(m.cpf)}</div>
+                          <div className="text-[11px] text-gray-600">{formatarCategoriaExibicao(m)} • {formatarOficioTabela(m)} • {formatarDataBR(m.data_admissao)} • {m.forma_admissao||classificarAdmissao(m)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           {aba==='batismo' && (
             <div><h3 className="font-bold text-center text-lg mb-4">Certificado de Batismo - {nomeIgreja}</h3><div className="mb-4 no-print"><input value={buscaBatismo} onChange={e=>buscarBatismo(e.target.value)} placeholder="Pesquisar membro..." className="border p-3 rounded-lg w-full" />{resultBatismo.length>0 && <div className="border rounded mt-2 max-h-40 overflow-auto">{resultBatismo.map(r=><div key={r.id} onClick={()=>{setMembroBatismo(r); setResultBatismo([]); setBuscaBatismo(r.nome_completo)}} className="p-2 hover:bg-gray-100 cursor-pointer text-sm">{r.nome_completo} - {r.data_batismo?formatarDataBR(r.data_batismo):'s/ batismo'}</div>)}</div>}</div>{membroBatismo && (<div className="text-center py-10 px-8 border-2 border-double"><h2 className="font-bold">{nomeIgreja}</h2><h2 className="text-xl font-bold mt-4">CERTIFICADO DE BATISMO</h2><p className="mt-8 text-sm leading-7">Certificamos que <b>{membroBatismo.nome_completo}</b>, filho(a) de {membroBatismo.filiacao_pai||'---'} e {membroBatismo.filiacao_mae||'---'}, foi batizado(a) em <b>{membroBatismo.data_batismo?formatarDataBR(membroBatismo.data_batismo):'__/__/____'}</b> {membroBatismo.local_batismo? ` em ${membroBatismo.local_batismo}`:''}.</p><p className="mt-4 text-sm">Pastor Celebrante: {membroBatismo.pastor_batismo || igreja?.pastor_nome || '____________________'}</p><div className="mt-20 grid grid-cols-2 gap-10 text-sm"><div className="border-t pt-2">{igreja?.secretario_nome||'Secretário'}</div><div className="border-t pt-2">{igreja?.pastor_nome||'Pastor'}</div></div></div>)}</div>
@@ -455,8 +589,8 @@ export default function RelatoriosPage(){
       <style>{`
         @media print {
           body { background: white!important; }
-   .no-print { display: none!important; }
-   .print\\:block { display: block!important; }
+  .no-print { display: none!important; }
+  .print\\:block { display: block!important; }
           body.imprimindo-carta * { visibility: hidden!important; }
           body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
           body.imprimindo-carta #detalhe-carta { position: absolute!important; left:0!important; top:0!important; width:100%!important; max-width:100%!important; margin:0!important; padding:0!important; border:none!important; box-shadow:none!important; background:white!important; }
