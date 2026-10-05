@@ -18,7 +18,6 @@ function formatarDataLongaBR(dataStr){
   const meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
   return `${d} de ${meses[parseInt(m)-1]} de ${a}`
 }
-// NOVO - FORMATADORES PEDIDOS
 function formatarCPF(cpf){
   if(!cpf) return '---'
   const d = cpf.replace(/\D/g,'')
@@ -44,7 +43,6 @@ function formatarOficioTabela(m){
   if(low.includes('comungante')) return '---'
   return of
 }
-
 function formatarOficio(f){
   let of = (f.oficial_tipo || '').trim()
   if(of && of!== 'null' && of!== ''){
@@ -84,6 +82,8 @@ export default function RelatoriosPage(){
   const [membroBatismo, setMembroBatismo] = useState(null)
   const [cartaAberta, setCartaAberta] = useState(null)
   const [membrosCarta, setMembrosCarta] = useState([])
+  const [fichaDemitido, setFichaDemitido] = useState(null)
+  const [historicoDemitido, setHistoricoDemitido] = useState([])
   const refCarta = useRef(null)
 
   async function carregar(){
@@ -224,6 +224,18 @@ export default function RelatoriosPage(){
   }
   function filtrarDemitidos(){ return membros.filter(m=> isDemitido(m)) }
 
+  async function abrirFichaDemitido(m){
+    setFichaDemitido(m)
+    const { data } = await supabase.from('membros_historico').select('*').eq('membro_id', m.id).order('data_evento',{ascending:true})
+    setHistoricoDemitido(data||[])
+  }
+  async function handleReadmitir(id){
+    if(!confirm('Readmitir este membro? Vai gravar histórico com forma e pastor: Admissão, Demissão, Readmissão.')) return
+    const res = await fetch('/api/membros/readmitir',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, forma_admissao:'Readmissão'})})
+    if(res.ok){ alert('Membro readmitido! Histórico gravado.'); setFichaDemitido(null); carregar() }
+    else { const j=await res.json(); alert('Erro: '+(j.error||'falha')) }
+  }
+
   function imprimirCartaLimpa(){
     document.body.classList.add('imprimindo-carta')
     setTimeout(()=>{ window.print(); setTimeout(()=> document.body.classList.remove('imprimindo-carta'), 500) },100)
@@ -339,7 +351,67 @@ export default function RelatoriosPage(){
             </div>
           )}
           {aba==='demitidos' && (
-            <div><h3 className="font-bold text-center text-lg mb-4">Relação de Membros Demitidos - {nomeIgreja}</h3><table className="w-full text-xs border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2">Ofício</th><th className="border p-2">Data Demissão</th><th className="border p-2">Motivo</th></tr></thead><tbody>{filtrarDemitidos().map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2 text-center">{formatarCPF(m.cpf)}</td><td className="border p-2 text-center">{formatarOficioTabela(m)}</td><td className="border p-2 text-center">{m.data_demissao?formatarDataBR(m.data_demissao):'---'}</td><td className="border p-2">{m.motivo_demissao||m.forma_demissao||'---'}</td></tr>)}</tbody></table></div>
+            <div>
+              <h3 className="font-bold text-center text-lg mb-4">Relação de Membros Demitidos - {nomeIgreja} ({filtrarDemitidos().length})</h3>
+              <table className="w-full text-xs border">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="border p-2 text-left">Nome</th>
+                    <th className="border p-2">CPF</th>
+                    <th className="border p-2 bg-yellow-50">Categoria</th>
+                    <th className="border p-2">Ofício</th>
+                    <th className="border p-2">Data Demissão</th>
+                    <th className="border p-2">Forma Demissão</th>
+                    <th className="border p-2">Ver</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtrarDemitidos().map(m=>(
+                    <tr key={m.id}>
+                      <td className="border p-2">{m.nome_completo}</td>
+                      <td className="border p-2 text-center">{formatarCPF(m.cpf)}</td>
+                      <td className="border p-2 text-center bg-yellow-50/30">{formatarCategoriaExibicao(m)}</td>
+                      <td className="border p-2 text-center">{formatarOficioTabela(m)}</td>
+                      <td className="border p-2 text-center">{m.data_demissao?formatarDataBR(m.data_demissao):'---'}</td>
+                      <td className="border p-2 text-center">{m.forma_demissao||m.motivo_demissao||'---'}</td>
+                      <td className="border p-2 text-center"><button onClick={()=>abrirFichaDemitido(m)} className="border px-2 py-1 rounded bg-white hover:bg-gray-50">👁️</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {fichaDemitido && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-auto p-6">
+                    <div className="flex justify-between border-b pb-3 mb-4"><h2 className="font-bold">Ficha - {fichaDemitido.nome_completo}</h2><button onClick={()=>setFichaDemitido(null)} className="border px-3 py-1 rounded text-sm">✕</button></div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <p><b>CPF:</b> {formatarCPF(fichaDemitido.cpf)}</p>
+                      <p><b>Categoria:</b> {formatarCategoriaExibicao(fichaDemitido)}</p>
+                      <p><b>Ofício:</b> {formatarOficioTabela(fichaDemitido)}</p>
+                      <p><b>Admissão:</b> {formatarDataBR(fichaDemitido.data_admissao)} - {fichaDemitido.forma_admissao||'---'}</p>
+                      <p><b>Pastor Adm:</b> {fichaDemitido.pastor_batismo||fichaDemitido.pastor_profissao_fe||'---'}</p>
+                      <p><b>Demissão:</b> {formatarDataBR(fichaDemitido.data_demissao)} - {fichaDemitido.forma_demissao||'---'}</p>
+                      <p><b>Pastor Dem:</b> {fichaDemitido.pastor_demissao||'---'}</p>
+                    </div>
+                    <div className="mt-6 border-t pt-4">
+                      <h3 className="font-bold text-sm mb-2">📜 Histórico de Admissões e Demissões (Forma + Pastor)</h3>
+                      <div className="space-y-2">
+                        {historicoDemitido.map(h=>(
+                          <div key={h.id} className="border rounded p-2 text-xs bg-gray-50">
+                            <div className="flex gap-2 font-bold flex-wrap"><span>{formatarDataBR(h.data_evento)}</span><span className={`px-2 rounded text-[10px] ${h.tipo==='demissao'?'bg-red-200 text-red-800': h.tipo==='readmissao'?'bg-blue-200 text-blue-800':'bg-green-200 text-green-800'}`}>{h.tipo.toUpperCase()}</span><span>{h.forma||'---'}</span></div>
+                            <div className="text-[11px] text-gray-600 mt-1">{h.pastor_nome&&`Pastor: ${h.pastor_nome} | `}{h.local_evento&&`Local: ${h.local_evento} | `}{h.observacao}</div>
+                          </div>
+                        ))}
+                        {historicoDemitido.length===0 && <p className="text-xs text-gray-500">Sem histórico ainda. Ao readmitir vai gerar: Admissão 20/01/2020, Demissão 15/03/2022, Readmissão 05/10/2026 com forma e pastores.</p>}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-6">
+                      <button onClick={()=>setFichaDemitido(null)} className="flex-1 border py-2 rounded font-bold text-sm">← Voltar para Demitidos</button>
+                      <button onClick={()=>handleReadmitir(fichaDemitido.id)} className="flex-1 bg-[#0A3D26] text-white py-2 rounded font-bold text-sm">🔄 Readmitir Membro</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           {aba==='movimentacao' && (
             <div><h3 className="font-bold text-center text-lg mb-6">Relatório de Movimentação - {nomeIgreja}</h3><div className="grid grid-cols-3 gap-4 text-sm"><div className="border p-4 rounded"><b>Por Sexo</b><div>Masc: {stats.masc}</div><div>Fem: {stats.fem}</div></div><div className="border p-4 rounded"><b>Movimentações</b><div>Batizados: {stats.batizados}</div><div>Profissão Fé: {stats.profissao}</div><div>Admitidos: {stats.admitidos}</div><div>Demitidos: {stats.demitidos}</div></div><div className="border p-4 rounded"><b>Total</b><div className="text-2xl font-bold">{stats.total}</div></div></div></div>
@@ -423,8 +495,8 @@ export default function RelatoriosPage(){
       <style>{`
         @media print {
           body { background: white!important; }
-     .no-print { display: none!important; }
-     .print\\:block { display: block!important; }
+    .no-print { display: none!important; }
+    .print\\:block { display: block!important; }
           body.imprimindo-carta * { visibility: hidden!important; }
           body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
           body.imprimindo-carta #detalhe-carta { position: absolute!important; left:0!important; top:0!important; width:100%!important; max-width:100%!important; margin:0!important; padding:0!important; border:none!important; box-shadow:none!important; background:white!important; }
