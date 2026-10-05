@@ -1,8 +1,5 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 
 function formatarDataBR(d){
   if(!d) return '---'
@@ -130,14 +127,13 @@ export function OficialToggle() {
   )
 }
 
-// ==================== NOVO: HISTÓRICO + AÇÕES DEMITIDOS ====================
+// ==================== HISTÓRICO + AÇÕES DEMITIDOS - AGORA SEGURO ====================
 
 export function AcoesFichaDemitido({ membroId, statusAtual }) {
   const [loading, setLoading] = useState(false)
   const isDemitido = (statusAtual||'').toLowerCase().includes('demitido') || (statusAtual||'').toLowerCase().includes('inativo')
 
   const handleVoltar = () => {
-    // se veio do relatório de demitidos, volta pra ele
     if(document.referrer.includes('relatorios')) {
       window.history.back()
     } else {
@@ -183,8 +179,14 @@ export function HistoricoMembro({ membroId, ficha }) {
 
   useEffect(()=>{
     if(!membroId) return
-    supabase.from('membros_historico').select('*').eq('membro_id', membroId).order('data_evento', {ascending:true})
-     .then(({data})=>{ setHistorico(data||[]); setLoading(false) })
+    // AGORA SEGURO: busca pela API que usa service_role
+    fetch(`/api/historico?membro_id=${membroId}`)
+     .then(r => r.json())
+     .then(data => {
+        setHistorico(Array.isArray(data)? data : [])
+        setLoading(false)
+      })
+     .catch(()=> setLoading(false))
   },[membroId])
 
   if(!membroId) return null
