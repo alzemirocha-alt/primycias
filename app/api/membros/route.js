@@ -21,23 +21,21 @@ export async function POST(req) {
     // 1. GARANTE NUMERAÇÃO CRESCENTE E ÚNICA
     let numero_rol = body.numero_rol? parseInt(body.numero_rol) : null
 
-    // Se não informou número, pega o maior + 1
     if (!numero_rol) {
       const { data: maxData } = await supabaseAdmin
-       .from('membros_oficial')
-       .select('numero_rol')
-       .order('numero_rol', { ascending: false })
-       .limit(1)
-       .single()
+      .from('membros_oficial')
+      .select('numero_rol')
+      .order('numero_rol', { ascending: false })
+      .limit(1)
+      .single()
 
       numero_rol = (maxData?.numero_rol || 0) + 1
     } else {
-      // Se informou, verifica se já existe (nunca pode repetir, mesmo demitido)
       const { data: existe } = await supabaseAdmin
-       .from('membros_oficial')
-       .select('id')
-       .eq('numero_rol', numero_rol)
-       .maybeSingle()
+      .from('membros_oficial')
+      .select('id')
+      .eq('numero_rol', numero_rol)
+      .maybeSingle()
 
       if (existe) {
         return NextResponse.json({ error: `Número ${numero_rol} já existe e não pode repetir! Use outro.` }, { status: 400 })
@@ -48,21 +46,19 @@ export async function POST(req) {
     let conjuge_membro_id = null
     if (body.cpf_conjuge) {
       const cpfLimpo = body.cpf_conjuge.replace(/\D/g, '')
-      // busca por CPF com ou sem máscara
       const { data: conjuge } = await supabaseAdmin
-       .from('membros_oficial')
-       .select('id')
-       .or(`cpf.eq.${body.cpf_conjuge},cpf.eq.${cpfLimpo}`)
-       .maybeSingle()
+      .from('membros_oficial')
+      .select('id')
+      .or(`cpf.eq.${body.cpf_conjuge},cpf.eq.${cpfLimpo}`)
+      .maybeSingle()
 
       if (conjuge) conjuge_membro_id = conjuge.id
     } else if (body.nome_conjuge) {
-      // se não tem CPF, tenta pelo nome exato
       const { data: conjugeNome } = await supabaseAdmin
-       .from('membros_oficial')
-       .select('id')
-       .ilike('nome_completo', body.nome_conjuge.trim())
-       .maybeSingle()
+      .from('membros_oficial')
+      .select('id')
+      .ilike('nome_completo', body.nome_conjuge.trim())
+      .maybeSingle()
       if (conjugeNome) conjuge_membro_id = conjugeNome.id
     }
 
@@ -106,28 +102,53 @@ export async function POST(req) {
     }
 
     const { data, error } = await supabaseAdmin
-     .from('membros_oficial')
-     .insert([insertData])
-     .select()
-     .single()
+    .from('membros_oficial')
+    .insert([insertData])
+    .select()
+    .single()
 
     if (error) {
       console.error(error)
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    // 3. SE VINCULOU CÔNJUGE, VINCULA O OUTRO LADO TAMBÉM (mão dupla)
     if (conjuge_membro_id && data.id) {
       await supabaseAdmin
-       .from('membros_oficial')
-       .update({ conjuge_membro_id: data.id })
-       .eq('id', conjuge_membro_id)
+      .from('membros_oficial')
+      .update({ conjuge_membro_id: data.id })
+      .eq('id', conjuge_membro_id)
     }
 
     return NextResponse.json(data)
 
   } catch (e) {
     console.error(e)
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}
+
+// NOVO - APENAS PARA RELATÓRIOS CARREGAREM AUTOMÁTICO (fura o RLS)
+export async function GET() {
+  try {
+    const user = await getSessionUser()
+    if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
+
+    const funcaoPresb = (user.funcao_presbitero || '').toLowerCase()
+    const isSecretario = funcaoPresb.includes('secretario')
+    if (!isAdmin(user) &&!isSecretario) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
+    }
+
+    const { data, error } = await supabaseAdmin
+     .from('membros_oficial')
+     .select('id, nome_completo, cpf, categoria_membro, categoria, tipo_membro, oficial_tipo, oficio, status, status_membro, situacao, data_admissao, data_batismo, data_profissao_fe, sexo, data_demissao, motivo_demissao, forma_demissao')
+     .order('nome_completo')
+     .limit(5000)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json(data)
+
+  } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }
