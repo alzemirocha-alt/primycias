@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { PrintButton, FotoUpload, OficialToggle } from './FichaClient'
+import { PrintButton, FotoUpload, OficialToggle, AcoesFichaDemitido, HistoricoMembro } from './FichaClient'
 
 export const dynamic = 'force-dynamic'
 const LOGO_URL = "https://ebqvtoqpoxaklhheaeve.supabase.co/storage/v1/object/public/logos/Code_Generated_Image.png"
@@ -81,6 +81,7 @@ async function updateMembro(formData) {
       data_demissao: formData.get('data_demissao') || null,
       forma_demissao: formData.get('forma_demissao') || null,
       motivo_demissao: formData.get('motivo_demissao') || null,
+      pastor_demissao: formData.get('pastor_demissao') || null,
       categoria_membro: categoria,
       tipo_membro: categoria,
       oficial_tipo: formData.get('oficial_tipo') || null,
@@ -107,8 +108,25 @@ async function updateMembro(formData) {
         data_demissao: dados.data_demissao,
         forma_demissao: dados.forma_demissao,
         motivo_demissao: dados.motivo_demissao,
+        pastor_demissao: dados.pastor_demissao,
       }).eq('id', id)
     }
+
+    // Grava histórico automaticamente quando demitir
+    if(statusValue === 'demitido' && dados.data_demissao){
+      try {
+        await supabase.from('membros_historico').insert({
+          membro_id: id,
+          tipo: 'demissao',
+          data_evento: dados.data_demissao,
+          forma: dados.forma_demissao,
+          pastor_nome: dados.pastor_demissao,
+          observacao: dados.motivo_demissao,
+          snapshot: dados
+        })
+      } catch(e){ console.log('historico demissao erro', e.message) }
+    }
+
     await supabase.from('membros').update({ status: statusValue, situacao: statusValue }).eq('id', id)
   } catch (e) {
     console.error("updateMembro erro:", e)
@@ -120,6 +138,7 @@ async function updateMembro(formData) {
   revalidatePath(`/v/${id}`)
   redirect(`/membros/${id}`)
 }
+
 export default async function Page({ params }) {
   try {
     const { id } = await params
@@ -194,7 +213,8 @@ export default async function Page({ params }) {
                 <h3 className="font-bold text-red-700 text-sm mb-3">Dados de Demissão / Inativação</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <label className="flex flex-col text-sm">Data da Demissão/Inativação<input name="data_demissao" type="date" defaultValue={m.data_demissao} className="border p-2 rounded mt-1" /></label>
-                  <label className="flex flex-col text-sm">Forma de Demissão
+                  <label className="flex flex-col text-sm">Pastor da Demissão<input name="pastor_demissao" defaultValue={m.pastor_demissao || pastorDaIgreja || ""} className="border p-2 rounded mt-1" placeholder="Rev. ..." /></label>
+                  <label className="col-span-2 flex flex-col text-sm">Forma de Demissão
                     <select id="forma_demissao" name="forma_demissao" defaultValue={m.forma_demissao} className="border p-2 rounded mt-1">
                       <option value="">Selecione...</option>
                       <optgroup label="COMUNGANTES - Art. 23 CI/IPB">
@@ -243,6 +263,11 @@ export default async function Page({ params }) {
                 <label id="campo-data-instalacao" className="flex flex-col text-sm">Data Instalação<input name="data_instalacao" type="date" defaultValue={m.data_instalacao} className="border p-2 rounded mt-1" /></label>
               </div>
             </div>
+
+            {/* === BOTÕES + HISTÓRICO NOVO === */}
+            <AcoesFichaDemitido membroId={m.id} statusAtual={m.status || m.status_membro} />
+            <HistoricoMembro membroId={m.id} ficha={m} />
+
             <button id="btn-salvar" type="submit" className="no-print w-full py-3 bg-[#0F3A1F] text-white rounded font-semibold mt-8">Salvar Alteracoes</button>
           </form>
           <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja? " - Pastor: " + pastorDaIgreja : ""}</div>
