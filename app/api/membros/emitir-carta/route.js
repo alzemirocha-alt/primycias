@@ -10,7 +10,6 @@ export async function POST(req) {
   const { selecionado, familiaIds, igrejaDestino, forma, ataNumero, dataReuniao } = body
 
   function getFormaIndividual(membro, formaComungante){
-    // CORREÇÃO: USA COLUNAS REAIS - oficial_tipo, tipo_membro, categoria_membro
     const tipo = (membro.tipo_membro || membro.categoria_membro || '').toLowerCase()
     const isNao = tipo.includes('nao') || tipo.includes('não')
     if(isNao) return 'Transferência a pedido dos Pais ou Responsáveis e, na falta destes, a Juízo do Conselho - Art. 19, parágrafo único CI/IPB'
@@ -18,24 +17,28 @@ export async function POST(req) {
   }
 
   try {
-    // 1. Cria a carta - AGORA COM ATA E DATA DA REUNIÃO
+    // BUSCA DADOS DINÂMICOS ANTES - CORREÇÃO DO SECRETÁRIO
+    const { data: dadosIgreja } = await supabase
+  .from('vw_igreja_completa')
+  .select('*')
+  .eq('igreja_id', selecionado.igreja_id)
+  .single()
+
+    // 1. Cria a carta - AGORA JÁ COM IGREJA ORIGEM, PASTOR E SECRETARIO
     const { data: carta, error: errCarta } = await supabase.from('cartas_transferencia').insert({
       igreja_id: selecionado.igreja_id,
       igreja_destino: igrejaDestino,
       forma_transferencia: forma,
       ata_numero: ataNumero,
       data_reuniao_conselho: dataReuniao,
-      data_emissao: new Date().toISOString().split('T')[0]
+      data_emissao: new Date().toISOString().split('T')[0],
+      // NOVO: GRAVA TAMBÉM PARA O RELATÓRIO NÃO DEPENDER DA VIEW
+      igreja_origem: dadosIgreja?.igreja_nome,
+      pastor_nome_completo: dadosIgreja?.pastor_nome_completo,
+      secretario_nome_completo: dadosIgreja?.secretario_nome_completo
     }).select().single()
 
     if(errCarta) throw errCarta
-
-    // 1.1 - Busca dados dinâmicos da igreja/pastor pela view
-    const { data: dadosIgreja } = await supabase
-   .from('vw_igreja_completa')
-   .select('*')
-   .eq('igreja_id', selecionado.igreja_id)
-   .single()
 
     // 2. Busca todos os membros COM TODAS AS COLUNAS DA FICHA
     const ids = [selecionado.id,...(familiaIds||[])].filter(Boolean)
@@ -47,23 +50,20 @@ export async function POST(req) {
       lista = ids.map(id => map.get(String(id)) || (String(id)===String(selecionado.id)? selecionado : null)).filter(Boolean)
     }
 
-    // 3. Insere cada um e demite - CORRIGIDO PARA SALVAR TODA A FICHA
+    // 3. Insere cada um e demite - SALVANDO TODA A FICHA
     for(const mem of lista){
       const formaInd = getFormaIndividual(mem, forma)
       const tipoLower = (mem.tipo_membro || mem.categoria_membro || '').toLowerCase()
       const isNao = tipoLower.includes('nao') || tipoLower.includes('não')
       const formaDemissao =!isNao
-     ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
+    ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
         : 'Carta dos Pais/Resp. a juízo do Conselho - Art. 24, alínea "a"'
 
-      // CORREÇÃO PRINCIPAL: SALVA TODOS OS DADOS DA FICHA NA CARTA
-      // Assim mesmo se o membro for demitido, a carta ainda tem batismo, local, pastor, oficial_tipo
       await supabase.from('cartas_membros').insert({
         carta_id: carta.id,
         membro_id: mem.id,
         nome_completo: mem.nome_completo,
         tipo_membro: mem.tipo_membro || mem.categoria_membro,
-        // NOVOS CAMPOS QUE FALTAVAM - ESSA É A CORREÇÃO DO ___
         oficial_tipo: mem.oficial_tipo,
         categoria_membro: mem.categoria_membro,
         data_batismo: mem.data_batismo,
@@ -82,6 +82,7 @@ export async function POST(req) {
         status_membro: 'demitido',
         data_demissao: carta.data_emissao,
         forma_demissao: formaDemissao,
+        motivo_demissao: `Transferido para ${igrejaDestino}`,
         data_transferencia: carta.data_emissao
       }).eq('id', mem.id)
     }
@@ -92,10 +93,12 @@ export async function POST(req) {
       cartaId: carta.id,
       igrejaOrigem: dadosIgreja?.igreja_nome,
       pastorOrigem: dadosIgreja?.pastor_nome_completo,
-      pastorCargo: dadosIgreja?.pastor_cargo,
-      secretarioNome: dadosIgreja?.secretario_nome_completo
+      pastorCargo: dadosIgreja?.pastor_cargo || 'Pastor Titular',
+      secretarioNome: dadosIgreja?.secretario_nome_completo,
+      cidade: dadosIgreja?.cidade
     })
   } catch(e){
+    console.error(e)
     return Response.json({ error: e.message }, { status: 400 })
   }
 }
