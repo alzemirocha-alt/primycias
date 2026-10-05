@@ -92,7 +92,6 @@ export function OficialToggle() {
     const inputs = form.querySelectorAll('input, select, textarea')
     const fotoBtns = document.querySelectorAll('[data-foto-action]')
 
-    // FIX: não usar disabled=true porque impede o envio do FormData
     if (editando) {
       if (btnSalvar) btnSalvar.style.display = 'block'
       form.classList.remove('modo-visualizar')
@@ -100,32 +99,31 @@ export function OficialToggle() {
         if (el.type!== 'hidden') {
           el.disabled = false
           el.readOnly = false
+          el.style.pointerEvents = 'auto' // FIX: libera sexo e todos os selects
         }
       })
       fotoBtns.forEach((b) => { b.style.display = '' })
     } else {
       if (btnSalvar) btnSalvar.style.display = 'none'
       form.classList.add('modo-visualizar')
-      // Mantém bloqueado visualmente via CSS, mas sem disabled para não quebrar outras coisas
       inputs.forEach((el) => {
-        if (el.type!== 'hidden') {
-          el.disabled = false
+        if (el.type === 'hidden') return
+        el.disabled = false
+        if (el.tagName === 'SELECT') {
+          el.style.pointerEvents = 'none'
+        } else {
           el.readOnly = true
+          el.style.pointerEvents = 'none'
         }
-      })
-      // selects precisam continuar disabled visualmente mas vamos liberar no submit
-      form.querySelectorAll('select').forEach((el) => {
-        el.style.pointerEvents = 'none'
       })
       fotoBtns.forEach((b) => { b.style.display = 'none' })
     }
 
-    // FIX: Garante que no momento do submit tudo vai habilitado
     const onSubmit = () => {
       inputs.forEach((el) => {
         el.disabled = false
         el.readOnly = false
-        el.style.pointerEvents = ''
+        el.style.pointerEvents = 'auto'
       })
     }
     form.addEventListener('submit', onSubmit)
@@ -154,8 +152,6 @@ export function OficialToggle() {
     </button>
   )
 }
-
-// ==================== HISTÓRICO + AÇÕES DEMITIDOS - AGORA SEGURO ====================
 
 export function AcoesFichaDemitido({ membroId, statusAtual }) {
   const [loading, setLoading] = useState(false)
@@ -207,14 +203,13 @@ export function HistoricoMembro({ membroId, ficha }) {
 
   useEffect(()=>{
     if(!membroId) return
-    // AGORA SEGURO: busca pela API que usa service_role
     fetch(`/api/historico?membro_id=${membroId}`)
-    .then(r => r.json())
-    .then(data => {
+   .then(r => r.json())
+   .then(data => {
         setHistorico(Array.isArray(data)? data : [])
         setLoading(false)
       })
-    .catch(()=> setLoading(false))
+   .catch(()=> setLoading(false))
   },[membroId])
 
   if(!membroId) return null
