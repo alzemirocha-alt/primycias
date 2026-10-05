@@ -61,6 +61,7 @@ export default function RelatoriosPage(){
 
   async function carregar(){
     setLoading(true)
+    // CABEÇALHO - ORIGINAL RESTAURADO COM FALLBACK
     let dadosIgreja = null
     const { data: viewIgreja } = await supabase.from('vw_igreja_completa').select('*').limit(1).maybeSingle()
     if(viewIgreja){
@@ -69,20 +70,37 @@ export default function RelatoriosPage(){
         endereco: viewIgreja.igreja_endereco, cnpj: viewIgreja.igreja_cnpj,
         logo_url: viewIgreja.igreja_logo_url || viewIgreja.logo_url,
         cidade: viewIgreja.cidade, pastor_nome: viewIgreja.pastor_nome_completo,
-        secretario_nome: viewIgreja.secretario_nome_completo
+        secretario_nome: viewIgreja.secretario_nome_completo, pastor_cargo: 'Pastor Efetivo',
+        email: viewIgreja.igreja_email || viewIgreja.email,
+        telefone: viewIgreja.igreja_telefone || viewIgreja.telefone,
+        logo: viewIgreja.igreja_logo_url || viewIgreja.logo_url,
+        data_organizacao: viewIgreja.data_organizacao
+      }
+    } else {
+      const tabelas = ['dados_igreja','igreja','igrejas','config_igreja','configuracoes']
+      for(let t of tabelas){
+        const { data } = await supabase.from(t).select('*').limit(1).maybeSingle()
+        if(data){ dadosIgreja = data; break }
       }
     }
     setIgreja(dadosIgreja)
 
-    // BUSCA VIA API SEGURA - CARREGA AUTOMÁTICO DA FICHA
+    // MEMBROS - CARREGA AUTOMÁTICO DA FICHA VIA API (fura RLS)
+    let lista = []
     try{
-      const res = await fetch('/api/relatorios/membros', { cache: 'no-store' })
-      const lista = await res.json()
-      setMembros(Array.isArray(lista) ? lista : [])
-    }catch(e){
-      console.log('erro api membros', e)
-      setMembros([])
+      let res = await fetch('/api/relatorios/membros', { cache: 'no-store' })
+      if(!res.ok){ // se não criou ainda, tenta /api/membros que você já tem
+        res = await fetch('/api/membros', { cache: 'no-store' })
+      }
+      const json = await res.json()
+      if(Array.isArray(json)) lista = json
+    }catch(e){ console.log('api relatorio erro', e) }
+
+    if(lista.length===0){
+      const { data: m } = await supabase.from('vw_relatorio_membros').select('*').limit(5000).order('nome_completo')
+      if(m && m.length>0) lista = m
     }
+    setMembros(lista)
     setCartas([])
     setLoading(false)
   }
@@ -166,7 +184,6 @@ export default function RelatoriosPage(){
     setTimeout(()=>{ document.getElementById('detalhe-carta')?.scrollIntoView({behavior:'smooth', block:'start'}) },100)
   }
 
-  // CORRIGIDO: carrega automático todos que não são demitidos
   function filtrarAtivos(){
     let f = membros.filter(m=>!isDemitido(m))
     if(f.length===0) f = membros
@@ -175,7 +192,6 @@ export default function RelatoriosPage(){
     if(busca) f=f.filter(m=> (m.nome_completo||'').toLowerCase().includes(busca.toLowerCase()))
     return f
   }
-  // CORRIGIDO: carrega automático só comungantes
   function filtrarComungantesParaAssembleia(){
     let f = membros.filter(m=>!isDemitido(m) &&!isNaoComungante(m))
     if(f.length===0) f = membros.filter(m=>!isNaoComungante(m))
@@ -287,7 +303,6 @@ export default function RelatoriosPage(){
                   ))}
                 </tbody>
               </table>
-              {filtrarAtivos().length===0 && <p className="text-center py-6 text-gray-500">Nenhum membro - verifique RLS da tabela membros_oficial no Supabase</p>}
             </div>
           )}
           {aba==='assembleia' && (
@@ -383,8 +398,8 @@ export default function RelatoriosPage(){
       <style>{`
         @media print {
           body { background: white!important; }
-       .no-print { display: none!important; }
-       .print\\:block { display: block!important; }
+      .no-print { display: none!important; }
+      .print\\:block { display: block!important; }
           body.imprimindo-carta * { visibility: hidden!important; }
           body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
           body.imprimindo-carta #detalhe-carta { position: absolute!important; left:0!important; top:0!important; width:100%!important; max-width:100%!important; margin:0!important; padding:0!important; border:none!important; box-shadow:none!important; background:white!important; }
