@@ -20,8 +20,14 @@ function formatarDataLongaBR(dataStr){
 }
 
 function formatarOficio(f){
-  if(f.oficial_tipo && f.oficial_tipo!== 'null' && f.oficial_tipo.trim()!== ''){
-    return f.oficial_tipo
+  let of = (f.oficial_tipo || '').trim()
+  if(of && of!== 'null' && of!== ''){
+    const low = of.toLowerCase()
+    if(low.includes('presb')) return 'Presbítero'
+    if(low.includes('diac') || low.includes('diác')) return 'Diácono'
+    if(low.includes('pastor')) return 'Pastor'
+    // Garante Primeira Maiúscula
+    return of.charAt(0).toUpperCase() + of.slice(1).toLowerCase()
   }
   const tipo = (f.tipo_membro || f.categoria_membro || '').toLowerCase()
   if(tipo.includes('nao') || tipo.includes('não')) return 'Não Comungante'
@@ -138,12 +144,18 @@ export default function RelatoriosPage(){
           tipo_membro: v.tipo_membro || f.tipo_membro,
           categoria_membro: v.categoria_membro || f.categoria_membro,
           oficial: formatarOficio({ oficial_tipo: v.oficial_tipo || f.oficial_tipo, tipo_membro: v.tipo_membro || f.tipo_membro, categoria_membro: v.categoria_membro || f.categoria_membro }),
+          // ADMISSÃO
+          data_admissao: v.data_admissao || f.data_admissao,
+          forma_admissao: v.forma_admissao || f.forma_admissao || f.forma_de_admissao,
+          // BATISMO
           data_batismo: v.data_batismo || f.data_batismo,
           local_batismo: v.local_batismo || f.local_batismo,
           pastor_batismo: v.pastor_batismo || f.pastor_batismo,
+          // PROFISSÃO
           data_profissao_fe: v.data_profissao_fe || f.data_profissao_fe,
           local_profissao_fe: v.local_profissao_fe || f.local_profissao_fe,
           pastor_profissao_fe: v.pastor_profissao_fe || f.pastor_profissao_fe,
+          // ORDENAÇÃO
           data_ordenacao: v.data_ordenacao || f.data_ordenacao,
         }
       })
@@ -160,10 +172,12 @@ export default function RelatoriosPage(){
       membrosComDados = (vinculos||[]).map(v=>({
         id: v.membro_id,
         nome_completo: v.nome_completo,
-        oficial: v.oficial_tipo || v.tipo_membro || v.oficio || '',
+        oficial: formatarOficio(v),
         oficial_tipo: v.oficial_tipo,
         tipo_membro: v.tipo_membro,
         categoria_membro: v.categoria_membro,
+        data_admissao: v.data_admissao,
+        forma_admissao: v.forma_admissao,
         data_batismo: v.data_batismo,
         local_batismo: v.local_batismo,
         pastor_batismo: v.pastor_batismo,
@@ -373,23 +387,32 @@ export default function RelatoriosPage(){
 
                   <p className="mt-6 font-bold">Segue dados dos irmãos:</p>
 
-                  <div className="mt-3 space-y-5">
+                  <div className="mt-3 space-y-6">
                     {membrosCarta.map(m=>{
                       const isNaoComungante = (m.oficial||'').toLowerCase().includes('nao') || (m.oficial||'').toLowerCase().includes('não')
+                      const isOficial = m.oficial_tipo && m.oficial_tipo.trim()!== ''
                       return (
                       <div key={m.id} className="text-[13px] leading-5">
                         <p className="font-bold">{m.nome_completo} - {m.oficial}</p>
-                        <p>Data do Batismo: {m.data_batismo? formatarDataBR(m.data_batismo) : '___'}</p>
-                        <p>Local Batismo: {m.local_batismo || '___'}</p>
-                        <p>Pastor Batismo: {m.pastor_batismo || '___'}</p>
+                        <div className="mt-1">
+                          <p>Data de Admissão: {m.data_admissao? formatarDataBR(m.data_admissao) : '___'}</p>
+                          <p>Forma de Admissão: {m.forma_admissao || '___'}</p>
+                          <p className="mt-2">Data do Batismo: {m.data_batismo? formatarDataBR(m.data_batismo) : '___'}</p>
+                          <p>Local Batismo: {m.local_batismo || '___'}</p>
+                          <p>Pastor Batismo: {m.pastor_batismo || '___'}</p>
 
-                        {!isNaoComungante && (
-                          <>
-                            <p className="mt-1">Data Prof. Fé: {m.data_profissao_fe? formatarDataBR(m.data_profissao_fe) : '___'}</p>
-                            <p>Local Prof. Fé: {m.local_profissao_fe || '___'}</p>
-                            <p>Pastor Prof. Fé: {m.pastor_profissao_fe || '___'}</p>
-                          </>
-                        )}
+                          {!isNaoComungante && (
+                            <>
+                              <p className="mt-2">Data Prof. Fé: {m.data_profissao_fe? formatarDataBR(m.data_profissao_fe) : '___'}</p>
+                              <p>Local Prof. Fé: {m.local_profissao_fe || '___'}</p>
+                              <p>Pastor Prof. Fé: {m.pastor_profissao_fe || '___'}</p>
+                            </>
+                          )}
+
+                          {isOficial && (
+                            <p className="mt-2">Data de Ordenação: {m.data_ordenacao? formatarDataBR(m.data_ordenacao) : '___'}</p>
+                          )}
+                        </div>
                       </div>
                       )
                     })}
