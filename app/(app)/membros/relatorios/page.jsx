@@ -18,6 +18,33 @@ function formatarDataLongaBR(dataStr){
   const meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
   return `${d} de ${meses[parseInt(m)-1]} de ${a}`
 }
+// NOVO - FORMATADORES PEDIDOS
+function formatarCPF(cpf){
+  if(!cpf) return '---'
+  const d = cpf.replace(/\D/g,'')
+  if(d.length!==11) return cpf || '---'
+  return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+}
+function formatarCategoriaExibicao(m){
+  const raw = (m.categoria_membro || m.categoria || m.tipo_membro || '').toLowerCase()
+  if(!raw) return '---'
+  if(raw.includes('comungante_oficial') || raw==='comungante oficial' || (raw.includes('comungante') && raw.includes('oficial'))) return 'Comungante Oficial'
+  if(raw.includes('nao_comungante') || raw.includes('não comungante') || raw.includes('nao comungante')) return 'Não Comungante'
+  if(raw.includes('nao') || raw.includes('não')) return 'Não Comungante'
+  if(raw.includes('comungante')) return 'Comungante'
+  return raw.charAt(0).toUpperCase()+raw.slice(1)
+}
+function formatarOficioTabela(m){
+  const of = (m.oficial_tipo || m.oficial || '').toString().trim()
+  if(!of || of.toLowerCase()==='null' || of==='') return '---'
+  const low = of.toLowerCase()
+  if(low.includes('presb')) return 'Presbítero'
+  if(low.includes('diac') || low.includes('diác')) return 'Diácono'
+  if(low.includes('pastor')) return 'Pastor'
+  if(low.includes('comungante')) return '---'
+  return of
+}
+
 function formatarOficio(f){
   let of = (f.oficial_tipo || '').trim()
   if(of && of!== 'null' && of!== ''){
@@ -61,7 +88,6 @@ export default function RelatoriosPage(){
 
   async function carregar(){
     setLoading(true)
-    // CABEÇALHO - ORIGINAL RESTAURADO COM FALLBACK
     let dadosIgreja = null
     const { data: viewIgreja } = await supabase.from('vw_igreja_completa').select('*').limit(1).maybeSingle()
     if(viewIgreja){
@@ -85,11 +111,10 @@ export default function RelatoriosPage(){
     }
     setIgreja(dadosIgreja)
 
-    // MEMBROS - CARREGA AUTOMÁTICO DA FICHA VIA API (fura RLS)
     let lista = []
     try{
       let res = await fetch('/api/relatorios/membros', { cache: 'no-store' })
-      if(!res.ok){ // se não criou ainda, tenta /api/membros que você já tem
+      if(!res.ok){
         res = await fetch('/api/membros', { cache: 'no-store' })
       }
       const json = await res.json()
@@ -293,12 +318,12 @@ export default function RelatoriosPage(){
                   {filtrarAtivos().map(m=>(
                     <tr key={m.id}>
                       <td className="border p-2">{m.nome_completo}</td>
-                      <td className="border p-2">{m.cpf||'---'}</td>
-                      <td className="border p-2 bg-yellow-50/30">{m.categoria_membro || m.categoria || m.tipo_membro || '---'}</td>
-                      <td className="border p-2">{m.oficial_tipo || m.oficial || m.tipo_membro ||'---'}</td>
-                      <td className="border p-2">{m.data_admissao?formatarDataBR(m.data_admissao):'---'}</td>
-                      <td className="border p-2">{m.data_batismo?formatarDataBR(m.data_batismo):'---'}</td>
-                      <td className="border p-2">{m.data_profissao_fe?formatarDataBR(m.data_profissao_fe):'---'}</td>
+                      <td className="border p-2 text-center">{formatarCPF(m.cpf)}</td>
+                      <td className="border p-2 bg-yellow-50/30 text-center">{formatarCategoriaExibicao(m)}</td>
+                      <td className="border p-2 text-center">{formatarOficioTabela(m)}</td>
+                      <td className="border p-2 text-center">{m.data_admissao?formatarDataBR(m.data_admissao):'---'}</td>
+                      <td className="border p-2 text-center">{m.data_batismo?formatarDataBR(m.data_batismo):'---'}</td>
+                      <td className="border p-2 text-center">{m.data_profissao_fe?formatarDataBR(m.data_profissao_fe):'---'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -310,11 +335,11 @@ export default function RelatoriosPage(){
               <div className="grid grid-cols-2 gap-4 mb-6 bg-yellow-50 p-4 rounded border no-print"><label className="text-sm">Tipo<select value={tipoAssembleia} onChange={e=>setTipoAssembleia(e.target.value)} className="w-full border p-2 rounded mt-1"><option>Assembléia Geral Ordinária</option><option>Assembléia Geral Extraordinária</option></select></label><label className="text-sm">Data<input type="date" value={dataAssembleia} onChange={e=>setDataAssembleia(e.target.value)} className="w-full border p-2 rounded mt-1" /></label></div>
               <h3 className="font-bold text-center">Relação de Membros para {tipoAssembleia}</h3>
               <p className="text-center text-sm mb-4">{nomeIgreja} - Data: {formatarDataBR(dataAssembleia)} - Comungantes: {filtrarComungantesParaAssembleia().length}</p>
-              <table className="w-full text-sm border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2 w-56">Assinatura</th></tr></thead><tbody>{filtrarComungantesParaAssembleia().map(m=><tr key={m.id} className="h-10"><td className="border p-3">{m.nome_completo}</td><td className="border p-2 text-center">{m.cpf||'---'}</td><td className="border p-2"></td></tr>)}</tbody></table>
+              <table className="w-full text-sm border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2 w-56">Assinatura</th></tr></thead><tbody>{filtrarComungantesParaAssembleia().map(m=><tr key={m.id} className="h-10"><td className="border p-3">{m.nome_completo}</td><td className="border p-2 text-center">{formatarCPF(m.cpf)}</td><td className="border p-2"></td></tr>)}</tbody></table>
             </div>
           )}
           {aba==='demitidos' && (
-            <div><h3 className="font-bold text-center text-lg mb-4">Relação de Membros Demitidos - {nomeIgreja}</h3><table className="w-full text-xs border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2">Ofício</th><th className="border p-2">Data Demissão</th><th className="border p-2">Motivo</th></tr></thead><tbody>{filtrarDemitidos().map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2">{m.oficial_tipo || m.oficial||m.tipo_membro||'---'}</td><td className="border p-2">{m.data_demissao?formatarDataBR(m.data_demissao):'---'}</td><td className="border p-2">{m.motivo_demissao||m.forma_demissao||'---'}</td></tr>)}</tbody></table></div>
+            <div><h3 className="font-bold text-center text-lg mb-4">Relação de Membros Demitidos - {nomeIgreja}</h3><table className="w-full text-xs border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2">Ofício</th><th className="border p-2">Data Demissão</th><th className="border p-2">Motivo</th></tr></thead><tbody>{filtrarDemitidos().map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2 text-center">{formatarCPF(m.cpf)}</td><td className="border p-2 text-center">{formatarOficioTabela(m)}</td><td className="border p-2 text-center">{m.data_demissao?formatarDataBR(m.data_demissao):'---'}</td><td className="border p-2">{m.motivo_demissao||m.forma_demissao||'---'}</td></tr>)}</tbody></table></div>
           )}
           {aba==='movimentacao' && (
             <div><h3 className="font-bold text-center text-lg mb-6">Relatório de Movimentação - {nomeIgreja}</h3><div className="grid grid-cols-3 gap-4 text-sm"><div className="border p-4 rounded"><b>Por Sexo</b><div>Masc: {stats.masc}</div><div>Fem: {stats.fem}</div></div><div className="border p-4 rounded"><b>Movimentações</b><div>Batizados: {stats.batizados}</div><div>Profissão Fé: {stats.profissao}</div><div>Admitidos: {stats.admitidos}</div><div>Demitidos: {stats.demitidos}</div></div><div className="border p-4 rounded"><b>Total</b><div className="text-2xl font-bold">{stats.total}</div></div></div></div>
@@ -398,8 +423,8 @@ export default function RelatoriosPage(){
       <style>{`
         @media print {
           body { background: white!important; }
-      .no-print { display: none!important; }
-      .print\\:block { display: block!important; }
+     .no-print { display: none!important; }
+     .print\\:block { display: block!important; }
           body.imprimindo-carta * { visibility: hidden!important; }
           body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
           body.imprimindo-carta #detalhe-carta { position: absolute!important; left:0!important; top:0!important; width:100%!important; max-width:100%!important; margin:0!important; padding:0!important; border:none!important; box-shadow:none!important; background:white!important; }
