@@ -20,7 +20,6 @@ function formatarDataLongaBR(dataStr){
 }
 
 function formatarOficio(f){
-  // SUA COLUNA REAL: oficial_tipo, tipo_membro, categoria_membro
   if(f.oficial_tipo && f.oficial_tipo!== 'null' && f.oficial_tipo.trim()!== ''){
     return f.oficial_tipo
   }
@@ -105,7 +104,6 @@ export default function RelatoriosPage(){
     }
     if(!c) return
 
-    // FIX SECRETÁRIO E PASTOR - PUXA DA VW_IGREJA_COMPLETA
     try{
       const igrejaIdParaBuscar = c.igreja_id || c.igreja_origem_id
       if(igrejaIdParaBuscar){
@@ -130,7 +128,6 @@ export default function RelatoriosPage(){
 
     if(ids.length>0){
       const { data: fichas } = await supabase.from('membros_oficial').select('*').in('id', ids)
-      // Usa o vínculo como fonte da verdade (já tem batismo) e completa com ficha
       const fichaMap = new Map((fichas||[]).map(f=>[String(f.id), f]))
       membrosComDados = (vinculos||[]).map(v => {
         const f = fichaMap.get(String(v.membro_id || v.membros_oficial_id)) || {}
@@ -406,12 +403,12 @@ export default function RelatoriosPage(){
 
                 <div className="mt-20 grid grid-cols-2 gap-8 text-[11px] leading-4">
                   <div className="text-left">
-                    <p className="font-bold border-t border-black pt-1 inline-block">{cartaAberta.pastor_nome_completo || igreja?.pastor_nome}</p>
+                    <p className="font-bold border-t border-black pt-1 inline-block">Rev. {cartaAberta.pastor_nome_completo || igreja?.pastor_nome}</p>
                     <p>Pres. do Conselho da {cartaAberta.igreja_nome || nomeIgreja}</p>
                   </div>
                   <div className="text-left">
                     <p className="font-bold border-t border-black pt-1 inline-block">
-                      {cartaAberta.secretario_nome_completo || igreja?.secretario_nome || cartaAberta.secretario_nome || ''}
+                      Presb. {cartaAberta.secretario_nome_completo || igreja?.secretario_nome || cartaAberta.secretario_nome || ''}
                     </p>
                     <p>Sec. do Conselho da {cartaAberta.igreja_nome || nomeIgreja}</p>
                   </div>
