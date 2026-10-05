@@ -69,31 +69,20 @@ export default function RelatoriosPage(){
         endereco: viewIgreja.igreja_endereco, cnpj: viewIgreja.igreja_cnpj,
         logo_url: viewIgreja.igreja_logo_url || viewIgreja.logo_url,
         cidade: viewIgreja.cidade, pastor_nome: viewIgreja.pastor_nome_completo,
-        secretario_nome: viewIgreja.secretario_nome_completo, pastor_cargo: 'Pastor Efetivo',
-        email: viewIgreja.igreja_email || viewIgreja.email,
-        telefone: viewIgreja.igreja_telefone || viewIgreja.telefone,
-        logo: viewIgreja.igreja_logo_url || viewIgreja.logo_url
-      }
-    } else {
-      const tabelas = ['dados_igreja','igreja','igrejas','config_igreja','configuracoes']
-      for(let t of tabelas){
-        const { data } = await supabase.from(t).select('*').limit(1).maybeSingle()
-        if(data){ dadosIgreja = data; break }
+        secretario_nome: viewIgreja.secretario_nome_completo
       }
     }
     setIgreja(dadosIgreja)
 
-    // CORREÇÃO AUTOMÁTICA: se view vazia, puxa da ficha membros_oficial
-    let lista = []
-    const { data: mView } = await supabase.from('vw_relatorio_membros').select('*').limit(5000).order('nome_completo')
-    if(mView && mView.length>0){
-      lista = mView
-    } else {
-      const { data: mOficial } = await supabase.from('membros_oficial').select('id, nome_completo, cpf, categoria_membro, categoria, tipo_membro, oficial_tipo, status, status_membro, situacao, data_admissao, data_batismo, data_profissao_fe, sexo').order('nome_completo').limit(5000)
-      lista = mOficial||[]
+    // BUSCA VIA API SEGURA - CARREGA AUTOMÁTICO DA FICHA
+    try{
+      const res = await fetch('/api/relatorios/membros', { cache: 'no-store' })
+      const lista = await res.json()
+      setMembros(Array.isArray(lista) ? lista : [])
+    }catch(e){
+      console.log('erro api membros', e)
+      setMembros([])
     }
-
-    setMembros(lista)
     setCartas([])
     setLoading(false)
   }
