@@ -1,4 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
+import "server-only";
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -7,19 +9,11 @@ import { PrintButton, FotoUpload, OficialToggle, AcoesFichaDemitido, HistoricoMe
 export const dynamic = 'force-dynamic'
 const LOGO_URL = "https://ebqvtoqpoxaklhheaeve.supabase.co/storage/v1/object/public/logos/Code_Generated_Image.png"
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url ||!key) throw new Error(`ENV faltando URL=${!!url} KEY=${!!key}`)
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
-}
-
 async function getMembro(id) {
   try {
-    const supabase = getSupabase()
-    const { data } = await supabase.from('membros_oficial').select('*').eq('id', id).single()
+    const { data } = await supabaseAdmin.from('membros_oficial').select('*').eq('id', id).single()
     if (data) return data
-    const { data: data2 } = await supabase.from('membros').select('*').eq('id', id).single()
+    const { data: data2 } = await supabaseAdmin.from('membros').select('*').eq('id', id).single()
     return data2 || null
   } catch (e) {
     console.error("getMembro erro", e)
@@ -29,12 +23,11 @@ async function getMembro(id) {
 
 async function getPastorDaIgreja() {
   try {
-    const supabase = getSupabase()
-    let { data } = await supabase.from('users').select('nome_completo, nome').eq('oficio', 'pastor').eq('status', 'ativo').limit(1).maybeSingle()
+    let { data } = await supabaseAdmin.from('users').select('nome_completo, nome').eq('oficio', 'pastor').eq('status', 'ativo').limit(1).maybeSingle()
     if (data) return data.nome_completo || data.nome
-    const r2 = await supabase.from('users').select('nome_completo, nome').ilike('cargo', '%pastor%').limit(1).maybeSingle()
+    const r2 = await supabaseAdmin.from('users').select('nome_completo, nome').ilike('cargo', '%pastor%').limit(1).maybeSingle()
     if (r2.data) return r2.data.nome_completo || r2.data.nome
-    const r3 = await supabase.from('configuracoes').select('pastor_nome').limit(1).maybeSingle()
+    const r3 = await supabaseAdmin.from('configuracoes').select('pastor_nome').limit(1).maybeSingle()
     if (r3.data?.pastor_nome) return r3.data.pastor_nome
     return null
   } catch { return null }
@@ -42,7 +35,11 @@ async function getPastorDaIgreja() {
 
 async function updateMembro(formData) {
   'use server'
-  const supabase = getSupabase()
+  const cookieStore = await cookies()
+  if (!cookieStore.has('primycias_session') && !cookieStore.has('primycias_dev_session')) {
+    throw new Error('Não autorizado')
+  }
+
   const id = formData.get('id')
   try {
     const rolRaw = formData.get('numero_rol')
@@ -98,10 +95,10 @@ async function updateMembro(formData) {
       foto_url: formData.get('foto_url') || null,
     }
 
-    const { error } = await supabase.from('membros_oficial').update(dados).eq('id', id)
+    const { error } = await supabaseAdmin.from('membros_oficial').update(dados).eq('id', id)
     if (error) {
       console.error("Erro save completo:", error.message)
-      await supabase.from('membros_oficial').update({
+      await supabaseAdmin.from('membros_oficial').update({
         status: statusValue,
         status_membro: statusValue,
         situacao: statusValue,
@@ -112,10 +109,9 @@ async function updateMembro(formData) {
       }).eq('id', id)
     }
 
-    // Grava histórico automaticamente quando demitir
     if(statusValue === 'demitido' && dados.data_demissao){
       try {
-        await supabase.from('membros_historico').insert({
+        await supabaseAdmin.from('membros_historico').insert({
           membro_id: id,
           tipo: 'demissao',
           data_evento: dados.data_demissao,
@@ -127,15 +123,12 @@ async function updateMembro(formData) {
       } catch(e){ console.log('historico demissao erro', e.message) }
     }
 
-    await supabase.from('membros').update({ status: statusValue, situacao: statusValue }).eq('id', id)
+    await supabaseAdmin.from('membros').update({ status: statusValue, situacao: statusValue }).eq('id', id)
   } catch (e) {
     console.error("updateMembro erro:", e)
   }
-   revalidatePath('/membros')
+  revalidatePath('/membros')
   revalidatePath(`/membros/${id}`)
-  revalidatePath(`/validar/${id}`)
-  revalidatePath(`/validacao/${id}`)
-  revalidatePath(`/v/${id}`)
   redirect(`/membros/${id}`)
 }
 
@@ -218,20 +211,20 @@ export default async function Page({ params }) {
                     <select id="forma_demissao" name="forma_demissao" defaultValue={m.forma_demissao} className="border p-2 rounded mt-1">
                       <option value="">Selecione...</option>
                       <optgroup label="COMUNGANTES - Art. 23 CI/IPB">
-                        <option value="Exclusão por Disciplina - Art. 23, alínea &quot;a&quot; CI/IPB">Exclusão por Disciplina - Art. 23, alínea &quot;a&quot; CI/IPB</option>
-                        <option value="Exclusão a Pedido - Art. 23, alínea &quot;b&quot; CI/IPB">Exclusão a Pedido - Art. 23, alínea &quot;b&quot; CI/IPB</option>
-                        <option value="Exclusão por Ausência - Art. 23, alínea &quot;c&quot; CI/IPB">Exclusão por Ausência - Art. 23, alínea &quot;c&quot; CI/IPB</option>
-                        <option value="Carta de Transferência - Art. 23, alínea &quot;d&quot; CI/IPB">Carta de Transferência - Art. 23, alínea &quot;d&quot; CI/IPB</option>
-                        <option value="Jurisdição assumida por outra igreja - Art. 23, alínea &quot;e&quot; CI/IPB">Jurisdição assumida por outra igreja - Art. 23, alínea &quot;e&quot; CI/IPB</option>
-                        <option value="Falecimento - Art. 23, alínea &quot;f&quot; CI/IPB">Falecimento - Art. 23, alínea &quot;f&quot; CI/IPB</option>
+                        <option value="Exclusão por Disciplina - Art. 23, alínea &quot;a&quot; CI/IPB">Exclusão por Disciplina - Art. 23, alínea "a" CI/IPB</option>
+                        <option value="Exclusão a Pedido - Art. 23, alínea &quot;b&quot; CI/IPB">Exclusão a Pedido - Art. 23, alínea "b" CI/IPB</option>
+                        <option value="Exclusão por Ausência - Art. 23, alínea &quot;c&quot; CI/IPB">Exclusão por Ausência - Art. 23, alínea "c" CI/IPB</option>
+                        <option value="Carta de Transferência - Art. 23, alínea &quot;d&quot; CI/IPB">Carta de Transferência - Art. 23, alínea "d" CI/IPB</option>
+                        <option value="Jurisdição assumida por outra igreja - Art. 23, alínea &quot;e&quot; CI/IPB">Jurisdição assumida por outra igreja - Art. 23, alínea "e" CI/IPB</option>
+                        <option value="Falecimento - Art. 23, alínea &quot;f&quot; CI/IPB">Falecimento - Art. 23, alínea "f" CI/IPB</option>
                       </optgroup>
                       <optgroup label="NÃO COMUNGANTES - Art. 24 CI/IPB">
-                        <option value="Carta de Transferência dos Pais ou Responsáveis, a juízo do Conselho - Art. 24, alínea &quot;a&quot; CI/IPB">Carta dos Pais/Resp. a juízo do Conselho - Art. 24, alínea &quot;a&quot;</option>
-                        <option value="Carta de Transferência nos termos do parágrafo único, in fine, do art. 19 - Art. 24, alínea &quot;b&quot; CI/IPB">Carta Transf. parágrafo único art.19 - Art. 24, alínea &quot;b&quot;</option>
-                        <option value="Haverem atingido a idade de dezoito anos - Art. 24, alínea &quot;c&quot; CI/IPB">Atingiu 18 anos - Art. 24, alínea &quot;c&quot;</option>
-                        <option value="Profissão de Fé - Art. 24, alínea &quot;d&quot; CI/IPB">Profissão de Fé - Art. 24, alínea &quot;d&quot;</option>
-                        <option value="Solicitação dos pais ou responsáveis que tiverem aderido a outra comunidade religiosa, a juízo do Conselho - Art. 24, alínea &quot;e&quot; CI/IPB">Solicitação dos pais outra comunidade - Art. 24, alínea &quot;e&quot;</option>
-                        <option value="Falecimento - Art. 24, alínea &quot;f&quot; CI/IPB">Falecimento - Art. 24, alínea &quot;f&quot;</option>
+                        <option value="Carta de Transferência dos Pais ou Responsáveis, a juízo do Conselho - Art. 24, alínea &quot;a&quot; CI/IPB">Carta dos Pais/Resp. a juízo do Conselho - Art. 24, alínea "a"</option>
+                        <option value="Carta de Transferência nos termos do parágrafo único, in fine, do art. 19 - Art. 24, alínea &quot;b&quot; CI/IPB">Carta Transf. parágrafo único art.19 - Art. 24, alínea "b"</option>
+                        <option value="Haverem atingido a idade de dezoito anos - Art. 24, alínea &quot;c&quot; CI/IPB">Atingiu 18 anos - Art. 24, alínea "c"</option>
+                        <option value="Profissão de Fé - Art. 24, alínea &quot;d&quot; CI/IPB">Profissão de Fé - Art. 24, alínea "d"</option>
+                        <option value="Solicitação dos pais ou responsáveis que tiverem aderido a outra comunidade religiosa, a juízo do Conselho - Art. 24, alínea &quot;e&quot; CI/IPB">Solicitação dos pais outra comunidade - Art. 24, alínea "e"</option>
+                        <option value="Falecimento - Art. 24, alínea &quot;f&quot; CI/IPB">Falecimento - Art. 24, alínea "f"</option>
                       </optgroup>
                     </select>
                   </label>
@@ -250,7 +243,7 @@ export default async function Page({ params }) {
               <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">3. Admissão e Ordenação</h2>
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex flex-col text-sm">Data Admissão<input name="data_admissao" type="date" defaultValue={m.data_admissao} className="border p-2 rounded mt-1" /></label>
-                <label className="col-span-2 flex flex-col text-sm">Forma Admissão<select id="forma_admissao" name="forma_admissao" defaultValue={m.forma_admissao} className="border p-2 rounded mt-1"><option value="">Selecione a forma</option><optgroup label="NÃO COMUNGANTES - Art. 17 CI/IPB"><option value="Batismo na Infância, de menores apresentados pelos pais ou responsáveis - Art. 17, alínea &quot;a&quot; CI/IPB">Batismo na Infância - Art. 17, alínea &quot;a&quot; CI/IPB</option><option value="Transferência dos Pais ou Responsáveis - Art. 17, alínea &quot;b&quot; CI/IPB">Transferência dos Pais ou Responsáveis - Art. 17, alínea &quot;b&quot; CI/IPB</option><option value="Jurisdição assumida sobre os pais ou responsáveis - Art. 17, alínea &quot;c&quot; CI/IPB">Jurisdição assumida sobre os pais ou responsáveis - Art. 17, alínea &quot;c&quot; CI/IPB</option></optgroup><optgroup label="COMUNGANTES - Art. 16 CI/IPB"><option value="Profissão de Fé dos que tiverem sido batizados na infância - Art. 16, alínea &quot;a&quot; CI/IPB">Profissão de Fé dos batizados na infância - Art. 16, alínea &quot;a&quot; CI/IPB</option><option value="Profissão de Fé e Batismo - Art. 16, alínea &quot;b&quot; CI/IPB">Profissão de Fé e Batismo - Art. 16, alínea &quot;b&quot; CI/IPB</option><option value="Carta de Transferência de Igreja Evangélica - Art. 16, alínea &quot;c&quot; CI/IPB">Carta de Transferência de Igreja Evangélica - Art. 16, alínea &quot;c&quot; CI/IPB</option><option value="Jurisdição a Pedido sobre os que vierem de outra comunidade evangélica - Art. 16, alínea &quot;d&quot; CI/IPB">Jurisdição a Pedido sobre os que vierem de outra comunidade evangélica - Art. 16, alínea &quot;d&quot; CI/IPB</option><option value="Jurisdição Ex officio sobre membros de comunidade presbiteriana após um ano de residência nos limites da igreja - Art. 16, alínea &quot;e&quot; CI/IPB">Jurisdição Ex officio - Art. 16, alínea &quot;e&quot; CI/IPB</option><option value="Restauração dos que tiverem sido afastados ou excluídos dos privilégios e direitos da igreja - Art. 16, alínea &quot;f&quot; CI/IPB">Restauração - Art. 16, alínea &quot;f&quot; CI/IPB</option></optgroup></select></label>
+                <label className="col-span-2 flex flex-col text-sm">Forma Admissão<select id="forma_admissao" name="forma_admissao" defaultValue={m.forma_admissao} className="border p-2 rounded mt-1"><option value="">Selecione a forma</option><optgroup label="NÃO COMUNGANTES - Art. 17 CI/IPB"><option value="Batismo na Infância, de menores apresentados pelos pais ou responsáveis - Art. 17, alínea &quot;a&quot; CI/IPB">Batismo na Infância - Art. 17, alínea "a" CI/IPB</option><option value="Transferência dos Pais ou Responsáveis - Art. 17, alínea &quot;b&quot; CI/IPB">Transferência dos Pais ou Responsáveis - Art. 17, alínea "b" CI/IPB</option><option value="Jurisdição assumida sobre os pais ou responsáveis - Art. 17, alínea &quot;c&quot; CI/IPB">Jurisdição assumida sobre os pais ou responsáveis - Art. 17, alínea "c" CI/IPB</option></optgroup><optgroup label="COMUNGANTES - Art. 16 CI/IPB"><option value="Profissão de Fé dos que tiverem sido batizados na infância - Art. 16, alínea &quot;a&quot; CI/IPB">Profissão de Fé dos batizados na infância - Art. 16, alínea "a" CI/IPB</option><option value="Profissão de Fé e Batismo - Art. 16, alínea &quot;b&quot; CI/IPB">Profissão de Fé e Batismo - Art. 16, alínea "b" CI/IPB</option><option value="Carta de Transferência de Igreja Evangélica - Art. 16, alínea &quot;c&quot; CI/IPB">Carta de Transferência de Igreja Evangélica - Art. 16, alínea "c" CI/IPB</option><option value="Jurisdição a Pedido sobre os que vierem de outra comunidade evangélica - Art. 16, alínea &quot;d&quot; CI/IPB">Jurisdição a Pedido sobre os que vierem de outra comunidade evangélica - Art. 16, alínea "d" CI/IPB</option><option value="Jurisdição Ex officio sobre membros de comunidade presbiteriana após um ano de residência nos limites da igreja - Art. 16, alínea &quot;e&quot; CI/IPB">Jurisdição Ex officio - Art. 16, alínea "e" CI/IPB</option><option value="Restauração dos que tiverem sido afastados ou excluídos dos privilégios e direitos da igreja - Art. 16, alínea &quot;f&quot; CI/IPB">Restauração - Art. 16, alínea "f" CI/IPB</option></optgroup></select></label>
                 <label className="flex flex-col text-sm">Data Batismo<input name="data_batismo" type="date" defaultValue={m.data_batismo} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Local Batismo<input name="local_batismo" defaultValue={m.local_batismo} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Pastor Batismo<input name="pastor_batismo" defaultValue={m.pastor_batismo || pastorDaIgreja || ""} className="border p-2 rounded mt-1" /></label>
@@ -264,7 +257,6 @@ export default async function Page({ params }) {
               </div>
             </div>
 
-            {/* === BOTÕES + HISTÓRICO NOVO === */}
             <AcoesFichaDemitido membroId={m.id} statusAtual={m.status || m.status_membro} />
             <HistoricoMembro membroId={m.id} ficha={m} />
 
