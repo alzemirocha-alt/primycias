@@ -1,5 +1,15 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+
+function formatarDataBR(d){
+  if(!d) return '---'
+  const s = String(d).split('T')[0].split('-')
+  if(s.length!==3) return '---'
+  return `${s[2]}/${s[1]}/${s[0]}`
+}
 
 export function PrintButton() {
   return (
@@ -77,7 +87,6 @@ export function OficialToggle() {
       }
     }
 
-    // Adiciona listeners para reagir na hora que troca o select
     selEC?.addEventListener('change', applyRules)
     selStatus?.addEventListener('change', applyRules)
     selCat?.addEventListener('change', applyRules)
@@ -118,5 +127,108 @@ export function OficialToggle() {
     <button id="btn-editar-ficha" type="button" onClick={handleToggle} className="bg-[#0F3A1F] text-white px-4 py-2 rounded text-sm">
       {editando? '❌ Cancelar' : '✏️ Editar Ficha'}
     </button>
+  )
+}
+
+// ==================== NOVO: HISTÓRICO + AÇÕES DEMITIDOS ====================
+
+export function AcoesFichaDemitido({ membroId, statusAtual }) {
+  const [loading, setLoading] = useState(false)
+  const isDemitido = (statusAtual||'').toLowerCase().includes('demitido') || (statusAtual||'').toLowerCase().includes('inativo')
+
+  const handleVoltar = () => {
+    // se veio do relatório de demitidos, volta pra ele
+    if(document.referrer.includes('relatorios')) {
+      window.history.back()
+    } else {
+      window.location.href = '/relatorios?aba=demitidos'
+    }
+  }
+
+  const handleReadmitir = async () => {
+    if(!confirm('Readmitir este membro como ativo? Vai gerar histórico automático com forma e pastor.')) return
+    setLoading(true)
+    const res = await fetch('/api/membros/readmitir', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ id: membroId, forma_admissao: 'Readmissão' })
+    })
+    const j = await res.json()
+    setLoading(false)
+    if(res.ok){
+      alert('Membro readmitido com sucesso! Histórico gravado.')
+      window.location.href = '/relatorios?aba=demitidos'
+    } else {
+      alert('Erro: '+(j.error||'falha'))
+    }
+  }
+
+  if(!isDemitido) return null
+
+  return (
+    <div className="no-print flex gap-2 mt-4">
+      <button type="button" onClick={handleVoltar} className="flex-1 border border-gray-300 bg-white px-4 py-2 rounded text-sm font-bold hover:bg-gray-50">
+        ← Voltar para Demitidos
+      </button>
+      <button type="button" onClick={handleReadmitir} disabled={loading} className="flex-1 bg-[#0A3D26] text-white px-4 py-2 rounded text-sm font-bold hover:bg-[#123f2a] disabled:opacity-50">
+        {loading? 'Readmitindo...' : '🔄 Readmitir Membro'}
+      </button>
+    </div>
+  )
+}
+
+export function HistoricoMembro({ membroId, ficha }) {
+  const [historico, setHistorico] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(()=>{
+    if(!membroId) return
+    supabase.from('membros_historico').select('*').eq('membro_id', membroId).order('data_evento', {ascending:true})
+     .then(({data})=>{ setHistorico(data||[]); setLoading(false) })
+  },[membroId])
+
+  if(!membroId) return null
+
+  return (
+    <div className="mt-10 border-t-2 border-[#0F3A1F] pt-6">
+      <h3 className="font-bold text-[#0F3A1F] text-[15px] mb-4">📜 Histórico de Admissões e Demissões na Igreja</h3>
+
+      {loading? <p className="text-xs text-gray-500">Carregando histórico...</p> : (
+        <div className="space-y-2">
+          {historico.length===0 && ficha?.data_admissao && (
+            <div className="border rounded p-3 text-xs bg-green-50">
+              <div className="flex gap-2 font-bold"><span>{formatarDataBR(ficha.data_admissao)}</span><span className="bg-green-200 px-2 rounded text-[10px]">ADMISSÃO</span><span>{ficha.forma_admissao || ficha.forma_de_admissao || '---'}</span></div>
+              <div className="text-[11px] text-gray-600 mt-1">
+                {ficha.local_batismo && `Local: ${ficha.local_batismo} | `}
+                {ficha.pastor_batismo && `Pastor: ${ficha.pastor_batismo}`}
+              </div>
+            </div>
+          )}
+          {historico.length===0 && ficha?.data_demissao && (
+            <div className="border rounded p-3 text-xs bg-red-50">
+              <div className="flex gap-2 font-bold"><span>{formatarDataBR(ficha.data_demissao)}</span><span className="bg-red-200 px-2 rounded text-[10px]">DEMISSÃO</span><span>{ficha.forma_demissao || '---'}</span></div>
+              <div className="text-[11px] text-gray-600 mt-1">{ficha.pastor_demissao && `Pastor: ${ficha.pastor_demissao}`}</div>
+            </div>
+          )}
+          {historico.map(h=>(
+            <div key={h.id} className="border rounded p-3 text-xs bg-white shadow-sm">
+              <div className="flex gap-2 items-center flex-wrap">
+                <span className="font-bold text-[13px]">{formatarDataBR(h.data_evento)}</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${h.tipo==='demissao'?'bg-red-200 text-red-800': h.tipo==='readmissao'?'bg-blue-200 text-blue-800':'bg-green-200 text-green-800'}`}>
+                  {h.tipo.toUpperCase()}
+                </span>
+                <span className="font-semibold">{h.forma || '---'}</span>
+              </div>
+              <div className="text-[11px] text-gray-600 mt-1 leading-4">
+                {h.local_evento && <span>Local: {h.local_evento} | </span>}
+                {h.pastor_nome && <span>Pastor: {h.pastor_nome} | </span>}
+                {h.observacao && <span>{h.observacao}</span>}
+              </div>
+            </div>
+          ))}
+          {historico.length===0 &&!ficha?.data_admissao && <p className="text-xs text-gray-400 italic">O histórico será preenchido automaticamente a cada demissão/readmissão.</p>}
+        </div>
+      )}
+    </div>
   )
 }
