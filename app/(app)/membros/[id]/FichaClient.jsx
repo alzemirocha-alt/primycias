@@ -92,23 +92,51 @@ export function OficialToggle() {
     const inputs = form.querySelectorAll('input, select, textarea')
     const fotoBtns = document.querySelectorAll('[data-foto-action]')
 
+    // FIX: não usar disabled=true porque impede o envio do FormData
     if (editando) {
       if (btnSalvar) btnSalvar.style.display = 'block'
       form.classList.remove('modo-visualizar')
-      inputs.forEach((el) => { if (el.type!== 'hidden') el.disabled = false })
+      inputs.forEach((el) => {
+        if (el.type!== 'hidden') {
+          el.disabled = false
+          el.readOnly = false
+        }
+      })
       fotoBtns.forEach((b) => { b.style.display = '' })
     } else {
       if (btnSalvar) btnSalvar.style.display = 'none'
       form.classList.add('modo-visualizar')
-      inputs.forEach((el) => { if (el.type!== 'hidden') el.disabled = true })
+      // Mantém bloqueado visualmente via CSS, mas sem disabled para não quebrar outras coisas
+      inputs.forEach((el) => {
+        if (el.type!== 'hidden') {
+          el.disabled = false
+          el.readOnly = true
+        }
+      })
+      // selects precisam continuar disabled visualmente mas vamos liberar no submit
+      form.querySelectorAll('select').forEach((el) => {
+        el.style.pointerEvents = 'none'
+      })
       fotoBtns.forEach((b) => { b.style.display = 'none' })
     }
+
+    // FIX: Garante que no momento do submit tudo vai habilitado
+    const onSubmit = () => {
+      inputs.forEach((el) => {
+        el.disabled = false
+        el.readOnly = false
+        el.style.pointerEvents = ''
+      })
+    }
+    form.addEventListener('submit', onSubmit)
+
     applyRules()
 
     return () => {
       selEC?.removeEventListener('change', applyRules)
       selStatus?.removeEventListener('change', applyRules)
       selCat?.removeEventListener('change', applyRules)
+      form.removeEventListener('submit', onSubmit)
     }
   }, [editando])
 
@@ -181,12 +209,12 @@ export function HistoricoMembro({ membroId, ficha }) {
     if(!membroId) return
     // AGORA SEGURO: busca pela API que usa service_role
     fetch(`/api/historico?membro_id=${membroId}`)
-     .then(r => r.json())
-     .then(data => {
+    .then(r => r.json())
+    .then(data => {
         setHistorico(Array.isArray(data)? data : [])
         setLoading(false)
       })
-     .catch(()=> setLoading(false))
+    .catch(()=> setLoading(false))
   },[membroId])
 
   if(!membroId) return null
