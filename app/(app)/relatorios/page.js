@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabaseAdmin"
+iimport { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { getSessionUser } from "@/lib/auth"
 import FormRelatorio from "./FormRelatorio"
 
@@ -17,14 +17,24 @@ export default async function PageRelatorios(){
   .order('data_culto', { ascending: true })
   .order('created_at', { ascending: true })
 
-  // --- DEFINITIVO: BUSCA MEMBROS NO SERVIDOR COM service_role (RLS ATIVO) ---
-  // Precisa trazer TODOS (ativos e demitidos) porque Movimentação precisa dos 2
-  // E traz categoria_membro + categoria + tipo_membro pra garantir o filtro
-  const { data: membrosTodos } = await supabaseAdmin
-    .from('membros_oficial')
-    .select('id, nome_completo, cpf, categoria_membro, categoria, tipo_membro, oficial_tipo, oficial, status, status_membro, situacao, sexo, data_admissao, forma_admissao, forma_de_admissao, data_demissao, forma_demissao, motivo_demissao, data_batismo, data_profissao_fe, data_nascimento, estado_civil, data_entrada, telefone, email, filiacao_pai, filiacao_mae, local_batismo, pastor_batismo, local_profissao_fe, pastor_profissao_fe, data_ordenacao')
-    .order('nome_completo', { ascending: true })
-    .limit(5000)
+  // --- DEFINITIVO: BUSCA MEMBROS NO SERVIDOR (CORRIGE FILTRO COM RLS ATIVO) ---
+  // CORREÇÃO: select * e sem eq('ativo') pra não zerar a lista
+  let membrosAtivos = []
+  try{
+    const { data, error } = await supabaseAdmin
+      .from('membros_oficial')
+      .select('*')
+      .order('nome_completo', { ascending: true })
+      .limit(5000)
+
+    if(!error && data){
+      membrosAtivos = data
+    } else {
+      console.log('ERRO membros_oficial:', error?.message)
+    }
+  }catch(e){
+    console.log('CATCH membros_oficial', e)
+  }
 
   // --- TRAVA: DIÁCONO SÓ VÊ O QUE PARTICIPOU (EXCETO TESOUREIRO) ---
   const oficio = String(eu.oficio || eu.cargo || '').toLowerCase()
@@ -65,5 +75,5 @@ export default async function PageRelatorios(){
     }catch{}
   }
 
-  return <FormRelatorio eu={eu} registros={registros} igreja={igreja} membros={membrosTodos || []} />
+  return <FormRelatorio eu={eu} registros={registros} igreja={igreja} membros={membrosAtivos || []} />
 }
