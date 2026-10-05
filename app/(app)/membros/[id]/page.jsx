@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { cookies } from 'next/headers'
+import { getSessionUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -35,9 +35,9 @@ async function getPastorDaIgreja() {
 
 async function updateMembro(formData) {
   'use server'
-  const cookieStore = await cookies()
-  if (!cookieStore.has('primycias_session') && !cookieStore.has('primycias_dev_session')) {
-    throw new Error('Não autorizado')
+  const user = await getSessionUser()
+  if (!user) {
+    throw new Error('Não autorizado - faça login novamente')
   }
 
   const id = formData.get('id')
@@ -126,6 +126,7 @@ async function updateMembro(formData) {
     await supabaseAdmin.from('membros').update({ status: statusValue, situacao: statusValue }).eq('id', id)
   } catch (e) {
     console.error("updateMembro erro:", e)
+    throw e
   }
   revalidatePath('/membros')
   revalidatePath(`/membros/${id}`)
