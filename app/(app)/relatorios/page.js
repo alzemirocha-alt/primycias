@@ -17,13 +17,14 @@ export default async function PageRelatorios(){
   .order('data_culto', { ascending: true })
   .order('created_at', { ascending: true })
 
-  // --- NOVO: BUSCA MEMBROS NO SERVIDOR (CORRIGE FILTRO COM RLS ATIVO) ---
-  // Traz todos os ativos pra filtrar Comungante / Não Comungante / Assembleia
-  const { data: membrosAtivos } = await supabaseAdmin
+  // --- DEFINITIVO: BUSCA MEMBROS NO SERVIDOR COM service_role (RLS ATIVO) ---
+  // Precisa trazer TODOS (ativos e demitidos) porque Movimentação precisa dos 2
+  // E traz categoria_membro + categoria + tipo_membro pra garantir o filtro
+  const { data: membrosTodos } = await supabaseAdmin
     .from('membros_oficial')
-    .select('id, nome_completo, categoria_membro, status_membro, data_nascimento, sexo, estado_civil, data_entrada, telefone, email')
-    .eq('status_membro', 'ativo')
+    .select('id, nome_completo, cpf, categoria_membro, categoria, tipo_membro, oficial_tipo, oficial, status, status_membro, situacao, sexo, data_admissao, forma_admissao, forma_de_admissao, data_demissao, forma_demissao, motivo_demissao, data_batismo, data_profissao_fe, data_nascimento, estado_civil, data_entrada, telefone, email, filiacao_pai, filiacao_mae, local_batismo, pastor_batismo, local_profissao_fe, pastor_profissao_fe, data_ordenacao')
     .order('nome_completo', { ascending: true })
+    .limit(5000)
 
   // --- TRAVA: DIÁCONO SÓ VÊ O QUE PARTICIPOU (EXCETO TESOUREIRO) ---
   const oficio = String(eu.oficio || eu.cargo || '').toLowerCase()
@@ -64,5 +65,5 @@ export default async function PageRelatorios(){
     }catch{}
   }
 
-  return <FormRelatorio eu={eu} registros={registros} igreja={igreja} membros={membrosAtivos || []} />
+  return <FormRelatorio eu={eu} registros={registros} igreja={igreja} membros={membrosTodos || []} />
 }
