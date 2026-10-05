@@ -17,14 +17,26 @@ export async function POST(req) {
   }
 
   try {
-    // BUSCA DADOS DINÂMICOS ANTES - CORREÇÃO DO SECRETÁRIO
+    // BUSCA DADOS DINÂMICOS ANTES - CORREÇÃO DO SECRETÁRIO + EMAIL MULTI-IGREJA
     const { data: dadosIgreja } = await supabase
-.from('vw_igreja_completa')
-.select('*')
-.eq('igreja_id', selecionado.igreja_id)
-.single()
+     .from('vw_igreja_completa')
+     .select('*')
+     .eq('igreja_id', selecionado.igreja_id)
+     .single()
 
-    // 1. Cria a carta - AGORA JÁ COM IGREJA ORIGEM, PASTOR E SECRETARIO
+    // NOVO: Busca email/telefone direto da tabela igrejas (multi-igreja real)
+    let emailIgreja = dadosIgreja?.igreja_email || dadosIgreja?.email || null
+    let telefoneIgreja = dadosIgreja?.igreja_telefone || dadosIgreja?.telefone || null
+
+    try {
+      const { data: ig } = await supabase.from('igrejas').select('email, telefone, nome').eq('id', selecionado.igreja_id).single()
+      if(ig){
+        if(ig.email) emailIgreja = ig.email
+        if(ig.telefone) telefoneIgreja = ig.telefone
+      }
+    } catch(e){}
+
+    // 1. Cria a carta - AGORA JÁ COM IGREJA ORIGEM, PASTOR, SECRETARIO + EMAIL
     const { data: carta, error: errCarta } = await supabase.from('cartas_transferencia').insert({
       igreja_id: selecionado.igreja_id,
       igreja_destino: igrejaDestino,
@@ -34,7 +46,10 @@ export async function POST(req) {
       data_emissao: new Date().toISOString().split('T')[0],
       igreja_origem: dadosIgreja?.igreja_nome,
       pastor_nome_completo: dadosIgreja?.pastor_nome_completo,
-      secretario_nome_completo: dadosIgreja?.secretario_nome_completo
+      secretario_nome_completo: dadosIgreja?.secretario_nome_completo,
+      // MULTI-IGREJA: salva email da igreja na carta
+      igreja_email: emailIgreja,
+      igreja_telefone: telefoneIgreja
     }).select().single()
 
     if(errCarta) throw errCarta
@@ -55,7 +70,7 @@ export async function POST(req) {
       const tipoLower = (mem.tipo_membro || mem.categoria_membro || '').toLowerCase()
       const isNao = tipoLower.includes('nao') || tipoLower.includes('não')
       const formaDemissao =!isNao
-  ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
+       ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
         : 'Carta dos Pais/Resp. a juízo do Conselho - Art. 24, alínea "a"'
 
       await supabase.from('cartas_membros').insert({
@@ -65,7 +80,6 @@ export async function POST(req) {
         tipo_membro: mem.tipo_membro || mem.categoria_membro,
         oficial_tipo: mem.oficial_tipo,
         categoria_membro: mem.categoria_membro,
-        // CORREÇÃO DEFINITIVA - USA SUAS COLUNAS REAIS
         data_admissao: mem.data_admissao,
         forma_admissao: mem.forma_admissao || mem.forma_admissao_comungante || mem.forma_admissao_nao_comungante || mem.forma_de_admissao,
         local_admissao: mem.local_admissao,
@@ -98,7 +112,9 @@ export async function POST(req) {
       pastorOrigem: dadosIgreja?.pastor_nome_completo,
       pastorCargo: dadosIgreja?.pastor_cargo || 'Pastor Titular',
       secretarioNome: dadosIgreja?.secretario_nome_completo,
-      cidade: dadosIgreja?.cidade
+      cidade: dadosIgreja?.cidade,
+      igrejaEmail: emailIgreja,
+      igrejaTelefone: telefoneIgreja
     })
   } catch(e){
     console.error(e)
