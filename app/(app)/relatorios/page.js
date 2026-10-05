@@ -9,13 +9,21 @@ export default async function PageRelatorios(){
   const eu = await getSessionUser()
   if (!eu) return <div className="p-6">Faça login</div>
 
-  // CORREÇÃO: TRAZ PERIODO DO CULTO (manha/noite) JUNTO - PRA SEPARAR NO RELATÓRIO
+  // REGISTROS FINANCEIROS
   const { data: registrosAll } = await supabaseAdmin
   .from('records')
   .select('*, cultos!records_culto_id_fkey(data, periodo)')
   .eq('status', 'validado')
   .order('data_culto', { ascending: true })
   .order('created_at', { ascending: true })
+
+  // --- NOVO: BUSCA MEMBROS NO SERVIDOR (CORRIGE FILTRO COM RLS ATIVO) ---
+  // Traz todos os ativos pra filtrar Comungante / Não Comungante / Assembleia
+  const { data: membrosAtivos } = await supabaseAdmin
+    .from('membros_oficial')
+    .select('id, nome_completo, categoria_membro, status_membro, data_nascimento, sexo, estado_civil, data_entrada, telefone, email')
+    .eq('status_membro', 'ativo')
+    .order('nome_completo', { ascending: true })
 
   // --- TRAVA: DIÁCONO SÓ VÊ O QUE PARTICIPOU (EXCETO TESOUREIRO) ---
   const oficio = String(eu.oficio || eu.cargo || '').toLowerCase()
@@ -56,5 +64,5 @@ export default async function PageRelatorios(){
     }catch{}
   }
 
-  return <FormRelatorio eu={eu} registros={registros} igreja={igreja} />
+  return <FormRelatorio eu={eu} registros={registros} igreja={igreja} membros={membrosAtivos || []} />
 }
