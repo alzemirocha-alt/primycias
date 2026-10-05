@@ -9,7 +9,6 @@ export default async function PageRelatorios(){
   const eu = await getSessionUser()
   if (!eu) return <div className="p-6">Faça login</div>
 
-  // REGISTROS FINANCEIROS
   const { data: registrosAll } = await supabaseAdmin
   .from('records')
   .select('*, cultos!records_culto_id_fkey(data, periodo)')
@@ -17,26 +16,12 @@ export default async function PageRelatorios(){
   .order('data_culto', { ascending: true })
   .order('created_at', { ascending: true })
 
-  // --- DEFINITIVO: BUSCA MEMBROS NO SERVIDOR (CORRIGE FILTRO COM RLS ATIVO) ---
-  // CORREÇÃO: select * e sem eq('ativo') pra não zerar a lista
-  let membrosAtivos = []
-  try{
-    const { data, error } = await supabaseAdmin
-      .from('membros_oficial')
-      .select('*')
-      .order('nome_completo', { ascending: true })
-      .limit(5000)
+  // DEFINITIVO: usa service_role e busca na view que já funcionava antes
+  const { data: membrosAtivos } = await supabaseAdmin
+    .from('vw_relatorio_membros')
+    .select('*')
+    .limit(5000)
 
-    if(!error && data){
-      membrosAtivos = data
-    } else {
-      console.log('ERRO membros_oficial:', error?.message)
-    }
-  }catch(e){
-    console.log('CATCH membros_oficial', e)
-  }
-
-  // --- TRAVA: DIÁCONO SÓ VÊ O QUE PARTICIPOU (EXCETO TESOUREIRO) ---
   const oficio = String(eu.oficio || eu.cargo || '').toLowerCase()
   const funcao = String(eu.funcao || '').toLowerCase()
   const nomeLower = String(eu.nome || '').toLowerCase()
