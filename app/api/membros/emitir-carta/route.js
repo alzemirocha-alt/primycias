@@ -19,10 +19,10 @@ export async function POST(req) {
   try {
     // BUSCA DADOS DINÂMICOS ANTES - CORREÇÃO DO SECRETÁRIO
     const { data: dadosIgreja } = await supabase
-  .from('vw_igreja_completa')
-  .select('*')
-  .eq('igreja_id', selecionado.igreja_id)
-  .single()
+ .from('vw_igreja_completa')
+ .select('*')
+ .eq('igreja_id', selecionado.igreja_id)
+ .single()
 
     // 1. Cria a carta - AGORA JÁ COM IGREJA ORIGEM, PASTOR E SECRETARIO
     const { data: carta, error: errCarta } = await supabase.from('cartas_transferencia').insert({
@@ -32,7 +32,6 @@ export async function POST(req) {
       ata_numero: ataNumero,
       data_reuniao_conselho: dataReuniao,
       data_emissao: new Date().toISOString().split('T')[0],
-      // NOVO: GRAVA TAMBÉM PARA O RELATÓRIO NÃO DEPENDER DA VIEW
       igreja_origem: dadosIgreja?.igreja_nome,
       pastor_nome_completo: dadosIgreja?.pastor_nome_completo,
       secretario_nome_completo: dadosIgreja?.secretario_nome_completo
@@ -56,7 +55,7 @@ export async function POST(req) {
       const tipoLower = (mem.tipo_membro || mem.categoria_membro || '').toLowerCase()
       const isNao = tipoLower.includes('nao') || tipoLower.includes('não')
       const formaDemissao =!isNao
-    ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
+   ? 'Carta de Transferência - Art. 23, alínea "d" CI/IPB'
         : 'Carta dos Pais/Resp. a juízo do Conselho - Art. 24, alínea "a"'
 
       await supabase.from('cartas_membros').insert({
@@ -66,6 +65,10 @@ export async function POST(req) {
         tipo_membro: mem.tipo_membro || mem.categoria_membro,
         oficial_tipo: mem.oficial_tipo,
         categoria_membro: mem.categoria_membro,
+        // 3 LINHAS NOVAS DE ADMISSÃO
+        data_admissao: mem.data_admissao,
+        forma_admissao: mem.forma_admissao || mem.forma_de_admissao,
+        local_admissao: mem.local_admissao,
         data_batismo: mem.data_batismo,
         local_batismo: mem.local_batismo,
         pastor_batismo: mem.pastor_batismo,
