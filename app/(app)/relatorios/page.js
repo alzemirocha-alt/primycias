@@ -1,4 +1,4 @@
-iimport { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { getSessionUser } from "@/lib/auth"
 import FormRelatorio from "./FormRelatorio"
 
