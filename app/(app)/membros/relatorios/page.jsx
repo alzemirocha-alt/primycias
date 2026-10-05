@@ -57,47 +57,59 @@ function formatarOficio(f){
   if(tipo.includes('oficial')) return 'Oficial'
   return 'Comungante'
 }
+
+// CORREÇÃO - PUXA DIRETO DA FICHA
+function normaliza(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim() }
+
 function isNaoComungante(m){
-  const t = `${m.tipo_membro||''} ${m.categoria_membro||''} ${m.categoria||''} ${m.oficial_tipo||''} ${m.oficial||''}`.toLowerCase()
-  return t.includes('nao') || t.includes('não')
+  const cat = normaliza(m.categoria_membro || m.categoria || m.tipo_membro)
+  if(cat.includes('nao comungante') || cat.includes('nao-comungante')) return true
+  if(cat.includes('comungante')) return false // pega Comungante, Comungante e Oficial, Comungante Oficial
+  // fallback se categoria vazia
+  return false
 }
 function isDemitido(m){
-  const s = `${m.status||''} ${m.status_membro||''} ${m.situacao||''}`.toLowerCase()
+  const s = normaliza(`${m.status||''} ${m.status_membro||''} ${m.situacao||''}`)
   return s.includes('demitido') || s.includes('exclu') || s.includes('falec')
 }
-// HELPERS MOVIMENTAÇÃO
-function parseData(d){ if(!d) return null; const s=String(d).split('T')[0]; return new Date(s+'T12:00:00') }
+function sexoMasc(m){ const s=normaliza(m.sexo); return s.startsWith('masc') || s==='m' || s==='masculino' }
+function sexoFem(m){ const s=normaliza(m.sexo); return s.startsWith('fem') || s==='f' || s==='feminino' }
+
+function parseData(d){ if(!d) return null; const s=String(d).split('T')[0]; const dt=new Date(s+'T12:00:00'); return isNaN(dt)?null:dt }
 function inPeriodo(dataStr, ini, fim){ const dt=parseData(dataStr); if(!dt) return false; return dt>=ini && dt<=fim }
 function ativoEm(dataLimite, m){
-  const adm=parseData(m.data_admissao); const dem=parseData(m.data_demissao||m.data_exclusao)
+  const adm=parseData(m.data_admissao); const dem=parseData(m.data_demissao)
   if(!adm) return false
   if(adm>dataLimite) return false
   if(dem && dem<=dataLimite) return false
   return true
 }
 function classificarAdmissao(m){
-  const f=`${m.forma_admissao||''} ${m.forma_de_admissao||''}`.toLowerCase()
-  if(f.includes('profiss') && f.includes('batis')) return 'Profissão de Fé e Batismo'
-  if(f.includes('profiss')) return 'Profissão de Fé'
+  const f=normaliza(m.forma_admissao)
+  if(!f) return 'Transferência'
+  if(f.includes('profissao') && f.includes('batismo')) return 'Profissão de Fé e Batismo'
+  if(f.includes('profissao')) return 'Profissão de Fé'
+  if(f.includes('batismo')) return 'Batismo'
   if(f.includes('transfer')) return 'Transferência'
   if(f.includes('jurisdic')) return 'Jurisdição'
   if(f.includes('restaur')) return 'Restauração'
-  if(f.includes('designac')||f.includes('presbiterio')||f.includes('presbitério')) return 'Designação do Presbitério'
-  if(f.includes('batis')||f.includes('nasc')) return 'Batismo'
-  return 'Transferência'
+  if(f.includes('designac')) return 'Designação do Presbitério'
+  return m.forma_admissao // mantém texto original se não mapear
 }
 function classificarDemissao(m){
-  const f=`${m.forma_demissao||''} ${m.motivo_demissao||''}`.toLowerCase()
-  if(f.includes('transfer')) return 'Transferência'
+  const f=normaliza(m.forma_demissao || m.motivo_demissao)
+  if(!f) return 'Transferência'
   if(f.includes('falec')) return 'Falecimento'
-  if(f.includes('exclu')||f.includes('disciplina')) return 'Exclusão'
+  if(f.includes('transfer')) return 'Transferência'
+  if(f.includes('exclu')) return 'Exclusão'
   if(f.includes('ordenac')) return 'Ordenação'
-  if(f.includes('jurisdic')) return 'Jurisdição ex-officio'
-  return 'Transferência'
+  if(f.includes('profissao')) return 'Profissão de Fé'
+  if(f.includes('jurisdic')) return 'Jurisdição'
+  return m.forma_demissao
 }
 
 export default function RelatoriosPage(){
-  const [aba, setAba] = useState('ativos')
+  const [aba, setAba] = useState('movimentacao')
   const [membros, setMembros] = useState([])
   const [cartas, setCartas] = useState([])
   const [igreja, setIgreja] = useState(null)
@@ -263,7 +275,6 @@ export default function RelatoriosPage(){
     setTimeout(()=>{ window.print(); setTimeout(()=> document.body.classList.remove('imprimindo-relatorio'), 500) },100)
   }
 
-  // CALCULO PERIODO - PADRÃO JAN/2026 A DEZ/2026
   const ini = parseData(mesIni+'-01')
   const fim = (()=>{ const [a,m]=mesFim.split('-'); const last=new Date(parseInt(a),parseInt(m),0); return new Date(last.getFullYear(), last.getMonth(), last.getDate(), 12,0,0) })()
   const fimAnoAnterior = new Date(ini); fimAnoAnterior.setDate(0); fimAnoAnterior.setHours(12,0,0,0)
@@ -275,19 +286,9 @@ export default function RelatoriosPage(){
   function contar(lista, cat, isAdm){
     let f=lista
     if(cat) f=f.filter(m=> (isAdm?classificarAdmissao(m):classificarDemissao(m))===cat)
-    const masc=f.filter(m=> (m.sexo||'').toLowerCase().startsWith('m')).length
-    const fem=f.filter(m=> (m.sexo||'').toLowerCase().startsWith('f')).length
+    const masc=f.filter(m=> sexoMasc(m)).length
+    const fem=f.filter(m=> sexoFem(m)).length
     return {lista:f, masc, fem, total:f.length}
-  }
-
-  const stats = {
-    total: membros.length,
-    masc: membros.filter(m=> (m.sexo||'').toLowerCase().startsWith('m')).length,
-    fem: membros.filter(m=> (m.sexo||'').toLowerCase().startsWith('f')).length,
-    batizados: membros.filter(m=> m.data_batismo).length,
-    profissao: membros.filter(m=> m.data_profissao_fe).length,
-    admitidos: membros.filter(m=> (m.status_membro||m.status||'').toLowerCase()==='ativo').length,
-    demitidos: membros.filter(m=> (m.status_membro||m.status||'').toLowerCase().includes('demitido')).length,
   }
 
   useEffect(()=>{ carregar() },[])
@@ -454,7 +455,7 @@ export default function RelatoriosPage(){
                       </tbody>
                     </table>
                     <div className="bg-gray-50 mt-4 p-2 rounded text-xs space-y-1">
-                      <div className="flex justify-between"><span>Diferença (Adm - Dem):</span><span className="bg-green-200 px-2 rounded font-bold">{contar(admNoPeriodo.filter(m=>!isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>!isNaoComungante(m))).total}</span></div>
+                      <div className="flex justify-between"><span>Diferença (Adm - Dem):</span><span className="bg-green-100 px-2 rounded font-bold">{contar(admNoPeriodo.filter(m=>!isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>!isNaoComungante(m))).total}</span></div>
                       <div className="flex justify-between"><span>Comungantes Ano Anterior (31/12/2025):</span><span className="bg-gray-300 px-2 rounded">{comungantesAnoAnterior.length}</span></div>
                       <div className="flex justify-between"><span>Comungantes Ano Atual:</span><span className="bg-yellow-300 px-2 rounded font-bold">{comungantesAnoAnterior.length + contar(admNoPeriodo.filter(m=>!isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>!isNaoComungante(m))).total}</span></div>
                     </div>
@@ -484,7 +485,7 @@ export default function RelatoriosPage(){
                       </tbody>
                     </table>
                     <div className="bg-gray-50 mt-4 p-2 rounded text-xs space-y-1">
-                      <div className="flex justify-between"><span>Diferença (Adm - Dem):</span><span className="bg-green-200 px-2 rounded font-bold">{contar(admNoPeriodo.filter(m=>isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>isNaoComungante(m))).total}</span></div>
+                      <div className="flex justify-between"><span>Diferença (Adm - Dem):</span><span className="bg-green-100 px-2 rounded font-bold">{contar(admNoPeriodo.filter(m=>isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>isNaoComungante(m))).total}</span></div>
                       <div className="flex justify-between"><span>Não-Comungantes Ano Anterior:</span><span className="bg-gray-300 px-2 rounded">{naoAnoAnterior.length}</span></div>
                       <div className="flex justify-between"><span>Não-Comungantes Ano Atual:</span><span className="bg-yellow-300 px-2 rounded font-bold">{naoAnoAnterior.length + contar(admNoPeriodo.filter(m=>isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>isNaoComungante(m))).total}</span></div>
                       <div className="flex justify-between font-bold border-t pt-1"><span>ROL ATUAL TOTAL:</span><span className="bg-[#0A3D26] text-white px-2 rounded">{(comungantesAnoAnterior.length + contar(admNoPeriodo.filter(m=>!isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>!isNaoComungante(m))).total) + (naoAnoAnterior.length + contar(admNoPeriodo.filter(m=>isNaoComungante(m))).total - contar(demNoPeriodo.filter(m=>isNaoComungante(m))).total)}</span></div>
@@ -501,7 +502,7 @@ export default function RelatoriosPage(){
                       {modalMov.lista.map(m=>(
                         <div key={m.id} className="border rounded p-2 text-xs cursor-pointer hover:bg-gray-50" onClick={()=>abrirFichaDemitido(m)}>
                           <div className="font-bold">{m.nome_completo} - {formatarCPF(m.cpf)}</div>
-                          <div className="text-[11px] text-gray-600">{formatarCategoriaExibicao(m)} • {formatarOficioTabela(m)} • {formatarDataBR(m.data_admissao)} • {m.forma_admissao||classificarAdmissao(m)}</div>
+                          <div className="text-[11px] text-gray-600">{m.sexo} • {formatarCategoriaExibicao(m)} • {formatarDataBR(m.data_admissao)} • {m.forma_admissao||'---'} {m.data_demissao? `• Dem: ${formatarDataBR(m.data_demissao)} ${m.forma_demissao||''}`:''}</div>
                         </div>
                       ))}
                     </div>
@@ -589,8 +590,8 @@ export default function RelatoriosPage(){
       <style>{`
         @media print {
           body { background: white!important; }
-  .no-print { display: none!important; }
-  .print\\:block { display: block!important; }
+ .no-print { display: none!important; }
+ .print\\:block { display: block!important; }
           body.imprimindo-carta * { visibility: hidden!important; }
           body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
           body.imprimindo-carta #detalhe-carta { position: absolute!important; left:0!important; top:0!important; width:100%!important; max-width:100%!important; margin:0!important; padding:0!important; border:none!important; box-shadow:none!important; background:white!important; }
