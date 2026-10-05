@@ -105,30 +105,51 @@ export default function RelatoriosPage(){
     }
     if(!c) return
 
+    // FIX SECRETÁRIO E PASTOR - PUXA DA VW_IGREJA_COMPLETA
+    try{
+      const igrejaIdParaBuscar = c.igreja_id || c.igreja_origem_id
+      if(igrejaIdParaBuscar){
+        const { data: igrejaFull } = await supabase.from('vw_igreja_completa').select('*').eq('igreja_id', igrejaIdParaBuscar).single()
+        if(igrejaFull){
+          c.pastor_nome_completo = c.pastor_nome_completo || igrejaFull.pastor_nome_completo
+          c.secretario_nome_completo = c.secretario_nome_completo || igrejaFull.secretario_nome_completo
+          c.secretario_nome = c.secretario_nome || igrejaFull.secretario_nome_completo
+          c.igreja_nome = c.igreja_nome || igrejaFull.igreja_nome
+          c.igreja_endereco = c.igreja_endereco || igrejaFull.igreja_endereco
+          c.igreja_cnpj = c.igreja_cnpj || igrejaFull.igreja_cnpj
+          c.igreja_email = c.igreja_email || igrejaFull.igreja_email
+          c.igreja_logo_url = c.igreja_logo_url || igrejaFull.igreja_logo_url || igrejaFull.logo_url
+          c.cidade = c.cidade || igrejaFull.cidade
+        }
+      }
+    }catch(e){ console.log('igreja full error', e) }
+
     const { data: vinculos } = await supabase.from('cartas_membros').select('*').eq('carta_id', id)
     const ids = (vinculos||[]).map(v=> v.membro_id || v.membros_oficial_id).filter(Boolean)
     let membrosComDados = []
 
     if(ids.length>0){
       const { data: fichas } = await supabase.from('membros_oficial').select('*').in('id', ids)
-      membrosComDados = (fichas||[]).map(f => ({
-        id: f.id,
-        nome_completo: f.nome_completo,
-        // CORREÇÃO: COLUNAS REAIS DO SEU BANCO
-        oficial_tipo: f.oficial_tipo,
-        tipo_membro: f.tipo_membro,
-        categoria_membro: f.categoria_membro,
-        oficial: formatarOficio(f),
-        data_batismo: f.data_batismo,
-        local_batismo: f.local_batismo,
-        pastor_batismo: f.pastor_batismo,
-        data_profissao_fe: f.data_profissao_fe,
-        local_profissao_fe: f.local_profissao_fe,
-        pastor_profissao_fe: f.pastor_profissao_fe,
-        data_ordenacao: f.data_ordenacao,
-      }))
-
-      // ORDEM: 1- Oficial (tem oficial_tipo), 2- Comungante, 3- Não comungante
+      // Usa o vínculo como fonte da verdade (já tem batismo) e completa com ficha
+      const fichaMap = new Map((fichas||[]).map(f=>[String(f.id), f]))
+      membrosComDados = (vinculos||[]).map(v => {
+        const f = fichaMap.get(String(v.membro_id || v.membros_oficial_id)) || {}
+        return {
+          id: v.membro_id || f.id,
+          nome_completo: v.nome_completo || f.nome_completo,
+          oficial_tipo: v.oficial_tipo || f.oficial_tipo,
+          tipo_membro: v.tipo_membro || f.tipo_membro,
+          categoria_membro: v.categoria_membro || f.categoria_membro,
+          oficial: formatarOficio({ oficial_tipo: v.oficial_tipo || f.oficial_tipo, tipo_membro: v.tipo_membro || f.tipo_membro, categoria_membro: v.categoria_membro || f.categoria_membro }),
+          data_batismo: v.data_batismo || f.data_batismo,
+          local_batismo: v.local_batismo || f.local_batismo,
+          pastor_batismo: v.pastor_batismo || f.pastor_batismo,
+          data_profissao_fe: v.data_profissao_fe || f.data_profissao_fe,
+          local_profissao_fe: v.local_profissao_fe || f.local_profissao_fe,
+          pastor_profissao_fe: v.pastor_profissao_fe || f.pastor_profissao_fe,
+          data_ordenacao: v.data_ordenacao || f.data_ordenacao,
+        }
+      })
       membrosComDados.sort((a,b)=>{
         const prio = (m)=>{
           if(m.oficial_tipo) return 1
@@ -139,17 +160,20 @@ export default function RelatoriosPage(){
         return prio(a) - prio(b)
       })
     } else {
-      // fallback se não achar na ficha, usa o que já está no vínculo
       membrosComDados = (vinculos||[]).map(v=>({
         id: v.membro_id,
         nome_completo: v.nome_completo,
         oficial: v.oficial_tipo || v.tipo_membro || v.oficio || '',
+        oficial_tipo: v.oficial_tipo,
+        tipo_membro: v.tipo_membro,
+        categoria_membro: v.categoria_membro,
         data_batismo: v.data_batismo,
         local_batismo: v.local_batismo,
         pastor_batismo: v.pastor_batismo,
         data_profissao_fe: v.data_profissao_fe,
         local_profissao_fe: v.local_profissao_fe,
         pastor_profissao_fe: v.pastor_profissao_fe,
+        data_ordenacao: v.data_ordenacao,
       }))
     }
 
