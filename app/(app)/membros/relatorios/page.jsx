@@ -75,7 +75,6 @@ export default function RelatoriosPage(){
     }
     setIgreja(dadosIgreja)
     const { data: m } = await supabase.from('vw_relatorio_membros').select('*').limit(5000).order('nome_completo')
-    // ALTERADO: NÃO CARREGA CARTAS AUTOMATICAMENTE
     setMembros(m||[])
     setCartas([])
     setLoading(false)
@@ -88,7 +87,6 @@ export default function RelatoriosPage(){
     setResultBatismo(data||[])
   }
 
-  // ALTERADO: SÓ PESQUISA, NÃO CARREGA TUDO
   async function buscarCartaPorMembro(){
     if(!buscaCarta.trim()){ setCartas([]); return }
     const { data } = await supabase.from('cartas_membros').select('carta_id, cartas_transferencia(*)').ilike('nome_completo', `%${buscaCarta}%`).limit(20)
@@ -126,7 +124,7 @@ export default function RelatoriosPage(){
           c.igreja_endereco = c.igreja_endereco || igrejaFull.igreja_endereco
           c.igreja_cnpj = c.igreja_cnpj || igrejaFull.igreja_cnpj
           c.igreja_email = c.igreja_email || igrejaFull.igreja_email || igrejaFull.email
-          c.igreja_telefone = c.igreja_telefone || igrejaFull.igreja_telefone || igrejaFull.telefone
+          c.igreja_telefone = c.igreja_telefone || igrejaFull.telefone
           c.igreja_logo_url = c.igreja_logo_url || igrejaFull.logo_url
           c.cidade = c.cidade || igrejaFull.cidade
         }
@@ -178,22 +176,13 @@ export default function RelatoriosPage(){
   }
   function filtrarDemitidos(){ return membros.filter(m=> (m.status||'').toLowerCase().includes('demitido') || (m.situacao||'').toLowerCase().includes('demitido') || (m.status_membro||'').toLowerCase().includes('demitido')) }
 
-  // MANTIDO SEU PADRÃO - SÓ ABRE JANELA LIMPA (SEM MANCHA)
+  // CORREÇÃO: IMPRIME EXATAMENTE COMO ESTÁ NA TELA (igual sua foto)
   function imprimirCartaLimpa(){
-    if(!refCarta.current) return
-    const html = refCarta.current.innerHTML
-    const w = window.open('', '_blank', 'width=900,height=1200')
-    w.document.write(`
-      <html><head><title>Carta de Transferência - ${cartaAberta?.igreja_destino||''}</title>
-      <style>
-        body{font-family:'Times New Roman', serif; font-size:13px; line-height:1.6; color:#000; padding:40px; background:white;}
-       .font-bold{font-weight:bold}.uppercase{text-transform:uppercase}.text-center{text-align:center}
-        @page{margin:2cm; size:A4;}
-        img{max-width:70px;}
-      </style></head>
-      <body onload="window.print();">${html}</body></html>
-    `)
-    w.document.close()
+    document.body.classList.add('imprimindo-carta')
+    setTimeout(()=>{
+      window.print()
+      setTimeout(()=> document.body.classList.remove('imprimindo-carta'), 500)
+    },100)
   }
 
   const stats = {
@@ -208,8 +197,6 @@ export default function RelatoriosPage(){
   }
 
   useEffect(()=>{ carregar() },[])
-
-  // ALTERADO: LIMPA AO TROCAR DE ABA (sua rotina)
   useEffect(()=>{
     if(aba!=='cartas'){
       setCartaAberta(null)
@@ -218,8 +205,6 @@ export default function RelatoriosPage(){
       setMembrosCarta([])
     }
   },[aba])
-
-  // Abre se veio de?carta=ID e limpa URL depois
   useEffect(()=>{
     const params = new URLSearchParams(window.location.search)
     const cartaId = params.get('carta')
@@ -239,8 +224,8 @@ export default function RelatoriosPage(){
 
   return (
     <div className="p-6 max-w-7xl mx-auto bg-gray-50 min-h-screen">
-      <h1 className="text-2xl font-bold text-[#0A3D26]">Relatórios</h1>
-      <div className="flex flex-wrap gap-2 mt-4 mb-6">
+      <h1 className="text-2xl font-bold text-[#0A3D26] no-print">Relatórios</h1>
+      <div className="flex flex-wrap gap-2 mt-4 mb-6 no-print">
         {[
           ['ativos','Membros Ativos'],['assembleia','Assembléia Geral'],['demitidos','Demitidos'],
           ['movimentacao','Movimentação'],['batismo','Cert. Batismo'],['cartas','Cartas Transferência']
@@ -250,28 +235,28 @@ export default function RelatoriosPage(){
       </div>
 
       <div className="bg-white border rounded-xl p-8 shadow-sm">
-        <div className="flex gap-4 border-b pb-4 mb-6 items-center">
+        <div className="flex gap-4 border-b pb-4 mb-6 items-center no-print">
           {logoIgreja? <img src={logoIgreja} className="w-16 h-16 object-contain rounded" /> : <div className="w-14 h-14 bg-[#0A3D26] rounded flex items-center justify-center text-white font-bold">IPB</div>}
           <div>
             <h2 className="font-bold text-lg">{nomeIgreja}</h2>
             <p className="text-xs text-gray-600">{enderecoIgreja} {cnpjIgreja? `| ${cnpjIgreja}`:''} {igreja?.data_organizacao? `| Organizada em ${formatarDataBR(igreja.data_organizacao)}`:''}</p>
           </div>
-          <div className="ml-auto">
-            {aba!=='cartas' && <button onClick={()=>window.print()} className="bg-black text-white px-4 py-2 rounded text-sm">Imprimir / PDF</button>}
-            {aba==='cartas' && cartaAberta && <button onClick={imprimirCartaLimpa} className="bg-[#0A3D26] text-white px-6 py-2 rounded text-sm font-bold">Imprimir Carta</button>}
+          <div className="ml-auto flex gap-2">
+            {aba!=='cartas' && <button onClick={()=>window.print()} className="bg-black text-white px-4 py-2 rounded text-sm no-print">Imprimir / PDF</button>}
+            {aba==='cartas' && cartaAberta && <button onClick={imprimirCartaLimpa} className="bg-[#0A3D26] text-white px-6 py-2 rounded text-sm font-bold no-print">Imprimir Carta</button>}
           </div>
         </div>
 
         {aba==='ativos' && (
           <div>
             <h3 className="font-bold text-center text-lg mb-4">Relatório de Membros Ativos - {nomeIgreja}</h3>
-            <div className="flex gap-2 mb-4"><select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} className="border p-2 rounded text-sm"><option value="todos">Todos</option><option value="comungante">Comungante</option><option value="nao">Não Comungante</option></select><input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar nome..." className="border p-2 rounded text-sm flex-1" /></div>
+            <div className="flex gap-2 mb-4 no-print"><select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} className="border p-2 rounded text-sm"><option value="todos">Todos</option><option value="comungante">Comungante</option><option value="nao">Não Comungante</option></select><input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar nome..." className="border p-2 rounded text-sm flex-1" /></div>
             <table className="w-full text-xs border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2">Ofício</th><th className="border p-2">Admissão</th><th className="border p-2">Batismo</th><th className="border p-2">Profissão</th></tr></thead><tbody>{filtrarAtivos().slice(0,500).map(m=><tr key={m.id}><td className="border p-2">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2">{m.oficial_tipo || m.oficial || m.tipo_membro ||'---'}</td><td className="border p-2">{m.data_admissao?formatarDataBR(m.data_admissao):'---'}</td><td className="border p-2">{m.data_batismo?formatarDataBR(m.data_batismo):'---'}</td><td className="border p-2">{m.data_profissao_fe?formatarDataBR(m.data_profissao_fe):'---'}</td></tr>)}</tbody></table>
           </div>
         )}
         {aba==='assembleia' && (
           <div>
-            <div className="grid grid-cols-2 gap-4 mb-6 bg-yellow-50 p-4 rounded border"><label className="text-sm">Tipo<select value={tipoAssembleia} onChange={e=>setTipoAssembleia(e.target.value)} className="w-full border p-2 rounded mt-1"><option>Assembléia Geral Ordinária</option><option>Assembléia Geral Extraordinária</option></select></label><label className="text-sm">Data<input type="date" value={dataAssembleia} onChange={e=>setDataAssembleia(e.target.value)} className="w-full border p-2 rounded mt-1" /></label></div>
+            <div className="grid grid-cols-2 gap-4 mb-6 bg-yellow-50 p-4 rounded border no-print"><label className="text-sm">Tipo<select value={tipoAssembleia} onChange={e=>setTipoAssembleia(e.target.value)} className="w-full border p-2 rounded mt-1"><option>Assembléia Geral Ordinária</option><option>Assembléia Geral Extraordinária</option></select></label><label className="text-sm">Data<input type="date" value={dataAssembleia} onChange={e=>setDataAssembleia(e.target.value)} className="w-full border p-2 rounded mt-1" /></label></div>
             <h3 className="font-bold text-center">Relação de Membros para {tipoAssembleia}</h3><p className="text-center text-sm mb-4">{nomeIgreja} - Data: {formatarDataBR(dataAssembleia)}</p><table className="w-full text-sm border"><thead className="bg-gray-100"><tr><th className="border p-2 text-left">Nome</th><th className="border p-2">CPF</th><th className="border p-2 w-48">Assinatura</th></tr></thead><tbody>{membros.filter(m=> (m.status_membro||m.status||'').toLowerCase()==='ativo').map(m=><tr key={m.id}><td className="border p-3">{m.nome_completo}</td><td className="border p-2">{m.cpf||'---'}</td><td className="border p-2"></td></tr>)}</tbody></table>
           </div>
         )}
@@ -282,30 +267,23 @@ export default function RelatoriosPage(){
           <div><h3 className="font-bold text-center text-lg mb-6">Relatório de Movimentação - {nomeIgreja}</h3><div className="grid grid-cols-3 gap-4 text-sm"><div className="border p-4 rounded"><b>Por Sexo</b><div>Masc: {stats.masc}</div><div>Fem: {stats.fem}</div></div><div className="border p-4 rounded"><b>Movimentações</b><div>Batizados: {stats.batizados}</div><div>Profissão Fé: {stats.profissao}</div><div>Admitidos: {stats.admitidos}</div><div>Demitidos: {stats.demitidos}</div></div><div className="border p-4 rounded"><b>Total</b><div className="text-2xl font-bold">{stats.total}</div></div></div></div>
         )}
         {aba==='batismo' && (
-          <div><h3 className="font-bold text-center text-lg mb-4">Certificado de Batismo - {nomeIgreja}</h3><div className="mb-4"><input value={buscaBatismo} onChange={e=>buscarBatismo(e.target.value)} placeholder="Pesquisar membro..." className="border p-3 rounded-lg w-full" />{resultBatismo.length>0 && <div className="border rounded mt-2 max-h-40 overflow-auto">{resultBatismo.map(r=><div key={r.id} onClick={()=>{setMembroBatismo(r); setResultBatismo([]); setBuscaBatismo(r.nome_completo)}} className="p-2 hover:bg-gray-100 cursor-pointer text-sm">{r.nome_completo} - {r.data_batismo?formatarDataBR(r.data_batismo):'s/ batismo'}</div>)}</div>}</div>{membroBatismo && (<div className="text-center py-10 px-8 border-2 border-double"><h2 className="font-bold">{nomeIgreja}</h2><h2 className="text-xl font-bold mt-4">CERTIFICADO DE BATISMO</h2><p className="mt-8 text-sm leading-7">Certificamos que <b>{membroBatismo.nome_completo}</b>, filho(a) de {membroBatismo.filiacao_pai||'---'} e {membroBatismo.filiacao_mae||'---'}, foi batizado(a) em <b>{membroBatismo.data_batismo?formatarDataBR(membroBatismo.data_batismo):'__/__/____'}</b> {membroBatismo.local_batismo? ` em ${membroBatismo.local_batismo}`:''}.</p><p className="mt-4 text-sm">Pastor Celebrante: {membroBatismo.pastor_batismo || igreja?.pastor_nome || '____________________'}</p><div className="mt-20 grid grid-cols-2 gap-10 text-sm"><div className="border-t pt-2">{igreja?.secretario_nome||'Secretário'}</div><div className="border-t pt-2">{igreja?.pastor_nome||'Pastor'}</div></div></div>)}</div>
+          <div><h3 className="font-bold text-center text-lg mb-4">Certificado de Batismo - {nomeIgreja}</h3><div className="mb-4 no-print"><input value={buscaBatismo} onChange={e=>buscarBatismo(e.target.value)} placeholder="Pesquisar membro..." className="border p-3 rounded-lg w-full" />{resultBatismo.length>0 && <div className="border rounded mt-2 max-h-40 overflow-auto">{resultBatismo.map(r=><div key={r.id} onClick={()=>{setMembroBatismo(r); setResultBatismo([]); setBuscaBatismo(r.nome_completo)}} className="p-2 hover:bg-gray-100 cursor-pointer text-sm">{r.nome_completo} - {r.data_batismo?formatarDataBR(r.data_batismo):'s/ batismo'}</div>)}</div>}</div>{membroBatismo && (<div className="text-center py-10 px-8 border-2 border-double"><h2 className="font-bold">{nomeIgreja}</h2><h2 className="text-xl font-bold mt-4">CERTIFICADO DE BATISMO</h2><p className="mt-8 text-sm leading-7">Certificamos que <b>{membroBatismo.nome_completo}</b>, filho(a) de {membroBatismo.filiacao_pai||'---'} e {membroBatismo.filiacao_mae||'---'}, foi batizado(a) em <b>{membroBatismo.data_batismo?formatarDataBR(membroBatismo.data_batismo):'__/__/____'}</b> {membroBatismo.local_batismo? ` em ${membroBatismo.local_batismo}`:''}.</p><p className="mt-4 text-sm">Pastor Celebrante: {membroBatismo.pastor_batismo || igreja?.pastor_nome || '____________________'}</p><div className="mt-20 grid grid-cols-2 gap-10 text-sm"><div className="border-t pt-2">{igreja?.secretario_nome||'Secretário'}</div><div className="border-t pt-2">{igreja?.pastor_nome||'Pastor'}</div></div></div>)}</div>
         )}
 
         {aba==='cartas' && (
           <div>
-            {/* CAMPO DE PESQUISA SEMPRE VISÍVEL */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4 no-print">
               <input value={buscaCarta} onChange={e=>setBuscaCarta(e.target.value)} onKeyDown={e=> e.key==='Enter' && buscarCartaPorMembro()} placeholder="Pesquisar por nome do membro na carta..." className="border p-2 rounded flex-1 text-sm" />
-              <button onClick={buscarCartaPorMembro} className="bg-[#0A3D26] text-white px-4 rounded text-sm">Buscar</button>
-              {(buscaCarta || cartas.length>0 || cartaAberta) && <button onClick={limparPesquisaCarta} className="bg-gray-100 border px-3 rounded text-sm">Limpar</button>}
+              <button onClick={buscarCartaPorMembro} className="bg-[#0A3D26] text-white px-4 rounded text-sm no-print">Buscar</button>
+              {(buscaCarta || cartas.length>0 || cartaAberta) && <button onClick={limparPesquisaCarta} className="bg-gray-100 border px-3 rounded text-sm no-print">Limpar</button>}
             </div>
 
-            {/* SÓ MOSTRA NOME DA CARTA APÓS PESQUISAR */}
             {!cartaAberta && cartas.length>0 && (
-              <div className="space-y-2 mb-6 max-h-64 overflow-auto">
+              <div className="space-y-2 mb-6 max-h-64 overflow-auto no-print">
                 {cartas.map(c=><div key={c.carta_id || c.id} onClick={()=>abrirCarta(c.carta_id || c.id)} className="border p-3 rounded hover:bg-gray-50 cursor-pointer flex justify-between text-sm"><div><b>{c.igreja_destino}</b> - {c.data_emissao? formatarDataBR(c.data_emissao) : ''} - Ata {c.ata_numero||''}</div><span className="text-xs bg-black text-white px-2 py-1 rounded">Abrir</span></div>)}
               </div>
             )}
 
-            {!cartaAberta && buscaCarta && cartas.length===0 && (
-              <p className="text-sm text-gray-400 text-center py-6">Nenhuma carta encontrada. Digite o nome e clique em Buscar.</p>
-            )}
-
-            {/* CARTA NO SEU PADRÃO ORIGINAL */}
             {cartaAberta && (
               <div ref={refCarta} id="detalhe-carta" className="bg-white p-8 md:p-10 max-w-[780px] mx-auto text-black leading-normal">
                 <div className="flex flex-col items-center text-center">
@@ -368,6 +346,29 @@ export default function RelatoriosPage(){
           </div>
         )}
       </div>
+
+      <style>{`
+        @media print {
+          body { background: white!important; }
+         .no-print { display: none!important; }
+          /* Quando está imprimindo carta, esconde tudo e mostra SÓ a carta exatamente como na tela */
+          body.imprimindo-carta * { visibility: hidden!important; }
+          body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
+          body.imprimindo-carta #detalhe-carta {
+            position: absolute!important;
+            left: 0!important;
+            top: 0!important;
+            width: 100%!important;
+            max-width: 100%!important;
+            margin: 0!important;
+            padding: 0!important;
+            border: none!important;
+            box-shadow: none!important;
+            background: white!important;
+          }
+          @page { margin: 1.8cm; size: A4; }
+        }
+      `}</style>
     </div>
   )
 }
