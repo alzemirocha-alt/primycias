@@ -82,8 +82,6 @@ export default function RelatoriosPage(){
   const [membroBatismo, setMembroBatismo] = useState(null)
   const [cartaAberta, setCartaAberta] = useState(null)
   const [membrosCarta, setMembrosCarta] = useState([])
-  const [fichaDemitido, setFichaDemitido] = useState(null)
-  const [historicoDemitido, setHistoricoDemitido] = useState([])
   const refCarta = useRef(null)
 
   async function carregar(){
@@ -224,16 +222,10 @@ export default function RelatoriosPage(){
   }
   function filtrarDemitidos(){ return membros.filter(m=> isDemitido(m)) }
 
+  // MODIFICADO: AGORA ABRE FICHA COMPLETA
   function abrirFichaDemitido(m){
-  // Salva que veio dos Demitidos para mostrar o botão "Voltar para Demitidos" lá na ficha
-  try{ localStorage.setItem('fromDemitidos','1') }catch{}
-  window.location.href = `/membros/${m.id}`
-}
-  async function handleReadmitir(id){
-    if(!confirm('Readmitir este membro? Vai gravar histórico com forma e pastor: Admissão, Demissão, Readmissão.')) return
-    const res = await fetch('/api/membros/readmitir',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, forma_admissao:'Readmissão'})})
-    if(res.ok){ alert('Membro readmitido! Histórico gravado.'); setFichaDemitido(null); carregar() }
-    else { const j=await res.json(); alert('Erro: '+(j.error||'falha')) }
+    try{ localStorage.setItem('fromDemitidos','1') }catch{}
+    window.location.href = `/membros/${m.id}`
   }
 
   function imprimirCartaLimpa(){
@@ -379,38 +371,6 @@ export default function RelatoriosPage(){
                   ))}
                 </tbody>
               </table>
-              {fichaDemitido && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                  <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-auto p-6">
-                    <div className="flex justify-between border-b pb-3 mb-4"><h2 className="font-bold">Ficha - {fichaDemitido.nome_completo}</h2><button onClick={()=>setFichaDemitido(null)} className="border px-3 py-1 rounded text-sm">✕</button></div>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <p><b>CPF:</b> {formatarCPF(fichaDemitido.cpf)}</p>
-                      <p><b>Categoria:</b> {formatarCategoriaExibicao(fichaDemitido)}</p>
-                      <p><b>Ofício:</b> {formatarOficioTabela(fichaDemitido)}</p>
-                      <p><b>Admissão:</b> {formatarDataBR(fichaDemitido.data_admissao)} - {fichaDemitido.forma_admissao||'---'}</p>
-                      <p><b>Pastor Adm:</b> {fichaDemitido.pastor_batismo||fichaDemitido.pastor_profissao_fe||'---'}</p>
-                      <p><b>Demissão:</b> {formatarDataBR(fichaDemitido.data_demissao)} - {fichaDemitido.forma_demissao||'---'}</p>
-                      <p><b>Pastor Dem:</b> {fichaDemitido.pastor_demissao||'---'}</p>
-                    </div>
-                    <div className="mt-6 border-t pt-4">
-                      <h3 className="font-bold text-sm mb-2">📜 Histórico de Admissões e Demissões (Forma + Pastor)</h3>
-                      <div className="space-y-2">
-                        {historicoDemitido.map(h=>(
-                          <div key={h.id} className="border rounded p-2 text-xs bg-gray-50">
-                            <div className="flex gap-2 font-bold flex-wrap"><span>{formatarDataBR(h.data_evento)}</span><span className={`px-2 rounded text-[10px] ${h.tipo==='demissao'?'bg-red-200 text-red-800': h.tipo==='readmissao'?'bg-blue-200 text-blue-800':'bg-green-200 text-green-800'}`}>{h.tipo.toUpperCase()}</span><span>{h.forma||'---'}</span></div>
-                            <div className="text-[11px] text-gray-600 mt-1">{h.pastor_nome&&`Pastor: ${h.pastor_nome} | `}{h.local_evento&&`Local: ${h.local_evento} | `}{h.observacao}</div>
-                          </div>
-                        ))}
-                        {historicoDemitido.length===0 && <p className="text-xs text-gray-500">Sem histórico ainda. Ao readmitir vai gerar: Admissão 20/01/2020, Demissão 15/03/2022, Readmissão 05/10/2026 com forma e pastores.</p>}
-                      </div>
-                    </div>
-                    <div className="flex gap-2 mt-6">
-                      <button onClick={()=>setFichaDemitido(null)} className="flex-1 border py-2 rounded font-bold text-sm">← Voltar para Demitidos</button>
-                      <button onClick={()=>handleReadmitir(fichaDemitido.id)} className="flex-1 bg-[#0A3D26] text-white py-2 rounded font-bold text-sm">🔄 Readmitir Membro</button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
           {aba==='movimentacao' && (
@@ -495,8 +455,8 @@ export default function RelatoriosPage(){
       <style>{`
         @media print {
           body { background: white!important; }
-    .no-print { display: none!important; }
-    .print\\:block { display: block!important; }
+   .no-print { display: none!important; }
+   .print\\:block { display: block!important; }
           body.imprimindo-carta * { visibility: hidden!important; }
           body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
           body.imprimindo-carta #detalhe-carta { position: absolute!important; left:0!important; top:0!important; width:100%!important; max-width:100%!important; margin:0!important; padding:0!important; border:none!important; box-shadow:none!important; background:white!important; }
