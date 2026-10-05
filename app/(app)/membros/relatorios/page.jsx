@@ -224,11 +224,11 @@ export default function RelatoriosPage(){
   }
   function filtrarDemitidos(){ return membros.filter(m=> isDemitido(m)) }
 
-  async function abrirFichaDemitido(m){
-    setFichaDemitido(m)
-    const { data } = await supabase.from('membros_historico').select('*').eq('membro_id', m.id).order('data_evento',{ascending:true})
-    setHistoricoDemitido(data||[])
-  }
+  function abrirFichaDemitido(m){
+  // Salva que veio dos Demitidos para mostrar o botão "Voltar para Demitidos" lá na ficha
+  try{ localStorage.setItem('fromDemitidos','1') }catch{}
+  window.location.href = `/membros/${m.id}`
+}
   async function handleReadmitir(id){
     if(!confirm('Readmitir este membro? Vai gravar histórico com forma e pastor: Admissão, Demissão, Readmissão.')) return
     const res = await fetch('/api/membros/readmitir',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, forma_admissao:'Readmissão'})})
