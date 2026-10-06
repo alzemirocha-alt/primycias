@@ -1,11 +1,13 @@
 "use client"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 
-export default function FormRelatorio({ eu, registros = [], igreja }){
+export default function FormRelatorio({ eu, registros = [], igreja, membros = [] }){
   const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
   const [filtrados, setFiltrados] = useState([])
   const [gerou, setGerou] = useState(false)
+  const [filtroMembro, setFiltroMembro] = useState('todos')
+  const [buscaMembro, setBuscaMembro] = useState('')
 
   const dadosIgreja = {
     nome: igreja?.nome || "Igreja Presbiteriana em Sucupira",
@@ -15,6 +17,7 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
     logo: "/logo-igreja.png"
   }
 
+  // ====== SEU CODIGO ORIGINAL INTACTO ======
   function getPeriodo(r){
     return r.cultos?.periodo || r.periodo || 'manha'
   }
@@ -25,12 +28,10 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
     return `${data}_${periodo}_${cid}`
   }
 
-  // CORREÇÃO DE FUSO: FORÇA UTC E CONVERTE PARA RECIFE
   function fmtRecife(iso){
     if(!iso) return ''
     try {
       let s = String(iso).trim().replace(' ', 'T')
-      // se não tem Z nem +00:00, força Z (estava salvando 13:43 como UTC sem Z)
       if(!s.endsWith('Z') &&!/[+-]\d{2}:?\d{2}$/.test(s)){
         s = s + 'Z'
       }
@@ -150,6 +151,34 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
   const totalDizimo = filtrados.filter(f=>String(f.tipo).toLowerCase()==='dizimo').reduce((s,i)=>s+Number(i.valor||0),0)
   const totalOferta = filtrados.filter(f=>String(f.tipo).toLowerCase()==='oferta').reduce((s,i)=>s+Number(i.valor||0),0)
 
+  // ====== NOVO: LÓGICA DE MEMBROS - ROBUSTA PRA QUALQUER NOME DE COLUNA ======
+  function getCat(m){
+    // tenta todas as colunas possíveis
+    const raw = m.categoria_membro || m.categoria || m.tipo_membro || m.tipo || m.classificacao || m.status_membro || m.situacao || m.comungante || ''
+    return String(raw).toLowerCase()
+  }
+  function getNome(m){
+    return String(m.nome_completo || m.nome || m.name || '').toLowerCase()
+  }
+
+  const membrosFiltrados = useMemo(()=>{
+    return (membros || []).filter(m=>{
+      const cat = getCat(m)
+      const nome = getNome(m)
+      const busca = buscaMembro.toLowerCase()
+
+      if(busca &&!nome.includes(busca)) return false
+
+      if(filtroMembro === 'todos') return true
+      if(filtroMembro === 'comungante') return cat.includes('comung') || cat === 'c'
+      if(filtroMembro === 'nao_comungante') return cat.includes('nao') || cat.includes('não') || cat.includes('ncomung') || cat === 'nc'
+      if(filtroMembro === 'congregado') return cat.includes('congreg')
+      if(filtroMembro === 'visitante') return cat.includes('visit')
+      if(filtroMembro === 'assembleia') return cat.includes('assembl') || cat.includes('batizado')
+      return true
+    })
+  }, [membros, filtroMembro, buscaMembro])
+
   return (
     <div className="p-6">
       <h1 className="text-xl font-bold text-[#1a4330]">Relatórios</h1>
@@ -202,6 +231,33 @@ export default function FormRelatorio({ eu, registros = [], igreja }){
           </div>
         </div>
       )}
+
+      {/* BLOCO NOVO - NÃO ALTERA O DE CIMA */}
+      <div className="bg-white border mt-8 rounded max-w-5xl p-4">
+        <h2 className="font-bold text-[#1a4330]">Relatório de Membros Ativos ({membros.length}) - Filtrados: {membrosFiltrados.length}</h2>
+        <div className="flex flex-wrap gap-2 mt-3">
+          <input placeholder="Buscar nome..." value={buscaMembro} onChange={e=>setBuscaMembro(e.target.value)} className="border p-2 rounded text-sm flex-1 min-w-[200px]" />
+          <select value={filtroMembro} onChange={e=>setFiltroMembro(e.target.value)} className="border p-2 rounded text-sm">
+            <option value="todos">Todos</option>
+            <option value="comungante">Comungante</option>
+            <option value="nao_comungante">Não Comungante</option>
+            <option value="congregado">Congregado</option>
+            <option value="visitante">Visitante</option>
+            <option value="assembleia">Assembleia</option>
+          </select>
+        </div>
+        <div className="mt-4 max-h-[400px] overflow-auto border rounded">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50 text-xs"><th className="p-2 text-left">Nome</th><th className="p-2 text-left">Categoria</th></tr></thead>
+            <tbody>
+              {membrosFiltrados.map((m,i)=>(
+                <tr key={m.id || i} className="border-t"><td className="p-2">{m.nome_completo || m.nome}</td><td className="p-2">{m.categoria_membro || m.categoria || m.tipo_membro || m.tipo || '-'}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          {membrosFiltrados.length===0 && <div className="p-4 text-sm text-gray-500">Nenhum membro para esse filtro.</div>}
+        </div>
+      </div>
     </div>
   )
 }
