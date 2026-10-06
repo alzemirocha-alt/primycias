@@ -58,14 +58,22 @@ function formatarOficio(f){
   return 'Comungante'
 }
 
-// CORREÇÃO - PUXA DIRETO DA FICHA
-function normaliza(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim() }
+// CORREÇÃO - NORMALIZA UNDERLINE E HIFEN
+function normaliza(s){
+  return String(s||'')
+   .toLowerCase()
+   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+   .replace(/[_-]/g,' ')
+   .replace(/\s+/g,' ')
+   .trim()
+}
 
 function isNaoComungante(m){
-  const cat = normaliza(m.categoria_membro || m.categoria || m.tipo_membro)
-  if(cat.includes('nao comungante') || cat.includes('nao-comungante')) return true
-  if(cat.includes('comungante')) return false // pega Comungante, Comungante e Oficial, Comungante Oficial
-  // fallback se categoria vazia
+  const cat = normaliza(m.categoria_membro || m.categoria || m.tipo_membro || '')
+  if(!cat) return false
+  // seu banco tem nao_comungante com underline, agora vira "nao comungante"
+  if(cat.includes('nao comungante')) return true
+  // garante que não confunde com comungante oficial
   return false
 }
 function isDemitido(m){
@@ -94,7 +102,7 @@ function classificarAdmissao(m){
   if(f.includes('jurisdic')) return 'Jurisdição'
   if(f.includes('restaur')) return 'Restauração'
   if(f.includes('designac')) return 'Designação do Presbitério'
-  return m.forma_admissao // mantém texto original se não mapear
+  return m.forma_admissao
 }
 function classificarDemissao(m){
   const f=normaliza(m.forma_demissao || m.motivo_demissao)
@@ -590,8 +598,8 @@ export default function RelatoriosPage(){
       <style>{`
         @media print {
           body { background: white!important; }
- .no-print { display: none!important; }
- .print\\:block { display: block!important; }
+.no-print { display: none!important; }
+.print\\:block { display: block!important; }
           body.imprimindo-carta * { visibility: hidden!important; }
           body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
           body.imprimindo-carta #detalhe-carta { position: absolute!important; left:0!important; top:0!important; width:100%!important; max-width:100%!important; margin:0!important; padding:0!important; border:none!important; box-shadow:none!important; background:white!important; }
