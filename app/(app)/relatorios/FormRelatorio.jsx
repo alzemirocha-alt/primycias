@@ -17,7 +17,6 @@ export default function FormRelatorio({ eu, registros = [], igreja, membros = []
     logo: "/logo-igreja.png"
   }
 
-  // ====== SEU CODIGO ORIGINAL INTACTO ======
   function getPeriodo(r){
     return r.cultos?.periodo || r.periodo || 'manha'
   }
@@ -151,14 +150,25 @@ export default function FormRelatorio({ eu, registros = [], igreja, membros = []
   const totalDizimo = filtrados.filter(f=>String(f.tipo).toLowerCase()==='dizimo').reduce((s,i)=>s+Number(i.valor||0),0)
   const totalOferta = filtrados.filter(f=>String(f.tipo).toLowerCase()==='oferta').reduce((s,i)=>s+Number(i.valor||0),0)
 
-  // ====== NOVO: LÓGICA DE MEMBROS - ROBUSTA PRA QUALQUER NOME DE COLUNA ======
+  // ====== LÓGICA DE MEMBROS CORRIGIDA ======
+  function norm(v){
+    return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ /g,'_').trim()
+  }
   function getCat(m){
-    // tenta todas as colunas possíveis
-    const raw = m.categoria_membro || m.categoria || m.tipo_membro || m.tipo || m.classificacao || m.status_membro || m.situacao || m.comungante || ''
-    return String(raw).toLowerCase()
+    const raw = m.categoria_membro || m.categoria || m.tipo_membro || m.tipo || m.classificacao || m.status_membro || m.situacao || ''
+    return norm(raw)
   }
   function getNome(m){
     return String(m.nome_completo || m.nome || m.name || '').toLowerCase()
+  }
+  function formatarBonito(cat){
+    const c = norm(cat)
+    if(c === 'nao_comungante') return 'Não Comungante'
+    if(c === 'comungante') return 'Comungante'
+    if(c === 'comungante_oficial') return 'Comungante Oficial'
+    if(!cat) return '-'
+    // capitaliza bonito para outros casos
+    return String(cat).charAt(0).toUpperCase() + String(cat).slice(1).replace(/_/g,' ')
   }
 
   const membrosFiltrados = useMemo(()=>{
@@ -166,15 +176,14 @@ export default function FormRelatorio({ eu, registros = [], igreja, membros = []
       const cat = getCat(m)
       const nome = getNome(m)
       const busca = buscaMembro.toLowerCase()
-
       if(busca &&!nome.includes(busca)) return false
 
       if(filtroMembro === 'todos') return true
-      if(filtroMembro === 'comungante') return cat.includes('comung') || cat === 'c'
-      if(filtroMembro === 'nao_comungante') return cat.includes('nao') || cat.includes('não') || cat.includes('ncomung') || cat === 'nc'
+      if(filtroMembro === 'comungante') return cat === 'comungante' || cat === 'comungante_oficial'
+      if(filtroMembro === 'nao_comungante') return cat === 'nao_comungante'
+      if(filtroMembro === 'assembleia') return cat === 'comungante' || cat === 'comungante_oficial'
       if(filtroMembro === 'congregado') return cat.includes('congreg')
       if(filtroMembro === 'visitante') return cat.includes('visit')
-      if(filtroMembro === 'assembleia') return cat.includes('assembl') || cat.includes('batizado')
       return true
     })
   }, [membros, filtroMembro, buscaMembro])
@@ -232,7 +241,6 @@ export default function FormRelatorio({ eu, registros = [], igreja, membros = []
         </div>
       )}
 
-      {/* BLOCO NOVO - NÃO ALTERA O DE CIMA */}
       <div className="bg-white border mt-8 rounded max-w-5xl p-4">
         <h2 className="font-bold text-[#1a4330]">Relatório de Membros Ativos ({membros.length}) - Filtrados: {membrosFiltrados.length}</h2>
         <div className="flex flex-wrap gap-2 mt-3">
@@ -251,7 +259,7 @@ export default function FormRelatorio({ eu, registros = [], igreja, membros = []
             <thead><tr className="bg-gray-50 text-xs"><th className="p-2 text-left">Nome</th><th className="p-2 text-left">Categoria</th></tr></thead>
             <tbody>
               {membrosFiltrados.map((m,i)=>(
-                <tr key={m.id || i} className="border-t"><td className="p-2">{m.nome_completo || m.nome}</td><td className="p-2">{m.categoria_membro || m.categoria || m.tipo_membro || m.tipo || '-'}</td></tr>
+                <tr key={m.id || i} className="border-t"><td className="p-2">{m.nome_completo || m.nome}</td><td className="p-2">{formatarBonito(m.categoria_membro || m.categoria || m.tipo_membro || m.tipo)}</td></tr>
               ))}
             </tbody>
           </table>
