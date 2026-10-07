@@ -45,6 +45,24 @@ export async function PUT(req, { params }) {
     delete body.created_at
     delete body.ficha
 
+    // FIX CHECK CONSTRAINT estado_civil
+    if (body.estado_civil) {
+      const mapa = {
+        'casada': 'casado', 'casado': 'casado',
+        'solteira': 'solteiro', 'solteiro': 'solteiro',
+        'viuva': 'viuvo', 'viúva': 'viuvo', 'viuvo': 'viuvo', 'viúvo': 'viuvo',
+        'divorciada': 'divorciado', 'divorciado': 'divorciado',
+        'separada': 'separado', 'separado': 'separado',
+        'uniao estavel': 'uniao_estavel', 'união estável': 'uniao_estavel', 'uniao_estável': 'uniao_estavel', 'união estavel': 'uniao_estavel'
+      }
+      const raw = String(body.estado_civil).toLowerCase().trim()
+      if (mapa[raw]) body.estado_civil = mapa[raw]
+      else if (!['solteiro','casado','viuvo','divorciado','separado','uniao_estavel'].includes(raw)) {
+        body.estado_civil = null // valor inválido quebra o save, limpa
+      }
+    }
+
+    // FIX: filtra só colunas que existem pra não quebrar por campo sujo
     const allowed = [
       'nome_completo','cpf','rg','sexo','data_nascimento','estado_civil',
       'profissao','escolaridade','filiacao_pai','filiacao_mae','conjuge_nome',
@@ -60,7 +78,7 @@ export async function PUT(req, { params }) {
       if (body[k]!== undefined) clean[k] = body[k] === ''? null : body[k]
     }
     const payload = Object.keys(clean).length > 0? clean : body
-    // REMOVIDO updated_at que quebrava se a coluna não existe
+    payload.updated_at = new Date().toISOString()
 
     const statusValue = payload.status || body.status || 'ativo'
 
@@ -73,7 +91,7 @@ export async function PUT(req, { params }) {
 
     if (error) {
       console.error("ERRO SALVAR MEMBRO_OFICIAL:", error, "payload:", payload)
-      return new Response(JSON.stringify({ error: error.message, details: error }), {
+      return new Response(JSON.stringify({ error: error.message }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       })
