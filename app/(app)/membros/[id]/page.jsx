@@ -44,12 +44,38 @@ async function updateMembro(formData) {
   try {
     const rolRaw = formData.get('numero_rol')
     let numeroRol = null
-    if (rolRaw && String(rolRaw).trim() !== "") {
+    if (rolRaw && String(rolRaw).trim()!== "") {
       const p = parseInt(String(rolRaw).trim())
       if (!isNaN(p)) numeroRol = p
     }
     const statusValue = String(formData.get('status') || 'ativo').toLowerCase().trim()
     const categoria = formData.get('categoria_membro') || formData.get('tipo_membro') || 'comungante'
+
+    // FIX SEXO - normaliza M/F/minusculo para Masculino/Feminino
+    let sexoRaw = formData.get('sexo')
+    if (sexoRaw) {
+      const s = String(sexoRaw).toLowerCase().trim()
+      if (['m','masc','masculino'].includes(s)) sexoRaw = 'Masculino'
+      else if (['f','fem','feminino'].includes(s)) sexoRaw = 'Feminino'
+      else if (s === '') sexoRaw = null
+    } else {
+      sexoRaw = null
+    }
+
+    // FIX ESTADO_CIVIL
+    let estadoCivilRaw = formData.get('estado_civil')
+    if (estadoCivilRaw) {
+      const raw = String(estadoCivilRaw).toLowerCase().trim()
+      const mapa = {
+        'casada': 'casado', 'solteira': 'solteiro',
+        'viuva': 'viuvo', 'viúva': 'viuvo',
+        'divorciada': 'divorciado', 'separada': 'separado'
+      }
+      if (mapa[raw]) estadoCivilRaw = mapa[raw]
+      if (String(estadoCivilRaw).trim() === '') estadoCivilRaw = null
+    } else {
+      estadoCivilRaw = null
+    }
 
     const dados = {
       numero_rol: numeroRol,
@@ -58,7 +84,7 @@ async function updateMembro(formData) {
       filiacao_pai: formData.get('filiacao_pai'),
       filiacao_mae: formData.get('filiacao_mae'),
       data_nascimento: formData.get('data_nascimento') || null,
-      sexo: formData.get('sexo'),
+      sexo: sexoRaw,
       cidade_nasc: formData.get('cidade_nasc'),
       estado_nasc: formData.get('estado_nasc'),
       endereco: formData.get('endereco'),
@@ -66,7 +92,7 @@ async function updateMembro(formData) {
       cidade: formData.get('cidade'),
       estado: formData.get('estado'),
       telefone: formData.get('telefone'),
-      estado_civil: formData.get('estado_civil'),
+      estado_civil: estadoCivilRaw,
       escolaridade: formData.get('escolaridade'),
       profissao: formData.get('profissao'),
       nome_conjuge: formData.get('nome_conjuge') || null,
@@ -97,7 +123,8 @@ async function updateMembro(formData) {
 
     const { error } = await supabaseAdmin.from('membros_oficial').update(dados).eq('id', id)
     if (error) {
-      console.error("Erro save completo:", error.message)
+      console.error("Erro save completo:", error.message, "dados:", dados)
+      // fallback tenta só status
       await supabaseAdmin.from('membros_oficial').update({
         status: statusValue,
         status_membro: statusValue,
@@ -107,6 +134,7 @@ async function updateMembro(formData) {
         motivo_demissao: dados.motivo_demissao,
         pastor_demissao: dados.pastor_demissao,
       }).eq('id', id)
+      throw error
     }
 
     if(statusValue === 'demitido' && dados.data_demissao){
@@ -139,20 +167,27 @@ export default async function Page({ params }) {
     const m = await getMembro(id)
     const pastorDaIgreja = await getPastorDaIgreja()
     if (!m) return <div className="p-6">Membro não encontrado ID: {id} <br/><Link href="/membros" className="text-blue-600 underline">Voltar</Link></div>
+    // normaliza para exibição
+    let sexoDisplay = m.sexo
+    if (sexoDisplay) {
+      const s = String(sexoDisplay).toLowerCase()
+      if (['m','masculino'].includes(s)) sexoDisplay = 'Masculino'
+      if (['f','feminino'].includes(s)) sexoDisplay = 'Feminino'
+    }
     return (
       <div className="p-6 max-w-5xl mx-auto pb-20">
        <style>{`
           #btn-salvar{display:none}
-         .modo-visualizar.no-print.w-full{display:none!important}
-         .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea{pointer-events:none; background:#f9fafb!important;}
+        .modo-visualizar.no-print.w-full{display:none!important}
+        .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea{pointer-events:none; background:#f9fafb!important;}
           @media print {
             body * { visibility: hidden; }
             #ficha-print, #ficha-print * { visibility: visible; }
             #ficha-print { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
-           .no-print { display: none!important; }
+          .no-print { display: none!important; }
             input, select { border: none!important; padding: 0!important; appearance: none; background: transparent!important; }
           }
-         .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea { background:#f9fafb!important; pointer-events:none; border-color:#e5e7eb!important; }
+        .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea { background:#f9fafb!important; pointer-events:none; border-color:#e5e7eb!important; }
         `}</style>
         <div className="no-print flex justify-between items-center">
           <Link href="/membros" className="text-sm text-blue-600">← Voltar para lista</Link>
@@ -185,7 +220,7 @@ export default async function Page({ params }) {
                 <label className="flex flex-col text-sm">Filiação Pai<input name="filiacao_pai" defaultValue={m.filiacao_pai} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Filiação Mãe<input name="filiacao_mae" defaultValue={m.filiacao_mae} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Data Nasc.<input name="data_nascimento" type="date" defaultValue={m.data_nascimento} className="border p-2 rounded mt-1" /></label>
-                <label className="flex flex-col text-sm">Sexo<select name="sexo" defaultValue={m.sexo} className="border p-2 rounded mt-1"><option value="">Selecione</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></label>
+                <label className="flex flex-col text-sm">Sexo<select name="sexo" defaultValue={sexoDisplay} className="border p-2 rounded mt-1"><option value="">Selecione</option><option value="Masculino">Masculino</option><option value="Feminino">Feminino</option></select></label>
                 <label className="flex flex-col text-sm">Cidade Nasc.<input name="cidade_nasc" defaultValue={m.cidade_nasc} className="border p-2 rounded mt-1" /></label>
                 <label className="flex flex-col text-sm">Estado Nasc.<input name="estado_nasc" defaultValue={m.estado_nasc} className="border p-2 rounded mt-1" /></label>
                 <label className="col-span-2 flex flex-col text-sm">Endereço<input name="endereco" defaultValue={m.endereco} className="border p-2 rounded mt-1" /></label>
@@ -207,7 +242,7 @@ export default async function Page({ params }) {
                 <h3 className="font-bold text-red-700 text-sm mb-3">Dados de Demissão / Inativação</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <label className="flex flex-col text-sm">Data da Demissão/Inativação<input name="data_demissao" type="date" defaultValue={m.data_demissao} className="border p-2 rounded mt-1" /></label>
-                  <label className="flex flex-col text-sm">Pastor da Demissão<input name="pastor_demissao" defaultValue={m.pastor_demissao || pastorDaIgreja || ""} className="border p-2 rounded mt-1" placeholder="Rev. ..." /></label>
+                  <label className="flex flex-col text-sm">Pastor da Demissão<input name="pastor_demissao" defaultValue={m.pastor_demissao || pastorDaIgreja || ""} className="border p-2 rounded mt-1" placeholder="Rev...." /></label>
                   <label className="col-span-2 flex flex-col text-sm">Forma de Demissão
                     <select id="forma_demissao" name="forma_demissao" defaultValue={m.forma_demissao} className="border p-2 rounded mt-1">
                       <option value="">Selecione...</option>
