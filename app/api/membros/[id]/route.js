@@ -45,6 +45,16 @@ export async function PUT(req, { params }) {
     delete body.created_at
     delete body.ficha
 
+    // FIX SEXO - converte M/F para Masculino/Feminino (resolve o erro do log)
+    if (body.sexo!== undefined && body.sexo!== null && body.sexo!== '') {
+      const rawSexo = String(body.sexo).toLowerCase().trim()
+      if (['m', 'masc', 'masculino'].includes(rawSexo)) {
+        body.sexo = 'Masculino'
+      } else if (['f', 'fem', 'feminino'].includes(rawSexo)) {
+        body.sexo = 'Feminino'
+      }
+    }
+
     // FIX CHECK CONSTRAINT estado_civil
     if (body.estado_civil) {
       const mapa = {
@@ -83,11 +93,11 @@ export async function PUT(req, { params }) {
     const statusValue = payload.status || body.status || 'ativo'
 
     const { data, error } = await supabaseAdmin
-    .from('membros_oficial')
-    .update(payload)
-    .eq('id', id)
-    .select()
-    .single()
+   .from('membros_oficial')
+   .update(payload)
+   .eq('id', id)
+   .select()
+   .single()
 
     if (error) {
       console.error("ERRO SALVAR MEMBRO_OFICIAL:", error, "payload:", payload)
