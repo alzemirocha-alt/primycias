@@ -45,7 +45,6 @@ export async function PUT(req, { params }) {
     delete body.created_at
     delete body.ficha
 
-    // FIX: filtra só colunas que existem pra não quebrar por campo sujo
     const allowed = [
       'nome_completo','cpf','rg','sexo','data_nascimento','estado_civil',
       'profissao','escolaridade','filiacao_pai','filiacao_mae','conjuge_nome',
@@ -60,29 +59,26 @@ export async function PUT(req, { params }) {
     for (const k of allowed) {
       if (body[k]!== undefined) clean[k] = body[k] === ''? null : body[k]
     }
-    // mantém campos que já estavam no body e são permitidos, usa clean no lugar de body
     const payload = Object.keys(clean).length > 0? clean : body
-    payload.updated_at = new Date().toISOString()
+    // REMOVIDO updated_at que quebrava se a coluna não existe
 
     const statusValue = payload.status || body.status || 'ativo'
 
-    // atualiza tabela oficial (ficha completa)
     const { data, error } = await supabaseAdmin
-     .from('membros_oficial')
-     .update(payload)
-     .eq('id', id)
-     .select()
-     .single()
+    .from('membros_oficial')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .single()
 
     if (error) {
       console.error("ERRO SALVAR MEMBRO_OFICIAL:", error, "payload:", payload)
-      return new Response(JSON.stringify({ error: error.message }), {
+      return new Response(JSON.stringify({ error: error.message, details: error }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       })
     }
 
-    // espelha status na tabela membros simples - não pode quebrar o salvamento principal
     try {
       await supabaseAdmin.from('membros').update({
         status: statusValue,
@@ -90,7 +86,6 @@ export async function PUT(req, { params }) {
       }).eq('id', id)
     } catch(e) { console.log('espelho membros ignorado', e.message) }
 
-    // se demitiu, registra no histórico - também não pode quebrar
     if (statusValue === 'demitido' && payload.data_demissao) {
       try {
         await supabaseAdmin.from('membros_historico').insert({
