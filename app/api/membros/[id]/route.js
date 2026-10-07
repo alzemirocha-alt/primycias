@@ -45,41 +45,64 @@ export async function PUT(req, { params }) {
     delete body.created_at
     delete body.ficha
 
-    const statusValue = body.status || 'ativo'
+    // FIX: filtra só colunas que existem pra não quebrar por campo sujo
+    const allowed = [
+      'nome_completo','cpf','rg','sexo','data_nascimento','estado_civil',
+      'profissao','escolaridade','filiacao_pai','filiacao_mae','conjuge_nome',
+      'endereco','bairro','cidade','uf','cep','telefone','celular','email',
+      'categoria_membro','categoria','tipo_membro','oficial_tipo','status','status_membro','situacao',
+      'data_admissao','forma_admissao','forma_de_admissao','data_batismo','data_profissao_fe',
+      'local_batismo','pastor_batismo','local_profissao_fe','pastor_profissao_fe',
+      'data_ordenacao','data_demissao','forma_demissao','motivo_demissao','pastor_demissao',
+      'foto_url','observacoes'
+    ]
+    const clean = {}
+    for (const k of allowed) {
+      if (body[k]!== undefined) clean[k] = body[k] === ''? null : body[k]
+    }
+    // mantém campos que já estavam no body e são permitidos, usa clean no lugar de body
+    const payload = Object.keys(clean).length > 0? clean : body
+    payload.updated_at = new Date().toISOString()
+
+    const statusValue = payload.status || body.status || 'ativo'
 
     // atualiza tabela oficial (ficha completa)
     const { data, error } = await supabaseAdmin
-      .from('membros_oficial')
-      .update(body)
-      .eq('id', id)
-      .select()
-      .single()
+     .from('membros_oficial')
+     .update(payload)
+     .eq('id', id)
+     .select()
+     .single()
 
     if (error) {
-      console.error("ERRO SALVAR MEMBRO_OFICIAL:", error)
-      return new Response(JSON.stringify({ error: error.message }), { 
+      console.error("ERRO SALVAR MEMBRO_OFICIAL:", error, "payload:", payload)
+      return new Response(JSON.stringify({ error: error.message }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       })
     }
 
-    // espelha status na tabela membros simples
-    await supabaseAdmin.from('membros').update({ 
-      status: statusValue, 
-      situacao: statusValue 
-    }).eq('id', id)
+    // espelha status na tabela membros simples - não pode quebrar o salvamento principal
+    try {
+      await supabaseAdmin.from('membros').update({
+        status: statusValue,
+        situacao: statusValue
+      }).eq('id', id)
+    } catch(e) { console.log('espelho membros ignorado', e.message) }
 
-    // se demitiu, registra no histórico
-    if (statusValue === 'demitido' && body.data_demissao) {
-      await supabaseAdmin.from('membros_historico').insert({
-        membro_id: id,
-        tipo: 'demissao',
-        data_evento: body.data_demissao,
-        forma: body.forma_demissao,
-        pastor_nome: body.pastor_demissao,
-        observacao: body.motivo_demissao,
-        snapshot: body
-      })
+    // se demitiu, registra no histórico - também não pode quebrar
+    if (statusValue === 'demitido' && payload.data_demissao) {
+      try {
+        await supabaseAdmin.from('membros_historico').insert({
+          membro_id: id,
+          tipo: 'demissao',
+          data_evento: payload.data_demissao,
+          forma: payload.forma_demissao,
+          pastor_nome: payload.pastor_demissao || body.pastor_demissao,
+          observacao: payload.motivo_demissao || body.motivo_demissao,
+          snapshot: body
+        })
+      } catch(e) { console.log('historico ignorado', e.message) }
     }
 
     return Response.json(data, {
@@ -88,7 +111,7 @@ export async function PUT(req, { params }) {
 
   } catch (e) {
     console.error('PUT catch', e)
-    return new Response(JSON.stringify({ error: e.message }), { 
+    return new Response(JSON.stringify({ error: e.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     })
