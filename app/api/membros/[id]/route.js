@@ -85,7 +85,7 @@ export async function PUT(req, { params }) {
     ]
     const clean = {}
     for (const k of allowed) {
-      if (body[k]!== undefined) clean[k] = body[k] === ''? null : body[k]
+     if (body[k]!== undefined) clean[k] = body[k] === ''? null : body[k]
     }
     const payload = Object.keys(clean).length > 0? clean : body
     payload.updated_at = new Date().toISOString()
