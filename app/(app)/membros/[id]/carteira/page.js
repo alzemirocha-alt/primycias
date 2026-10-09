@@ -77,11 +77,19 @@ export default async function CarteiraPage({ params }) {
 
   const oficialFormatado = (() => {
     if (!m.oficial_tipo) return null
-    const t = m.oficial_tipo.toLowerCase()
-    if (t === 'presbitero') return 'Presbítero'
-    if (t === 'diacono') return 'Diácono'
-    if (t === 'pastor') return 'Pastor'
-    return m.oficial_tipo.charAt(0).toUpperCase() + m.oficial_tipo.slice(1).toLowerCase()
+    const t = String(m.oficial_tipo).toLowerCase().trim()
+    const mapa = {
+      'diacono': 'Diácono',
+      'presbitero': 'Presbítero',
+      'pastor': 'Pastor',
+      'diacono_emerito': 'Diácono Emérito',
+      'presbitero_emerito': 'Presbítero Emérito',
+      'diacono-emerito': 'Diácono Emérito',
+      'presbitero-emerito': 'Presbítero Emérito',
+    }
+    if (mapa[t]) return mapa[t]
+    // fallback: tira _ e capitaliza cada palavra
+    return t.split(/[_ -]+/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ').replace('Presbitero', 'Presbítero').replace('Diacono', 'Diácono').replace('Emerito', 'Emérito')
   })()
 
   return (
@@ -90,7 +98,7 @@ export default async function CarteiraPage({ params }) {
         @media print {
           html, body { margin: 0!important; padding: 0!important; background: white!important; height: auto!important; overflow: visible!important; }
           header, nav, aside, footer { display: none!important; }
-      .no-print { display: none!important; }
+     .no-print { display: none!important; }
           #print-area {
             display: block!important;
             position: absolute!important;
