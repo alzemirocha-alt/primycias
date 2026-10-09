@@ -14,6 +14,8 @@ export default function NovoMembroPage() {
   const [previewFoto, setPreviewFoto] = useState("")
   const [uploadingFoto, setUploadingFoto] = useState(false)
 
+  const isEmerito = oficialTipo === "presbitero_emerito" || oficialTipo === "diacono_emerito"
+
   async function handleFotoChange(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -133,7 +135,12 @@ export default function NovoMembroPage() {
               <option value="nao_comungante">Membro Não Comungante</option>
             </select></label>
             {tipo === 'comungante_oficial' && (
-              <label className="flex flex-col text-sm">Oficial<select name="oficial_tipo" value={oficialTipo} onChange={e=>setOficialTipo(e.target.value)} className="border p-2 rounded mt-1"><option value="">Selecione</option><option value="diacono">Diácono</option><option value="presbitero">Presbítero</option></select></label>
+              <>
+                <label className="flex flex-col text-sm">Oficial<select name="oficial_tipo" value={oficialTipo} onChange={e=>setOficialTipo(e.target.value)} className="border p-2 rounded mt-1"><option value="">Selecione</option><option value="diacono">Diácono</option><option value="presbitero">Presbítero</option><option value="diacono_emerito">Diácono Emérito</option><option value="presbitero_emerito">Presbítero Emérito</option></select></label>
+                {isEmerito && (
+                  <label className="flex flex-col text-sm col-span-2">Data da Concessão do Título (Data da AGE)<input name="data_concessao_titulo_age" type="date" required={isEmerito} className="border p-2 rounded mt-1 border-amber-300 bg-amber-50" /></label>
+                )}
+              </>
             )}
           </div>
         </div>
