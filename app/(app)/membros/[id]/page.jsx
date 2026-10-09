@@ -77,6 +77,9 @@ async function updateMembro(formData) {
       estadoCivilRaw = null
     }
 
+    const oficialTipoRaw = formData.get('oficial_tipo') || null
+    const isEmerito = oficialTipoRaw === 'diacono_emerito' || oficialTipoRaw === 'presbitero_emerito'
+
     const dados = {
       numero_rol: numeroRol,
       nome_completo: formData.get('nome_completo'),
@@ -107,7 +110,7 @@ async function updateMembro(formData) {
       pastor_demissao: formData.get('pastor_demissao') || null,
       categoria_membro: categoria,
       tipo_membro: categoria,
-      oficial_tipo: formData.get('oficial_tipo') || null,
+      oficial_tipo: oficialTipoRaw,
       forma_admissao: formData.get('forma_admissao'),
       data_admissao: formData.get('data_admissao') || null,
       data_batismo: formData.get('data_batismo') || null,
@@ -118,6 +121,7 @@ async function updateMembro(formData) {
       pastor_profissao_fe: formData.get('pastor_profissao_fe'),
       data_ordenacao: formData.get('data_ordenacao') || null,
       data_instalacao: formData.get('data_instalacao') || null,
+      data_concessao_titulo_age: isEmerito? (formData.get('data_concessao_titulo_age') || null) : null,
       foto_url: formData.get('foto_url') || null,
     }
 
@@ -174,20 +178,21 @@ export default async function Page({ params }) {
       if (['m','masculino'].includes(s)) sexoDisplay = 'Masculino'
       if (['f','feminino'].includes(s)) sexoDisplay = 'Feminino'
     }
+    const isEmeritoInicial = m.oficial_tipo === 'diacono_emerito' || m.oficial_tipo === 'presbitero_emerito'
     return (
       <div className="p-6 max-w-5xl mx-auto pb-20">
        <style>{`
           #btn-salvar{display:none}
-        .modo-visualizar.no-print.w-full{display:none!important}
-        .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea{pointer-events:none; background:#f9fafb!important;}
+       .modo-visualizar.no-print.w-full{display:none!important}
+       .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea{pointer-events:none; background:#f9fafb!important;}
           @media print {
             body * { visibility: hidden; }
             #ficha-print, #ficha-print * { visibility: visible; }
             #ficha-print { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
-          .no-print { display: none!important; }
+         .no-print { display: none!important; }
             input, select { border: none!important; padding: 0!important; appearance: none; background: transparent!important; }
           }
-        .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea { background:#f9fafb!important; pointer-events:none; border-color:#e5e7eb!important; }
+       .modo-visualizar input,.modo-visualizar select,.modo-visualizar textarea { background:#f9fafb!important; pointer-events:none; border-color:#e5e7eb!important; }
         `}</style>
         <div className="no-print flex justify-between items-center">
           <Link href="/membros" className="text-sm text-blue-600">← Voltar para lista</Link>
@@ -272,7 +277,8 @@ export default async function Page({ params }) {
               <h2 className="font-semibold text-[#0F3A1F] border-b pb-2 mb-4">2. Dados Eclesiásticos</h2>
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex flex-col text-sm">Categoria<select id="categoria_membro" name="categoria_membro" defaultValue={m.categoria_membro || m.tipo_membro} className="border p-2 rounded mt-1"><option value="comungante">Comungante</option><option value="comungante_oficial">Comungante e Oficial</option><option value="nao_comungante">Não Comungante</option></select></label>
-                <label id="campo-oficial-tipo" className="flex flex-col text-sm">Oficial<select name="oficial_tipo" defaultValue={m.oficial_tipo} className="border p-2 rounded mt-1"><option value="">Nenhum</option><option value="diacono">Diácono</option><option value="presbitero">Presbítero</option></select></label>
+                <label id="campo-oficial-tipo" className="flex flex-col text-sm">Oficial<select id="oficial_tipo_select" name="oficial_tipo" defaultValue={m.oficial_tipo} className="border p-2 rounded mt-1"><option value="">Nenhum</option><option value="diacono">Diácono</option><option value="presbitero">Presbítero</option><option value="diacono_emerito">Diácono Emérito</option><option value="presbitero_emerito">Presbítero Emérito</option></select></label>
+                <label id="campo-data-concessao" className="flex flex-col text-sm col-span-2" style={{display: isEmeritoInicial? 'flex' : 'none'}}><span className="font-semibold text-amber-800">Data da Concessão do Título (Data da AGE)</span><input name="data_concessao_titulo_age" type="date" defaultValue={m.data_concessao_titulo_age} className="border p-2 rounded mt-1 border-amber-300 bg-amber-50" /></label>
               </div>
             </div>
             <div>
@@ -300,6 +306,28 @@ export default async function Page({ params }) {
           </form>
           <div className="mt-4 text-xs text-gray-500">ID: {m.id} {pastorDaIgreja? " - Pastor: " + pastorDaIgreja : ""}</div>
         </div>
+        <script dangerouslySetInnerHTML={{__html: `
+          (function(){
+            function toggleEmerito(){
+              var sel = document.getElementById('oficial_tipo_select');
+              var campo = document.getElementById('campo-data-concessao');
+              if(!sel ||!campo) return;
+              var v = sel.value;
+              if(v === 'diacono_emerito' || v === 'presbitero_emerito'){
+                campo.style.display = 'flex';
+              } else {
+                campo.style.display = 'none';
+              }
+            }
+            document.addEventListener('DOMContentLoaded', function(){
+              var sel = document.getElementById('oficial_tipo_select');
+              if(sel){
+                sel.addEventListener('change', toggleEmerito);
+                toggleEmerito();
+              }
+            });
+          })();
+        `}} />
       </div>
     )
   } catch (e) {
