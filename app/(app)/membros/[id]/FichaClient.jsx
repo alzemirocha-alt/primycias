@@ -60,6 +60,7 @@ export function OficialToggle() {
     const selEC = document.getElementById('estado_civil')
     const selStatus = document.getElementById('status_membro')
     const selCat = document.getElementById('categoria_membro')
+    const selOficial = document.getElementById('oficial_tipo_select')
     const selAdm = document.getElementById('forma_admissao')
     const selDem = document.getElementById('forma_demissao')
     const gConj = document.getElementById('grupo-conjuge')
@@ -68,6 +69,7 @@ export function OficialToggle() {
     const cOf = document.getElementById('campo-oficial-tipo')
     const cOrd = document.getElementById('campo-data-ordenacao')
     const cInst = document.getElementById('campo-data-instalacao')
+    const cConcessao = document.getElementById('campo-data-concessao')
 
     const applyRules = () => {
       if (gConj && selEC) gConj.style.display = selEC.value === 'casado'? 'grid' : 'none'
@@ -81,12 +83,24 @@ export function OficialToggle() {
         if (cInst) cInst.style.display = isOf? '' : 'none'
         if (selAdm) selAdm.querySelectorAll('optgroup').forEach((og) => { og.hidden = isNao?!og.label.includes('Art. 17') :!og.label.includes('Art. 16') })
         if (selDem) selDem.querySelectorAll('optgroup').forEach((og) => { og.hidden = isNao?!og.label.includes('Art. 24') :!og.label.includes('Art. 23') })
+        // REGRA NOVO: EMÉRITO
+        if (cConcessao) {
+          const isEmerito = selOficial && (selOficial.value === 'diacono_emerito' || selOficial.value === 'presbitero_emerito')
+          cConcessao.style.display = (isOf && isEmerito)? 'flex' : 'none'
+        }
+      } else {
+        // fallback se não tem categoria mas tem oficial
+        if (cConcessao && selOficial) {
+          const isEmerito = selOficial.value === 'diacono_emerito' || selOficial.value === 'presbitero_emerito'
+          cConcessao.style.display = isEmerito? 'flex' : 'none'
+        }
       }
     }
 
     selEC?.addEventListener('change', applyRules)
     selStatus?.addEventListener('change', applyRules)
     selCat?.addEventListener('change', applyRules)
+    selOficial?.addEventListener('change', applyRules)
 
     const btnSalvar = document.getElementById('btn-salvar')
     const inputs = form.querySelectorAll('input, select, textarea')
@@ -134,6 +148,7 @@ export function OficialToggle() {
       selEC?.removeEventListener('change', applyRules)
       selStatus?.removeEventListener('change', applyRules)
       selCat?.removeEventListener('change', applyRules)
+      selOficial?.removeEventListener('change', applyRules)
       form.removeEventListener('submit', onSubmit)
     }
   }, [editando])
@@ -204,12 +219,12 @@ export function HistoricoMembro({ membroId, ficha }) {
   useEffect(()=>{
     if(!membroId) return
     fetch(`/api/historico?membro_id=${membroId}`)
-   .then(r => r.json())
-   .then(data => {
+  .then(r => r.json())
+  .then(data => {
         setHistorico(Array.isArray(data)? data : [])
         setLoading(false)
       })
-   .catch(()=> setLoading(false))
+  .catch(()=> setLoading(false))
   },[membroId])
 
   if(!membroId) return null
