@@ -11,8 +11,12 @@ function getSupabaseAdmin() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 }
 
-export default async function ValidarPage({ params }) {
+export default async function ValidarPage({ params, searchParams }) {
   const { id } = await params
+  const sp = searchParams? await searchParams : {}
+  const tipo = (sp?.t || sp?.tipo || '').toString().toLowerCase()
+  const isBatismo = tipo === 'batismo' || tipo === 'certificado' || tipo === 'batismo_certificado'
+
   const supabase = getSupabaseAdmin()
 
   let m = null
@@ -27,7 +31,7 @@ export default async function ValidarPage({ params }) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
         <div className="bg-white p-8 rounded-xl shadow max-w-md w-full text-center border-t-4 border-red-600">
-          <h1 className="text-xl font-bold text-red-700">Carteira não encontrada</h1>
+          <h1 className="text-xl font-bold text-red-700">{isBatismo? 'Certificado não encontrado' : 'Carteira não encontrada'}</h1>
           <p className="text-sm mt-2 text-gray-600">ID: {id}</p>
         </div>
       </div>
@@ -55,14 +59,18 @@ export default async function ValidarPage({ params }) {
   const igrejaNome = igreja?.nome || ''
   const igrejaLogo = igreja?.logo_url || igreja?.logo || ''
 
+  // Dados específicos de batismo
+  const dataBatismo = m.data_batismo? new Date(m.data_batismo).toLocaleDateString('pt-BR') : '---'
+  const dataNasc = m.data_nascimento? new Date(m.data_nascimento).toLocaleDateString('pt-BR') : '---'
+
   return (
     <div className="min-h-screen bg-[#f3f4f6] p-4 flex items-center justify-center">
       <div className="bg-white w-full max-w-[500px] rounded-[20px] shadow-xl border border-gray-200 overflow-hidden">
-        <div className="bg-white p-5 flex items-center gap-4 border-b-2 border-[#0A3D26]">
+        <div className={`bg-white p-5 flex items-center gap-4 border-b-2 ${isBatismo? 'border-[#b89a5a]' : 'border-[#0A3D26]'}`}>
           {igrejaLogo && <img src={igrejaLogo} className="h-[50px] w-auto" alt="logo"/>}
           <div>
             <h1 className="text-[#0A3D26] font-bold text-[14px] leading-tight">{igrejaNome}</h1>
-            <p className="text-[11px] text-gray-500">Validação de Carteira</p>
+            <p className="text-[11px] text-gray-500">{isBatismo? 'Validação de Certificado de Batismo' : 'Validação de Carteira'}</p>
           </div>
         </div>
 
@@ -80,7 +88,22 @@ export default async function ValidarPage({ params }) {
           </div>
 
           <div className="mt-6">
-            {isAtivo? (
+            {isBatismo? (
+              <div className="bg-[#fdf6e3] border-2 border-[#b89a5a] rounded-xl p-4">
+                <div className="flex items-center gap-2">
+                  <span className="bg-[#b89a5a] text-white px-3 py-1 rounded-full text-xs font-bold">BATISMO</span>
+                  <span className="text-[#7a5a2a] font-bold">Certificado Autêntico</span>
+                </div>
+                <div className="mt-3 space-y-1 text-sm text-[#5a4320]">
+                  <p>Data de Nascimento: <b>{dataNasc}</b></p>
+                  <p>Data do Batismo: <b>{dataBatismo}</b></p>
+                  <p>Local do Batismo: <b>{m.local_batismo || igrejaNome}</b></p>
+                  <p>Oficiado por: <b>{m.pastor_batismo || '---'}</b></p>
+                  <p className="pt-2 text-xs">Forma de Admissão: {m.forma_admissao || m.forma_de_admissao || '---'}</p>
+                </div>
+                <p className="text-[11px] mt-3 text-[#b89a5a]">Este QR comprova que o sacramento do Batismo foi administrado conforme livro de registros da igreja.</p>
+              </div>
+            ) : isAtivo? (
               <div className="bg-green-50 border-2 border-green-600 rounded-xl p-4">
                 <div className="flex items-center gap-2">
                   <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold">ATIVO</span>
