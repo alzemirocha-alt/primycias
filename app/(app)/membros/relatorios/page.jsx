@@ -534,23 +534,23 @@ export default function RelatoriosPage(){
                 <div id="area-batismo">
                   {/* FRENTE - FOLHA 1 */}
                   <div className="pagina-cert folha-cert" style={{backgroundImage:"url('/borda-certificado.png')"}}>
-                    <div className="conteudo-cert frente">
-                      <div className="flex justify-center pt-[8px]">
-                        <img src={logoIgreja || '/logo-igreja.png'} className="h-[62px] w-auto object-contain" alt="logo"/>
+                    <div className="conteudo-cert">
+                      <div className="flex justify-center">
+                        <img src={logoIgreja || '/logo-igreja.png'} className="h-[56px] w-auto object-contain" alt="logo"/>
                       </div>
-                      <h1 className="titulo-ouro text-center text-[34px] font-bold mt-[14px] tracking-[1px] leading-none">CERTIFICADO DE BATISMO</h1>
-                      <p className="text-center text-[14px] italic mt-[10px]">Certificamos que foi administrado o Sacramento do Batismo a:</p>
+                      <h1 className="titulo-ouro text-center text-[30px] font-bold mt-[12px] leading-none">CERTIFICADO DE BATISMO</h1>
+                      <p className="text-center text-[13px] italic mt-[8px]">Certificamos que foi administrado o Sacramento do Batismo a:</p>
 
-                      <div className="mt-[18px] px-[10px] text-[13.5px] leading-[2.4] flex-1">
-                        <p>Nome: <span className="font-bold border-b border-black px-3">{membroBatismo.nome_completo}</span></p>
+                      <div className="mt-[22px] text-[13px] leading-[2.6] flex-1">
+                        <p>Nome: <span className="font-bold border-b border-black px-2">{membroBatismo.nome_completo}</span></p>
                         <p>Data de Nascimento: <span className="border-b border-black px-3">{membroBatismo.data_nascimento?formatarDataLongaBR(membroBatismo.data_nascimento):'___'}</span></p>
-                        <p>Data do Batismo: <span className="border-b border-black px-4">{membroBatismo.data_batismo?formatarDataBR(membroBatismo.data_batismo):'__/__/____'}</span> &nbsp; Local: <span className="border-b border-dotted border-black px-6">{membroBatismo.local_batismo || nomeIgreja}</span></p>
-                        <p className="mt-[14px]">Oficiado por Reverendo: <span className="border-b border-black px-8">{membroBatismo.pastor_batismo || igreja?.pastor_nome || '____________________'}</span></p>
+                        <p>Data do Batismo: <span className="border-b border-black px-4">{membroBatismo.data_batismo?formatarDataBR(membroBatismo.data_batismo):'__/__/____'}</span> &nbsp; Local: <span className="border-b border-dotted border-black px-4">{membroBatismo.local_batismo || nomeIgreja}</span></p>
+                        <p className="mt-[16px]">Oficiado por Reverendo: <span className="border-b border-black px-6">{membroBatismo.pastor_batismo || igreja?.pastor_nome || '____________________'}</span></p>
                       </div>
 
-                      <div className="flex justify-center mt-[24px]">
+                      <div className="flex justify-center mt-[28px]">
                         <div className="text-center">
-                          <div className="border-t border-black w-[260px]"></div>
+                          <div className="border-t border-black w-[240px]"></div>
                           <p className="text-[9px] mt-1">Assinatura do Pastor</p>
                         </div>
                       </div>
@@ -560,31 +560,31 @@ export default function RelatoriosPage(){
 
                   {/* VERSO - FOLHA 2 */}
                   <div className="pagina-cert folha-cert" style={{backgroundImage:"url('/borda-certificado.png')"}}>
-                    <div className="conteudo-cert verso">
-                      <div className="flex justify-center pt-[8px]">
-                        <img src={logoIgreja || '/logo-igreja.png'} className="h-[58px] w-auto object-contain" alt="logo"/>
+                    <div className="conteudo-cert">
+                      <div className="flex justify-center">
+                        <img src={logoIgreja || '/logo-igreja.png'} className="h-[50px] w-auto object-contain" alt="logo"/>
                       </div>
-                      <h1 className="titulo-ouro text-center text-[28px] font-bold mt-[14px] leading-none">Dados Complementares</h1>
+                      <h1 className="titulo-ouro text-center text-[24px] font-bold mt-[12px] leading-none">Dados Complementares</h1>
 
-                      <div className="flex mt-[20px] px-[10px]">
-                        <div className="flex-1 text-[12px] leading-[2.6]">
+                      <div className="flex mt-[20px]">
+                        <div className="flex-1 text-[11px] leading-[2.7]">
                           <p>CPF: <span className="border-b border-black px-6">{formatarCPF(membroBatismo.cpf)}</span></p>
                           <p>Filiação — Pai: <span className="border-b border-black px-4">{membroBatismo.filiacao_pai || membroBatismo.nome_pai || '---'}</span></p>
                           <p>Filiação — Mãe: <span className="border-b border-black px-4">{membroBatismo.filiacao_mae || membroBatismo.nome_mae || '---'}</span></p>
                           <p className="mt-3">Forma de Admissão: <span className="border-b border-black px-4">{membroBatismo.forma_admissao || classificarAdmissao(membroBatismo)}</span></p>
                           <p>Nº Rol: <span className="border-b border-black px-10">{membroBatismo.numero_rol || ''}</span></p>
                         </div>
-                        <div className="w-[108px] flex justify-center pt-1">
+                        <div className="w-[100px] flex justify-center pt-1">
                           <img
                             src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&color=0A3D26&bgcolor=ffffff&margin=0&qzone=0&data=${encodeURIComponent(`${typeof window!== 'undefined'? window.location.origin : 'https://primycias.vercel.app'}/validar/${membroBatismo.id}?t=batismo`)}`}
-                            className="w-[96px] h-[96px] mix-blend-multiply"
+                            className="w-[86px] h-[86px] mix-blend-multiply"
                             alt="QR"
                           />
                         </div>
                       </div>
 
-                      <div className="flex-1 flex flex-col justify-end items-center pb-[26px] mt-6">
-                        <p className="text-[12px]">Data de emissão: <span className="border-b border-black px-8">{formatarDataBR(new Date().toISOString())}</span></p>
+                      <div className="flex-1 flex flex-col justify-end items-center pb-[16px]">
+                        <p className="text-[11px]">Data de emissão: <span className="border-b border-black px-8">{formatarDataBR(new Date().toISOString())}</span></p>
                       </div>
 
                       <div className="rodape-igreja">{rodapedinamico}</div>
@@ -668,41 +668,70 @@ export default function RelatoriosPage(){
       </div>
 
       <style>{`
-   .fonte-igreja{font-family:Optima,Candara,'Zapf Humanist',sans-serif;font-weight:700}
-   .titulo-ouro{color:#b89a5a;font-family:serif;letter-spacing:1px}
-   .pagina-cert{width:100%;max-width:900px;min-height:520px;background-size:100% 100%;background-repeat:no-repeat;background-color:#fdf6e3;position:relative;margin:0 auto;box-sizing:border-box}
-   .folha-cert{page-break-after: always; break-after: page;}
-   .folha-cert:last-child{page-break-after: auto; break-after: auto;}
-   .conteudo-cert{padding:22px 56px 44px 56px;position:relative;min-height:520px;display:flex;flex-direction:column}
-   .conteudo-cert.frente{padding-top:32px}
-   .conteudo-cert.verso{padding-top:32px}
-   .rodape-igreja{position:absolute;bottom:14px;left:18px;right:18px;text-align:center;font-size:6.5px;color:#222;letter-spacing:0.15px;line-height:1.2}
-        @media print {
-          body { background: white!important; margin:0!important; }
-       .no-print { display: none!important; }
-       .print\\:block { display: block!important; }
+  .fonte-igreja{font-family:Optima,Candara,'Zapf Humanist',sans-serif;font-weight:700}
+  .titulo-ouro{color:#b89a5a;font-family:serif;letter-spacing:1px}
+  .pagina-cert{
+     width:100%;max-width:900px;min-height:560px;
+     background-size:100% 100%;background-repeat:no-repeat;background-color:#fdf6e3;
+     position:relative;margin:0 auto;box-sizing:border-box;
+     overflow:hidden;
+   }
+  .folha-cert{page-break-after: always; break-after: page;}
+  .folha-cert:last-child{page-break-after: auto; break-after: auto;}
+   /* ÁREA SEGURA - aumentada pra não bater na borda ornamentada */
+  .conteudo-cert{
+     padding:42px 98px 60px 98px;
+     position:relative;min-height:560px;display:flex;flex-direction:column;
+     box-sizing:border-box;
+   }
+  .rodape-igreja{
+     position:absolute;bottom:20px;left:98px;right:98px;
+     text-align:center;font-size:6px;color:#222;letter-spacing:0.15px;line-height:1.2
+   }
 
-          /* MODO BATISMO - SÓ CERTIFICADO */
-          body.imprimindo-batismo * { visibility: hidden!important; }
-          body.imprimindo-batismo #area-batismo, body.imprimindo-batismo #area-batismo * { visibility: visible!important; }
-          body.imprimindo-batismo #area-batismo { position: absolute!important; left:0!important; top:0!important; width:100%!important; margin:0!important; padding:0!important; }
-          body.imprimindo-batismo.folha-cert{
-            width:297mm!important; height:210mm!important; max-width:297mm!important; min-height:210mm!important;
-            margin:0!important; box-shadow:none!important; border:none!important;
-            background-size:100% 100%!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important;
-            visibility: visible!important;
-          }
-          body.imprimindo-batismo.conteudo-cert{ min-height:210mm!important; padding:18mm 24mm 14mm 24mm!important; visibility: visible!important; }
+   @media print {
+     html, body { background: white!important; margin:0!important; padding:0!important; }
+    .no-print { display: none!important; }
+    .print\\:block { display: block!important; }
 
-          body.imprimindo-carta * { visibility: hidden!important; }
-          body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
-          body.imprimindo-carta #detalhe-carta { position: absolute!important; left:0!important; top:0!important; width:100%!important; max-width:100%!important; margin:0!important; padding:0!important; border:none!important; box-shadow:none!important; background:white!important; }
-          body.imprimindo-relatorio * { visibility: hidden!important; }
-          body.imprimindo-relatorio #area-impressao, body.imprimindo-relatorio #area-impressao * { visibility: visible!important; }
-          body.imprimindo-relatorio #area-impressao { position: absolute!important; left:0!important; top:0!important; width:100%!important; margin:0!important; padding:0!important; background:white!important; }
-          body.imprimindo-relatorio table { width:100%!important; border-collapse: collapse!important; }
-          @page { margin: 0; size: A4 landscape; }
-        }
+     /* MODO BATISMO - SÓ CERTIFICADO - CORRIGIDO COM ESPAÇO */
+     body.imprimindo-batismo * { visibility: hidden!important; }
+     body.imprimindo-batismo #area-batismo,
+     body.imprimindo-batismo #area-batismo * { visibility: visible!important; }
+     body.imprimindo-batismo #area-batismo{
+       position: absolute!important; left:0!important; top:0!important; width:100%!important; margin:0!important; padding:0!important;
+     }
+     body.imprimindo-batismo.folha-cert{
+       width:297mm!important; height:210mm!important; max-width:297mm!important; min-height:210mm!important;
+       margin:0!important; padding:0!important;
+       box-shadow:none!important; border:none!important; border-radius:0!important;
+       background-size:100% 100%!important; background-position:center!important;
+       -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important;
+       page-break-after: always!important; break-after: page!important;
+       overflow:hidden!important;
+       display:block!important;
+     }
+     body.imprimindo-batismo.folha-cert:last-child{
+       page-break-after: auto!important; break-after: auto!important;
+     }
+     body.imprimindo-batismo.conteudo-cert{
+       width:297mm!important; height:210mm!important; min-height:210mm!important;
+       padding:22mm 34mm 20mm 34mm!important;
+       box-sizing:border-box!important;
+     }
+     body.imprimindo-batismo.rodape-igreja{
+       left:34mm!important; right:34mm!important; bottom:11mm!important;
+     }
+
+     body.imprimindo-carta * { visibility: hidden!important; }
+     body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
+     body.imprimindo-carta #detalhe-carta { position: absolute!important; left:0!important; top:0!important; width:100%!important; max-width:100%!important; margin:0!important; padding:0!important; border:none!important; box-shadow:none!important; background:white!important; }
+     body.imprimindo-relatorio * { visibility: hidden!important; }
+     body.imprimindo-relatorio #area-impressao, body.imprimindo-relatorio #area-impressao * { visibility: visible!important; }
+     body.imprimindo-relatorio #area-impressao { position: absolute!important; left:0!important; top:0!important; width:100%!important; margin:0!important; padding:0!important; background:white!important; }
+     body.imprimindo-relatorio table { width:100%!important; border-collapse: collapse!important; }
+     @page { margin: 0; size: A4 landscape; }
+   }
       `}</style>
     </div>
   )
