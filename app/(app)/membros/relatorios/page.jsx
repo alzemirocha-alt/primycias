@@ -554,7 +554,7 @@ export default function RelatoriosPage(){
                     </div>
                   </div>
 
-                  {/* VERSO */}
+                  {/* VERSO - CORRIGIDO SEM SOMBRA E DATA CENTRALIZADA */}
                   <div className="pagina-cert mt-8" style={{backgroundImage:"url('/borda-certificado.png')"}}>
                     <div className="conteudo-cert verso">
                       <div className="flex justify-center pt-[18px]">
@@ -562,20 +562,25 @@ export default function RelatoriosPage(){
                       </div>
                       <h1 className="titulo-ouro text-center text-[30px] font-bold mt-[26px]">Dados Complementares</h1>
 
-                      <div className="flex mt-8 px-2 md:px-6">
+                      <div className="flex mt-8 px-2 md:px-10">
                         <div className="flex-1 text-[13px] leading-[2.7]">
                           <p>CPF: <span className="border-b border-black px-8">{formatarCPF(membroBatismo.cpf)}</span></p>
                           <p>Filiação — Pai: <span className="border-b border-black px-6">{membroBatismo.filiacao_pai || membroBatismo.nome_pai || '---'}</span></p>
                           <p>Filiação — Mãe: <span className="border-b border-black px-6">{membroBatismo.filiacao_mae || membroBatismo.nome_mae || '---'}</span></p>
                           <p className="mt-4">Forma de Admissão: <span className="border-b border-black px-8">{membroBatismo.forma_admissao || classificarAdmissao(membroBatismo)}</span></p>
                           <p>Nº Rol: <span className="border-b border-black px-12">{membroBatismo.numero_rol || ''}</span></p>
-                          <p>Data de emissão: <span className="border-b border-black px-6">{formatarDataBR(new Date().toISOString())}</span></p>
                         </div>
-                        <div className="w-[120px] flex justify-center pt-2">
-                          <div className="bg-[#fdf6e3] p-1">
-                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&bgcolor=FDF6E3&color=0A3D26&qzone=1&data=${encodeURIComponent(`${typeof window!== 'undefined'? window.location.origin : 'https://primycias.vercel.app'}/validar/${membroBatismo.id}`)}`} className="w-[92px] h-[92px] block" alt="QR" style={{background:'#fdf6e3'}} />
-                          </div>
+                        <div className="w-[120px] flex justify-start pt-2">
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&color=0A3D26&bgcolor=ffffff&margin=0&qzone=0&data=${encodeURIComponent(`${typeof window!== 'undefined'? window.location.origin : 'https://primycias.vercel.app'}/validar/${membroBatismo.id}?t=batismo`)}`}
+                            className="w-[100px] h-[100px] mix-blend-multiply opacity-[0.92]"
+                            alt="QR"
+                          />
                         </div>
+                      </div>
+
+                      <div className="flex-1 flex flex-col justify-end items-center pb-[38px] mt-8">
+                        <p className="text-[13px]">Data de emissão: <span className="border-b border-black px-8">{formatarDataBR(new Date().toISOString())}</span></p>
                       </div>
 
                       <div className="rodape-igreja">{rodapedinamico}</div>
@@ -659,21 +664,21 @@ export default function RelatoriosPage(){
       </div>
 
       <style>{`
-      .fonte-igreja{font-family:Optima,Candara,'Zapf Humanist',sans-serif;font-weight:700}
-      .titulo-ouro{color:#b89a5a;font-family:serif;letter-spacing:1px}
-      .pagina-cert{width:100%;max-width:900px;min-height:560px;background-size:100% 100%;background-repeat:no-repeat;background-color:#fdf6e3;position:relative;margin:0 auto;box-sizing:border-box;page-break-after:always}
-      .conteudo-cert{padding:38px 64px 52px 64px;position:relative;min-height:560px;display:flex;flex-direction:column}
-      .conteudo-cert.frente{padding-top:56px}
-      .conteudo-cert.verso{padding-top:56px}
-      .rodape-igreja{position:absolute;bottom:12px;left:10px;right:10px;text-align:center;font-size:7px;color:#222;letter-spacing:0.15px;line-height:1.2}
+     .fonte-igreja{font-family:Optima,Candara,'Zapf Humanist',sans-serif;font-weight:700}
+     .titulo-ouro{color:#b89a5a;font-family:serif;letter-spacing:1px}
+     .pagina-cert{width:100%;max-width:900px;min-height:560px;background-size:100% 100%;background-repeat:no-repeat;background-color:#fdf6e3;position:relative;margin:0 auto;box-sizing:border-box;page-break-after:always}
+     .conteudo-cert{padding:38px 64px 52px 64px;position:relative;min-height:560px;display:flex;flex-direction:column}
+     .conteudo-cert.frente{padding-top:56px}
+     .conteudo-cert.verso{padding-top:56px}
+     .rodape-igreja{position:absolute;bottom:12px;left:10px;right:10px;text-align:center;font-size:7px;color:#222;letter-spacing:0.15px;line-height:1.2}
         @media print {
           body { background: white!important; }
-      .no-print { display: none!important; }
-      .print\\:block { display: block!important; }
-        .pagina-cert{width:297mm!important;height:210mm!important;max-width:none!important;box-shadow:none!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-        .conteudo-cert{min-height:210mm}
-        .conteudo-cert.frente{padding-top:48px}
-        .conteudo-cert.verso{padding-top:48px}
+     .no-print { display: none!important; }
+     .print\\:block { display: block!important; }
+       .pagina-cert{width:297mm!important;height:210mm!important;max-width:none!important;box-shadow:none!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+       .conteudo-cert{min-height:210mm}
+       .conteudo-cert.frente{padding-top:48px}
+       .conteudo-cert.verso{padding-top:48px}
           body.imprimindo-carta * { visibility: hidden!important; }
           body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
           body.imprimindo-carta #detalhe-carta { position: absolute!important; left:0!important; top:0!important; width:100%!important; max-width:100%!important; margin:0!important; padding:0!important; border:none!important; box-shadow:none!important; background:white!important; }
