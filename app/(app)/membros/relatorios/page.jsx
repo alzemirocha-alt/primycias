@@ -677,23 +677,23 @@ export default function RelatoriosPage(){
    }
 .folha-cert{page-break-after: always; break-after: page;}
 .folha-cert:last-child{page-break-after: auto; break-after: auto;}
- /* CONTEUDO COM AREA SEGURA MAS SEM AFASTAR DEMAIS */
+ /* CORRECAO LATERAL: 108px esquerda pra sair da borda dourada */
 .conteudo-cert{
-     padding:36px 82px 48px 82px;
+     padding:36px 88px 48px 108px;
      position:relative; min-height:560px; display:flex; flex-direction:column;
      box-sizing:border-box;
    }
- /* RODAPE NA PARTE AMARELA ABAIXO DA FAIXA VERDE - IGUAL SUA FOTO */
+ /* RODAPE NA PARTE AMARELA ABAIXO DA FAIXA VERDE - COM LETRA MAIOR */
 .rodape-igreja{
-     position:absolute; bottom:12px; left:30px; right:30px;
+     position:absolute; bottom:12px; left:48px; right:30px;
      text-align:center; font-size:8.5px; line-height:1.3; color:#222;
      letter-spacing:0.2px; z-index:5;
    }
 
  @media print {
      html, body { background: white!important; margin:0!important; padding:0!important; }
-  .no-print { display: none!important; }
-  .print\\:block { display: block!important; }
+ .no-print { display: none!important; }
+ .print\\:block { display: block!important; }
 
      body.imprimindo-batismo * { visibility: hidden!important; }
      body.imprimindo-batismo #area-batismo,
@@ -713,11 +713,11 @@ export default function RelatoriosPage(){
      body.imprimindo-batismo.pagina-cert:last-child{ page-break-after: auto!important; break-after: auto!important; }
      body.imprimindo-batismo.conteudo-cert{
        width:100%!important; min-height:210mm!important; height:210mm!important;
-       padding:14mm 28mm 16mm 28mm!important;
+       padding:14mm 28mm 16mm 34mm!important;
        box-sizing:border-box!important;
      }
      body.imprimindo-batismo.rodape-igreja{
-       bottom:5mm!important; left:12mm!important; right:12mm!important;
+       bottom:5.5mm!important; left:18mm!important; right:12mm!important;
        font-size:8.5px!important; line-height:1.2!important;
        color:#222!important;
      }
