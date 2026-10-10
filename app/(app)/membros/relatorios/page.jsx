@@ -58,22 +58,19 @@ function formatarOficio(f){
   return 'Comungante'
 }
 
-// CORREÇÃO - NORMALIZA UNDERLINE E HIFEN
 function normaliza(s){
   return String(s||'')
-   .toLowerCase()
-   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-   .replace(/[_-]/g,' ')
-   .replace(/\s+/g,' ')
-   .trim()
+  .toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/[_-]/g,' ')
+  .replace(/\s+/g,' ')
+  .trim()
 }
 
 function isNaoComungante(m){
   const cat = normaliza(m.categoria_membro || m.categoria || m.tipo_membro || '')
   if(!cat) return false
-  // seu banco tem nao_comungante com underline, agora vira "nao comungante"
   if(cat.includes('nao comungante')) return true
-  // garante que não confunde com comungante oficial
   return false
 }
 function isDemitido(m){
@@ -520,7 +517,41 @@ export default function RelatoriosPage(){
             </div>
           )}
           {aba==='batismo' && (
-            <div><h3 className="font-bold text-center text-lg mb-4">Certificado de Batismo - {nomeIgreja}</h3><div className="mb-4 no-print"><input value={buscaBatismo} onChange={e=>buscarBatismo(e.target.value)} placeholder="Pesquisar membro..." className="border p-3 rounded-lg w-full" />{resultBatismo.length>0 && <div className="border rounded mt-2 max-h-40 overflow-auto">{resultBatismo.map(r=><div key={r.id} onClick={()=>{setMembroBatismo(r); setResultBatismo([]); setBuscaBatismo(r.nome_completo)}} className="p-2 hover:bg-gray-100 cursor-pointer text-sm">{r.nome_completo} - {r.data_batismo?formatarDataBR(r.data_batismo):'s/ batismo'}</div>)}</div>}</div>{membroBatismo && (<div className="text-center py-10 px-8 border-2 border-double"><h2 className="font-bold">{nomeIgreja}</h2><h2 className="text-xl font-bold mt-4">CERTIFICADO DE BATISMO</h2><p className="mt-8 text-sm leading-7">Certificamos que <b>{membroBatismo.nome_completo}</b>, filho(a) de {membroBatismo.filiacao_pai||'---'} e {membroBatismo.filiacao_mae||'---'}, foi batizado(a) em <b>{membroBatismo.data_batismo?formatarDataBR(membroBatismo.data_batismo):'__/__/____'}</b> {membroBatismo.local_batismo? ` em ${membroBatismo.local_batismo}`:''}.</p><p className="mt-4 text-sm">Pastor Celebrante: {membroBatismo.pastor_batismo || igreja?.pastor_nome || '____________________'}</p><div className="mt-20 grid grid-cols-2 gap-10 text-sm"><div className="border-t pt-2">{igreja?.secretario_nome||'Secretário'}</div><div className="border-t pt-2">{igreja?.pastor_nome||'Pastor'}</div></div></div>)}</div>
+            <div>
+              <div className="mb-6 no-print">
+                <h3 className="font-bold text-center text-lg mb-2">Certificado de Batismo - {nomeIgreja}</h3>
+                <input value={buscaBatismo} onChange={e=>buscarBatismo(e.target.value)} placeholder="Pesquisar membro para emitir certificado..." className="border p-3 rounded-lg w-full" />
+                {resultBatismo.length>0 && <div className="border rounded mt-2 max-h-40 overflow-auto bg-white shadow">{resultBatismo.map(r=><div key={r.id} onClick={()=>{setMembroBatismo(r); setResultBatismo([]); setBuscaBatismo(r.nome_completo)}} className="p-2 hover:bg-gray-100 cursor-pointer text-sm border-b last:border-0">{r.nome_completo} - {r.data_batismo?formatarDataBR(r.data_batismo):'s/ batismo'}</div>)}</div>}
+              </div>
+
+              {membroBatismo && (
+                <div className="folha-cert borda-cert mx-auto shadow-2xl p-8 md:p-10 flex flex-col print:shadow-none bg-[#fdf6e3]">
+                  <div className="flex justify-center">
+                    <img src={logoIgreja || '/logo-igreja.png'} className="h-[70px] w-auto -mt-2 object-contain" alt="logo"/>
+                  </div>
+                  <h2 className="fonte-igreja text-center text-[27px] text-[#0a3d26] mt-3 leading-tight">{nomeIgreja}</h2>
+                  <h1 className="titulo-ouro text-center text-[40px] font-bold mt-6 tracking-[2px]">CERTIFICADO DE BATISMO</h1>
+                  <p className="text-center text-[13px] italic mt-3">Certificamos que foi administrado o Sacramento do Batismo a:</p>
+
+                  <div className="mt-10 px-2 md:px-8 text-[15px] leading-[2.5] flex-1">
+                    <p>Nome: <span className="font-bold border-b border-black px-4">{membroBatismo.nome_completo}</span></p>
+                    <p>Filiação — Pai: <span className="border-b border-black px-4">{membroBatismo.filiacao_pai || membroBatismo.nome_pai || '---'}</span> &nbsp; Mãe: <span className="border-b border-black px-4">{membroBatismo.filiacao_mae || membroBatismo.nome_mae || '---'}</span></p>
+                    <p>Data de Nascimento: <span className="border-b border-black px-4">{formatarDataLongaBR(membroBatismo.data_nascimento)}</span></p>
+                    <p>Data do Batismo: <span className="border-b border-black px-4">{membroBatismo.data_batismo?formatarDataBR(membroBatismo.data_batismo):'__/__/____'}</span> &nbsp; Local: <span className="border-b border-black px-8">{membroBatismo.local_batismo || nomeIgreja}</span></p>
+                    <p>Oficiado por Reverendo: <span className="border-b border-black px-8">{membroBatismo.pastor_batismo || igreja?.pastor_nome || '---'}</span></p>
+                  </div>
+
+                  <div className="flex justify-around mt-16 text-[11px]">
+                    <div className="w-[260px] text-center"><div className="border-t border-black"></div><p className="mt-1">{igreja?.secretario_nome || 'Secretário do Conselho'}</p></div>
+                    <div className="w-[260px] text-center"><div className="border-t border-black"></div><p className="mt-1">{igreja?.pastor_nome || 'Pastor'}</p></div>
+                  </div>
+
+                  <div className="text-center text-[8px] mt-6 tracking-wide text-[#0a3d26]">
+                    {nomeIgreja} {enderecoIgreja? `— ${enderecoIgreja}` : ''} {cnpjIgreja? `— CNPJ: ${cnpjIgreja}` : ''}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           {aba==='cartas' && (
             <div>
@@ -596,10 +627,15 @@ export default function RelatoriosPage(){
       </div>
 
       <style>{`
+       .fonte-igreja{font-family:Optima,Candara,'Zapf Humanist',sans-serif;font-weight:700}
+       .folha-cert{width:100%;max-width:900px;min-height:560px;background:#fdf6e3;position:relative;box-sizing:border-box}
+       .borda-cert{border:14px solid #0a3d26; outline:3px solid #c5a76a; outline-offset:-20px}
+       .titulo-ouro{color:#b89a5a;font-family:serif;}
         @media print {
           body { background: white!important; }
-.no-print { display: none!important; }
-.print\\:block { display: block!important; }
+         .no-print { display: none!important; }
+         .print\\:block { display: block!important; }
+         .folha-cert{width:297mm!important;height:210mm!important;max-width:none!important;box-shadow:none!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
           body.imprimindo-carta * { visibility: hidden!important; }
           body.imprimindo-carta #detalhe-carta, body.imprimindo-carta #detalhe-carta * { visibility: visible!important; }
           body.imprimindo-carta #detalhe-carta { position: absolute!important; left:0!important; top:0!important; width:100%!important; max-width:100%!important; margin:0!important; padding:0!important; border:none!important; box-shadow:none!important; background:white!important; }
@@ -607,7 +643,7 @@ export default function RelatoriosPage(){
           body.imprimindo-relatorio #area-impressao, body.imprimindo-relatorio #area-impressao * { visibility: visible!important; }
           body.imprimindo-relatorio #area-impressao { position: absolute!important; left:0!important; top:0!important; width:100%!important; margin:0!important; padding:20px 30px!important; background:white!important; }
           body.imprimindo-relatorio table { width:100%!important; border-collapse: collapse!important; }
-          @page { margin: 1.5cm; size: A4; }
+          @page { margin: 0; size: A4 landscape; }
         }
       `}</style>
     </div>
