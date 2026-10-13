@@ -27,8 +27,9 @@ export async function POST(req){
   const { error } = await supabaseAdmin.from('membros_oficial').update({
     status: 'ativo',
     status_membro: 'ativo',
-    data_admissao: primeiraAdmissao,
-    data_primeira_admissao: primeiraAdmissao,
+    data_admissao: data_evento, // <-- AQUI: era primeiraAdmissao, agora é a ÚLTIMA
+    forma_admissao: forma_admissao, // <-- ADICIONADO: atualiza a forma da última
+    data_primeira_admissao: primeiraAdmissao, // guarda a primeira separada
     data_admissao_atual: data_evento,
     data_ultima_admissao: data_evento,
     forma_ultima_admissao: forma_admissao,
