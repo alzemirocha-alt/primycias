@@ -25,7 +25,7 @@ export async function POST(req){
   if(!membro) return NextResponse.json({error:"Membro não encontrado"},{status:404})
 
   const primeiraAdmissao = membro.data_primeira_admissao || membro.data_admissao
-  const igrejaId = membro.igreja_id || (user as any).igreja_id || null
+  const igrejaId = membro.igreja_id || user.igreja_id || user.igrejaId || null
 
   const { error: updateError } = await supabaseAdmin.from('membros_oficial').update({
     status: 'demitido', 
