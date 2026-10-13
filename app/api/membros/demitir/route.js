@@ -25,8 +25,9 @@ export async function POST(req){
   if(!membro) return NextResponse.json({error:"Membro não encontrado"},{status:404})
 
   const primeiraAdmissao = membro.data_primeira_admissao || membro.data_admissao
+  const igrejaId = membro.igreja_id || (user as any).igreja_id || null
 
-  await supabaseAdmin.from('membros_oficial').update({
+  const { error: updateError } = await supabaseAdmin.from('membros_oficial').update({
     status: 'demitido', 
     status_membro: 'demitido',
     data_primeira_admissao: primeiraAdmissao,
@@ -36,9 +37,11 @@ export async function POST(req){
     pastor_demissao: pastorFinal
   }).eq('id', id)
 
-  await supabaseAdmin.from('membros_historico').insert({
+  if(updateError) return NextResponse.json({error:updateError.message},{status:400})
+
+  const { error: histError } = await supabaseAdmin.from('membros_historico').insert({
     membro_id: id, 
-    igreja_id: membro.igreja_id || null,
+    igreja_id: igrejaId,
     tipo: 'demissao', 
     data_evento: dataFinal,
     forma: forma_demissao, 
@@ -47,6 +50,8 @@ export async function POST(req){
     observacao: motivo ? `${forma_demissao} - ${motivo}` : (ata_numero ? `Demissão - Ata nº ${ata_numero}` : `Demissão`),
     snapshot: membro
   })
+
+  if(histError) return NextResponse.json({error:histError.message},{status:400})
 
   return NextResponse.json({ok:true})
 }
