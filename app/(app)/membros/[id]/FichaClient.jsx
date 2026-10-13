@@ -354,9 +354,22 @@ export function HistoricoMembro({ membroId, ficha }) {
     fetch(`/api/historico?membro_id=${membroId}`)
 .then(r => r.json())
 .then(data => {
-        const lista = Array.isArray(data)? data : []
-        lista.sort((a,b)=> new Date(a.data_evento) - new Date(b.data_evento))
-        setHistorico(lista)
+        let lista = Array.isArray(data)? data : []
+
+        // FIX: remove duplicidade por data+tipo (ex: 21/07/2005 ADMISSÃO duplicado)
+        const seen = new Set()
+        const dedup = []
+        for (const h of lista) {
+          const key = `${String(h.data_evento).slice(0,10)}-${String(h.tipo).toLowerCase()}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            dedup.push(h)
+          }
+        }
+
+        // FIX: sempre da mais antiga para a mais nova
+        dedup.sort((a,b)=> new Date(a.data_evento) - new Date(b.data_evento))
+        setHistorico(dedup)
         setLoading(false)
       })
 .catch(()=> setLoading(false))
@@ -370,15 +383,6 @@ export function HistoricoMembro({ membroId, ficha }) {
 
       {loading? <p className="text-xs text-gray-500">Carregando histórico...</p> : (
         <div className="space-y-2">
-          {ficha?.data_admissao && (
-            <div className="border rounded p-3 text-xs bg-green-50">
-              <div className="flex gap-2 font-bold"><span>{formatarDataBR(ficha.data_admissao)}</span><span className="bg-green-200 px-2 rounded text-[10px]">ADMISSÃO</span><span>{ficha.forma_admissao || ficha.forma_de_admissao || '---'}</span></div>
-              <div className="text-[11px] text-gray-600 mt-1">
-                {ficha.local_batismo && `Local: ${ficha.local_batismo} | `}
-                {ficha.pastor_batismo && `Pastor: ${ficha.pastor_batismo}`}
-              </div>
-            </div>
-          )}
           {historico.map(h=>(
             <div key={h.id} className="border rounded p-3 text-xs bg-white shadow-sm">
               <div className="flex gap-2 items-center flex-wrap">
@@ -395,7 +399,7 @@ export function HistoricoMembro({ membroId, ficha }) {
               </div>
             </div>
           ))}
-          {historico.length===0 &&!ficha?.data_admissao && <p className="text-xs text-gray-400 italic">O histórico será preenchido automaticamente a cada demissão/readmissão.</p>}
+          {historico.length===0 && <p className="text-xs text-gray-400 italic">O histórico será preenchido automaticamente a cada demissão/readmissão.</p>}
         </div>
       )}
     </div>
