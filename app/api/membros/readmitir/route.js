@@ -22,6 +22,7 @@ export async function POST(req){
   if(!membro) return NextResponse.json({error:"Membro não encontrado"},{status:404})
 
   const primeiraAdmissao = membro.data_primeira_admissao || membro.data_admissao || data_evento
+  const igrejaId = membro.igreja_id || (user as any).igreja_id || null
 
   const { error } = await supabaseAdmin.from('membros_oficial').update({
     status: 'ativo',
@@ -42,7 +43,7 @@ export async function POST(req){
 
   const { error: histError } = await supabaseAdmin.from('membros_historico').insert({
     membro_id: id,
-    igreja_id: membro.igreja_id || null,
+    igreja_id: igrejaId,
     tipo: 'readmissao',
     data_evento: data_evento,
     forma: forma_admissao,
