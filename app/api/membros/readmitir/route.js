@@ -21,15 +21,16 @@ export async function POST(req){
   const { data: membro } = await supabaseAdmin.from('membros_oficial').select('*').eq('id', id).single()
   if(!membro) return NextResponse.json({error:"Membro não encontrado"},{status:404})
 
-  const primeiraAdmissao = membro.data_primeira_admissao || membro.data_admissao || data_evento
+  // guarda a primeira, nunca sobrescreve
+  const primeira = membro.data_primeira_admissao || membro.data_admissao || data_evento
   const igrejaId = membro.igreja_id || (user as any).igreja_id || null
 
   const { error } = await supabaseAdmin.from('membros_oficial').update({
     status: 'ativo',
     status_membro: 'ativo',
-    data_admissao: data_evento, // <-- AQUI: era primeiraAdmissao, agora é a ÚLTIMA
-    forma_admissao: forma_admissao, // <-- ADICIONADO: atualiza a forma da última
-    data_primeira_admissao: primeiraAdmissao, // guarda a primeira separada
+    data_primeira_admissao: primeira, // 1975 fica guardado
+    data_admissao: data_evento, // 2005 é o que aparece no campo e na carteira
+    forma_admissao: forma_admissao,
     data_admissao_atual: data_evento,
     data_ultima_admissao: data_evento,
     forma_ultima_admissao: forma_admissao,
@@ -37,24 +38,29 @@ export async function POST(req){
     forma_demissao: null,
     motivo_demissao: null,
     pastor_demissao: null,
-    pastor_admissao_atual: pastor_epoca
+    pastor_admissao_atual: pastor_epoca,
+    pastor_admissao: pastor_epoca
   }).eq('id', id)
 
   if(error) return NextResponse.json({error:error.message},{status:400})
 
-  const { error: histError } = await supabaseAdmin.from('membros_historico').insert({
-    membro_id: id,
-    igreja_id: igrejaId,
-    tipo: 'readmissao',
-    data_evento: data_evento,
-    forma: forma_admissao,
-    pastor_nome: pastor_epoca,
-    local_evento: local_admissao || (ata_numero ? `Ata nº ${ata_numero}` : null),
-    observacao: ata_numero ? `Readmissão - Ata nº ${ata_numero}` : `Readmissão`,
-    snapshot: membro
-  })
+  const { data: existe } = await supabaseAdmin.from('membros_historico')
+    .select('id').eq('membro_id', id).eq('tipo','readmissao')
+    .eq('data_evento', data_evento).maybeSingle()
 
-  if(histError) return NextResponse.json({error: histError.message},{status:400})
+  if(!existe){
+    await supabaseAdmin.from('membros_historico').insert({
+      membro_id: id,
+      igreja_id: igrejaId,
+      tipo: 'readmissao',
+      data_evento: data_evento,
+      forma: forma_admissao,
+      pastor_nome: pastor_epoca,
+      local_evento: local_admissao || (ata_numero ? `Ata nº ${ata_numero}` : null),
+      observacao: ata_numero ? `Readmissão - Ata nº ${ata_numero}` : `Readmissão`,
+      snapshot: membro
+    })
+  }
 
   return NextResponse.json({ok:true})
 }
