@@ -170,6 +170,14 @@ export function OficialToggle() {
 
 export function AcoesFichaDemitido({ membroId, statusAtual }) {
   const [loading, setLoading] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [form, setForm] = useState({
+    data_evento: '',
+    forma: 'Restauração - Art. 16, alínea "f" CI/IPB',
+    pastor_epoca: '',
+    ata_numero: ''
+  })
+
   const isDemitido = (statusAtual||'').toLowerCase().includes('demitido') || (statusAtual||'').toLowerCase().includes('inativo')
 
   const handleVoltar = () => {
@@ -181,18 +189,28 @@ export function AcoesFichaDemitido({ membroId, statusAtual }) {
   }
 
   const handleReadmitir = async () => {
-    if(!confirm('Readmitir este membro como ativo? Vai gerar histórico automático com forma e pastor.')) return
+    if(!form.data_evento ||!form.pastor_epoca){
+      alert('Preencha a Data da Readmissão e o Pastor na época!')
+      return
+    }
     setLoading(true)
     const res = await fetch('/api/membros/readmitir', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ id: membroId, forma_admissao: 'Readmissão' })
+      body: JSON.stringify({
+        id: membroId,
+        data_evento: form.data_evento,
+        forma_admissao: form.forma,
+        pastor_epoca: form.pastor_epoca,
+        ata_numero: form.ata_numero
+      })
     })
     const j = await res.json()
     setLoading(false)
     if(res.ok){
-      alert('Membro readmitido com sucesso! Histórico gravado.')
-      window.location.href = '/relatorios?aba=demitidos'
+      alert('Membro readmitido com sucesso! Histórico gravado com data da época.')
+      setShowModal(false)
+      window.location.href = `/membros/${membroId}`
     } else {
       alert('Erro: '+(j.error||'falha'))
     }
@@ -201,14 +219,55 @@ export function AcoesFichaDemitido({ membroId, statusAtual }) {
   if(!isDemitido) return null
 
   return (
-    <div className="no-print flex gap-2 mt-4">
-      <button type="button" onClick={handleVoltar} className="flex-1 border border-gray-300 bg-white px-4 py-2 rounded text-sm font-bold hover:bg-gray-50">
-        ← Voltar para Demitidos
-      </button>
-      <button type="button" onClick={handleReadmitir} disabled={loading} className="flex-1 bg-[#0A3D26] text-white px-4 py-2 rounded text-sm font-bold hover:bg-[#123f2a] disabled:opacity-50">
-        {loading? 'Readmitindo...' : '🔄 Readmitir Membro'}
-      </button>
-    </div>
+    <>
+      <div className="no-print flex gap-2 mt-4">
+        <button type="button" onClick={handleVoltar} className="flex-1 border border-gray-300 bg-white px-4 py-2 rounded text-sm font-bold hover:bg-gray-50">
+          ← Voltar para Demitidos
+        </button>
+        <button type="button" onClick={()=>setShowModal(true)} className="flex-1 bg-[#0A3D26] text-white px-4 py-2 rounded text-sm font-bold hover:bg-[#123f2a]">
+          🔄 Readmitir Membro
+        </button>
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 className="font-bold text-[#0F3A1F] text-[16px] mb-1">Readmitir Membro</h3>
+            <p className="text-[12px] text-gray-500 mb-4">Informe os dados da época da readmissão (da Ata do Conselho), não a data de hoje.</p>
+
+            <label className="block text-xs font-bold mb-1">Data que foi readmitida *</label>
+            <input type="date" className="w-full border rounded p-2 mb-3 text-sm"
+              value={form.data_evento} onChange={e=>setForm({...form, data_evento: e.target.value})} />
+
+            <label className="block text-xs font-bold mb-1">Forma de Admissão *</label>
+            <select className="w-full border rounded p-2 mb-3 text-sm"
+              value={form.forma} onChange={e=>setForm({...form, forma: e.target.value})}>
+              <option>Restauração - Art. 16, alínea "f" CI/IPB</option>
+              <option>Profissão de Fé e Batismo - Art. 16, alínea "a" CI/IPB</option>
+              <option>Profissão de Fé - Art. 16, alínea "b" CI/IPB</option>
+              <option>Carta de Transferência - Art. 16, alínea "c" CI/IPB</option>
+              <option>Jurisdição a Pedido - Art. 16, alínea "d" CI/IPB</option>
+              <option>Jurisdição Ex-Officio - Art. 16, alínea "e" CI/IPB</option>
+            </select>
+
+            <label className="block text-xs font-bold mb-1">Pastor na época da readmissão *</label>
+            <input type="text" placeholder="Ex: Rev. Ijon Moreira Guedes Câmara" className="w-full border rounded p-2 mb-3 text-sm"
+              value={form.pastor_epoca} onChange={e=>setForm({...form, pastor_epoca: e.target.value})} />
+
+            <label className="block text-xs font-bold mb-1">Nº da Ata (opcional)</label>
+            <input type="text" placeholder="Ex: 371" className="w-full border rounded p-2 mb-5 text-sm"
+              value={form.ata_numero} onChange={e=>setForm({...form, ata_numero: e.target.value})} />
+
+            <div className="flex gap-2">
+              <button type="button" onClick={()=>setShowModal(false)} className="flex-1 border rounded p-2 text-sm">Cancelar</button>
+              <button type="button" onClick={handleReadmitir} disabled={loading} className="flex-1 bg-[#0F3A1F] text-white rounded p-2 text-sm font-bold disabled:opacity-50">
+                {loading? 'Salvando...' : 'Confirmar Readmissão'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -219,12 +278,12 @@ export function HistoricoMembro({ membroId, ficha }) {
   useEffect(()=>{
     if(!membroId) return
     fetch(`/api/historico?membro_id=${membroId}`)
-  .then(r => r.json())
-  .then(data => {
+ .then(r => r.json())
+ .then(data => {
         setHistorico(Array.isArray(data)? data : [])
         setLoading(false)
       })
-  .catch(()=> setLoading(false))
+ .catch(()=> setLoading(false))
   },[membroId])
 
   if(!membroId) return null
