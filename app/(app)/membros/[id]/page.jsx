@@ -80,6 +80,64 @@ async function updateMembro(formData) {
     const oficialTipoRaw = formData.get('oficial_tipo') || null
     const isEmerito = oficialTipoRaw === 'diacono_emerito' || oficialTipoRaw === 'presbitero_emerito'
 
+    // --- NOVO: busca existente pra preservar histórico de ofício ---
+    let existente = null
+    try {
+      const { data } = await supabaseAdmin.from('membros_oficial').select('oficial_tipo, data_ordenacao, data_instalacao, data_ordenacao_diacono, data_instalacao_diacono, data_ordenacao_presbitero, data_instalacao_presbitero').eq('id', id).single()
+      existente = data
+    } catch {}
+
+    // --- NOVO: pega os 4 campos separados ---
+    const ordDiacForm = formData.get('data_ordenacao_diacono') || null
+    const instDiacForm = formData.get('data_instalacao_diacono') || null
+    const ordPresbForm = formData.get('data_ordenacao_presbitero') || null
+    const instPresbForm = formData.get('data_instalacao_presbitero') || null
+    const ordAntiga = formData.get('data_ordenacao') || null
+    const instAntiga = formData.get('data_instalacao') || null
+
+    let data_ordenacao_diacono = ordDiacForm
+    let data_instalacao_diacono = instDiacForm
+    let data_ordenacao_presbitero = ordPresbForm
+    let data_instalacao_presbitero = instPresbForm
+
+    // fallback: se veio só do campo antigo e não tem nos novos, distribui pro tipo atual
+    if (!data_ordenacao_diacono && !data_ordenacao_presbitero && ordAntiga) {
+      if ((oficialTipoRaw||'').toLowerCase().includes('diacono')) {
+        data_ordenacao_diacono = ordAntiga
+        data_instalacao_diacono = instAntiga
+      } else if ((oficialTipoRaw||'').toLowerCase().includes('presbitero')) {
+        // se já tinha histórico de diácono, mantém, senão joga pra presbítero
+        if (existente?.data_ordenacao_diacono) {
+          data_ordenacao_presbitero = ordAntiga
+          data_instalacao_presbitero = instAntiga
+        } else {
+          // presbítero direto
+          data_ordenacao_presbitero = ordAntiga
+          data_instalacao_presbitero = instAntiga
+        }
+      }
+    }
+
+    // preserva o que já existe se o form veio vazio (pra não apagar quando muda de ofício)
+    if (!data_ordenacao_diacono && existente?.data_ordenacao_diacono) data_ordenacao_diacono = existente.data_ordenacao_diacono
+    if (!data_instalacao_diacono && existente?.data_instalacao_diacono) data_instalacao_diacono = existente.data_instalacao_diacono
+    if (!data_ordenacao_presbitero && existente?.data_ordenacao_presbitero) data_ordenacao_presbitero = existente.data_ordenacao_presbitero
+    if (!data_instalacao_presbitero && existente?.data_instalacao_presbitero) data_instalacao_presbitero = existente.data_instalacao_presbitero
+
+    // compatibilidade: campo antigo continua sendo o do ofício atual
+    let data_ordenacao_final = null
+    let data_instalacao_final = null
+    if ((oficialTipoRaw||'').toLowerCase().includes('presbitero')) {
+      data_ordenacao_final = data_ordenacao_presbitero || data_ordenacao_diacono || ordAntiga
+      data_instalacao_final = data_instalacao_presbitero || data_instalacao_diacono || instAntiga
+    } else if ((oficialTipoRaw||'').toLowerCase().includes('diacono')) {
+      data_ordenacao_final = data_ordenacao_diacono || ordAntiga
+      data_instalacao_final = data_instalacao_diacono || instAntiga
+    } else {
+      data_ordenacao_final = ordAntiga
+      data_instalacao_final = instAntiga
+    }
+
     const dados = {
       numero_rol: numeroRol,
       nome_completo: formData.get('nome_completo'),
@@ -119,8 +177,13 @@ async function updateMembro(formData) {
       data_profissao_fe: formData.get('data_profissao_fe') || null,
       local_profissao_fe: formData.get('local_profissao_fe'),
       pastor_profissao_fe: formData.get('pastor_profissao_fe'),
-      data_ordenacao: formData.get('data_ordenacao') || null,
-      data_instalacao: formData.get('data_instalacao') || null,
+      // --- NOVO: 4 campos separados + compatibilidade ---
+      data_ordenacao_diacono: data_ordenacao_diacono || null,
+      data_instalacao_diacono: data_instalacao_diacono || null,
+      data_ordenacao_presbitero: data_ordenacao_presbitero || null,
+      data_instalacao_presbitero: data_instalacao_presbitero || null,
+      data_ordenacao: data_ordenacao_final || null,
+      data_instalacao: data_instalacao_final || null,
       data_concessao_titulo_age: isEmerito? (formData.get('data_concessao_titulo_age') || null) : null,
       foto_url: formData.get('foto_url') || null,
     }
@@ -128,7 +191,6 @@ async function updateMembro(formData) {
     const { error } = await supabaseAdmin.from('membros_oficial').update(dados).eq('id', id)
     if (error) {
       console.error("Erro save completo:", error.message, "dados:", dados)
-      // fallback tenta só status
       await supabaseAdmin.from('membros_oficial').update({
         status: statusValue,
         status_membro: statusValue,
@@ -171,7 +233,6 @@ export default async function Page({ params }) {
     const m = await getMembro(id)
     const pastorDaIgreja = await getPastorDaIgreja()
     if (!m) return <div className="p-6">Membro não encontrado ID: {id} <br/><Link href="/membros" className="text-blue-600 underline">Voltar</Link></div>
-    // normaliza para exibição
     let sexoDisplay = m.sexo
     if (sexoDisplay) {
       const s = String(sexoDisplay).toLowerCase()
@@ -179,6 +240,13 @@ export default async function Page({ params }) {
       if (['f','feminino'].includes(s)) sexoDisplay = 'Feminino'
     }
     const isEmeritoInicial = m.oficial_tipo === 'diacono_emerito' || m.oficial_tipo === 'presbitero_emerito'
+
+    // --- NOVO: decide o que mostrar na abertura ---
+    const temHistDiac = !!(m.data_ordenacao_diacono || (m.oficial_tipo?.toLowerCase().includes('diacono') && m.data_ordenacao))
+    const temHistPresb = !!(m.data_ordenacao_presbitero || (m.oficial_tipo?.toLowerCase().includes('presbitero') && m.data_ordenacao && !m.data_ordenacao_diacono))
+    const isDiaconoAtual = (m.oficial_tipo||'').toLowerCase().includes('diacono')
+    const isPresbAtual = (m.oficial_tipo||'').toLowerCase().includes('presbitero')
+
     return (
       <div className="p-6 max-w-5xl mx-auto pb-20">
        <style>{`
@@ -294,8 +362,23 @@ export default async function Page({ params }) {
                   <label className="flex flex-col text-sm">Local Prof. Fé<input name="local_profissao_fe" defaultValue={m.local_profissao_fe} className="border p-2 rounded mt-1" /></label>
                   <label className="flex flex-col text-sm">Pastor Prof. Fé<input name="pastor_profissao_fe" defaultValue={m.pastor_profissao_fe || pastorDaIgreja || ""} className="border p-2 rounded mt-1" /></label>
                 </div>
-                <label id="campo-data-ordenacao" className="flex flex-col text-sm">Data Ordenação<input name="data_ordenacao" type="date" defaultValue={m.data_ordenacao} className="border p-2 rounded mt-1" /></label>
-                <label id="campo-data-instalacao" className="flex flex-col text-sm">Data Instalação<input name="data_instalacao" type="date" defaultValue={m.data_instalacao} className="border p-2 rounded mt-1" /></label>
+
+                {/* === NOVO: ORDENAÇÃO SEPARADA === */}
+                <div id="campo-diaconato" className="col-span-2 grid grid-cols-2 gap-4 border border-green-200 bg-green-50/50 p-3 rounded" style={{display: (isDiaconoAtual || m.data_ordenacao_diacono) ? 'grid' : 'none'}}>
+                  <h4 className="col-span-2 font-bold text-xs text-[#0F3A1F]">Diaconato</h4>
+                  <label className="flex flex-col text-sm">Data Ordenação Diácono<input name="data_ordenacao_diacono" id="data_ordenacao_diacono" type="date" defaultValue={m.data_ordenacao_diacono || (isDiaconoAtual && !m.data_ordenacao_presbitero ? m.data_ordenacao : '')} className="border p-2 rounded mt-1" /></label>
+                  <label className="flex flex-col text-sm">Data Instalação Diácono<input name="data_instalacao_diacono" id="data_instalacao_diacono" type="date" defaultValue={m.data_instalacao_diacono || (isDiaconoAtual && !m.data_instalacao_presbitero ? m.data_instalacao : '')} className="border p-2 rounded mt-1" /></label>
+                </div>
+
+                <div id="campo-presbiterato" className="col-span-2 grid grid-cols-2 gap-4 border border-blue-200 bg-blue-50/40 p-3 rounded" style={{display: (isPresbAtual || m.data_ordenacao_presbitero) ? 'grid' : 'none'}}>
+                  <h4 className="col-span-2 font-bold text-xs text-blue-800">Presbiterato</h4>
+                  <label className="flex flex-col text-sm">Data Ordenação Presbítero<input name="data_ordenacao_presbitero" id="data_ordenacao_presbitero" type="date" defaultValue={m.data_ordenacao_presbitero || (isPresbAtual && !m.data_ordenacao_diacono ? m.data_ordenacao : '')} className="border p-2 rounded mt-1" /></label>
+                  <label className="flex flex-col text-sm">Data Instalação Presbítero<input name="data_instalacao_presbitero" id="data_instalacao_presbitero" type="date" defaultValue={m.data_instalacao_presbitero || (isPresbAtual && !m.data_instalacao_diacono ? m.data_instalacao : '')} className="border p-2 rounded mt-1" /></label>
+                </div>
+
+                {/* compatibilidade - escondidos */}
+                <input type="hidden" name="data_ordenacao" id="data_ordenacao" defaultValue={m.data_ordenacao || ''} />
+                <input type="hidden" name="data_instalacao" id="data_instalacao" defaultValue={m.data_instalacao || ''} />
               </div>
             </div>
 
@@ -319,11 +402,38 @@ export default async function Page({ params }) {
                 campo.style.display = 'none';
               }
             }
+            function toggleOficios(){
+              var sel = document.getElementById('oficial_tipo_select');
+              var campoDiac = document.getElementById('campo-diaconato');
+              var campoPresb = document.getElementById('campo-presbiterato');
+              var ordDiac = document.getElementById('data_ordenacao_diacono');
+              var ordPresb = document.getElementById('data_ordenacao_presbitero');
+              if(!sel || !campoDiac || !campoPresb) return;
+              var tipo = (sel.value||'').toLowerCase();
+              var isDiac = tipo.includes('diacono');
+              var isPresb = tipo.includes('presbitero');
+              var temHistDiac = !!(ordDiac && ordDiac.value);
+              var temHistPresb = !!(ordPresb && ordPresb.value);
+
+              // Regra: só diácono = só diácono, só presbítero direto = só presbítero, foi diácono e virou presbítero = mostra os dois
+              if(!temHistDiac && !temHistPresb){
+                campoDiac.style.display = isDiac ? 'grid' : 'none';
+                campoPresb.style.display = isPresb ? 'grid' : 'none';
+              } else {
+                var mostraDiac = isDiac || temHistDiac;
+                var mostraPresb = isPresb || temHistPresb;
+                // se era diácono e agora virou presbítero, mostra os dois
+                if(isPresb && temHistDiac) mostraDiac = true;
+                campoDiac.style.display = mostraDiac ? 'grid' : 'none';
+                campoPresb.style.display = mostraPresb ? 'grid' : 'none';
+              }
+            }
             document.addEventListener('DOMContentLoaded', function(){
               var sel = document.getElementById('oficial_tipo_select');
               if(sel){
-                sel.addEventListener('change', toggleEmerito);
+                sel.addEventListener('change', function(){ toggleEmerito(); toggleOficios(); });
                 toggleEmerito();
+                toggleOficios();
               }
             });
           })();
