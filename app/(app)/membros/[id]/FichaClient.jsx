@@ -69,21 +69,19 @@ export function OficialToggle() {
     const cOf = document.getElementById('campo-oficial-tipo')
     const cConcessao = document.getElementById('campo-data-concessao')
     
-    // NOVO: campos separados e antigos (compatibilidade)
     const cDiac = document.getElementById('campo-diaconato')
     const cPresb = document.getElementById('campo-presbiterato')
     const cOrdAntigo = document.getElementById('campo-data-ordenacao')
     const cInstAntigo = document.getElementById('campo-data-instalacao')
-    const inputOrdDiac = document.getElementById('data_ordenacao_diacono') as HTMLInputElement
-    const inputInstDiac = document.getElementById('data_instalacao_diacono') as HTMLInputElement
-    const inputOrdPresb = document.getElementById('data_ordenacao_presbitero') as HTMLInputElement
-    const inputInstPresb = document.getElementById('data_instalacao_presbitero') as HTMLInputElement
+    const inputOrdDiac = document.getElementById('data_ordenacao_diacono')
+    const inputInstDiac = document.getElementById('data_instalacao_diacono')
+    const inputOrdPresb = document.getElementById('data_ordenacao_presbitero')
+    const inputInstPresb = document.getElementById('data_instalacao_presbitero')
 
     const applyRules = () => {
       if (gConj && selEC) gConj.style.display = selEC.value === 'casado'? 'grid' : 'none'
       if (gDem && selStatus) gDem.style.display = (selStatus.value === 'inativo' || selStatus.value === 'demitido')? 'block' : 'none'
       
-      // === REGRA NOVA DE OFÍCIOS ===
       if (selOficial) {
         const tipo = (selOficial.value || '').toLowerCase()
         const isDiaconoAtual = tipo.includes('diacono')
@@ -91,24 +89,19 @@ export function OficialToggle() {
         const temHistDiac = !!(inputOrdDiac?.value || inputInstDiac?.value)
         const temHistPresb = !!(inputOrdPresb?.value || inputInstPresb?.value)
 
-        // Esconde os campos antigos se os novos existirem
         if (cDiac || cPresb) {
           if (cOrdAntigo) cOrdAntigo.style.display = 'none'
           if (cInstAntigo) cInstAntigo.style.display = 'none'
         }
 
         if (cDiac && cPresb) {
-          // Caso Vitalino: foi diácono e agora é presbítero -> mostra os dois
           if (temHistDiac && temHistPresb) {
             cDiac.style.display = 'grid'
             cPresb.style.display = 'grid'
           } else if (!temHistDiac && !temHistPresb) {
-            // Sem histórico: mostra só o ofício atual
             cDiac.style.display = isDiaconoAtual ? 'grid' : 'none'
             cPresb.style.display = isPresbAtual ? 'grid' : 'none'
           } else {
-            // Tem um dos históricos
-            // Se virou presbítero mas tinha histórico de diácono, mantém os dois
             if (isPresbAtual && temHistDiac) {
               cDiac.style.display = 'grid'
               cPresb.style.display = 'grid'
@@ -121,18 +114,15 @@ export function OficialToggle() {
             }
           }
 
-          // Presbítero direto: não mostra diácono
           if (isPresbAtual && !temHistDiac) {
             cDiac.style.display = 'none'
           }
-          // Diácono direto: não mostra presbítero
           if (isDiaconoAtual && !temHistPresb) {
             cPresb.style.display = 'none'
           }
 
-          // Compatibilidade: atualiza campos hidden antigos
-          const inputOrdAntigo = document.getElementById('data_ordenacao') as HTMLInputElement
-          const inputInstAntigo = document.getElementById('data_instalacao') as HTMLInputElement
+          const inputOrdAntigo = document.getElementById('data_ordenacao')
+          const inputInstAntigo = document.getElementById('data_instalacao')
           if (inputOrdAntigo && inputInstAntigo) {
             if (isPresbAtual && inputOrdPresb?.value) {
               inputOrdAntigo.value = inputOrdPresb.value
@@ -143,7 +133,6 @@ export function OficialToggle() {
             }
           }
         } else {
-          // Fallback antigo (se page.tsx ainda não foi atualizado)
           if (cOrdAntigo && cInstAntigo) {
             const isOficial = selCat ? selCat.value === 'comungante_oficial' : true
             cOrdAntigo.style.display = isOficial ? '' : 'none'
@@ -157,9 +146,8 @@ export function OficialToggle() {
         const isOf = selCat.value === 'comungante_oficial'
         if (gProf) gProf.style.display = isNao? 'none' : 'grid'
         if (cOf) cOf.style.display = isOf? '' : 'none'
-        // os campos de ordenação agora são tratados acima
-        if (selAdm) selAdm.querySelectorAll('optgroup').forEach((og) => { (og as any).hidden = isNao?!og.label.includes('Art. 17') :!og.label.includes('Art. 16') })
-        if (selDem) selDem.querySelectorAll('optgroup').forEach((og) => { (og as any).hidden = isNao?!og.label.includes('Art. 24') :!og.label.includes('Art. 23') })
+        if (selAdm) selAdm.querySelectorAll('optgroup').forEach((og) => { og.hidden = isNao?!og.label.includes('Art. 17') :!og.label.includes('Art. 16') })
+        if (selDem) selDem.querySelectorAll('optgroup').forEach((og) => { og.hidden = isNao?!og.label.includes('Art. 24') :!og.label.includes('Art. 23') })
         if (cConcessao) {
           const isEmerito = selOficial && (selOficial.value === 'diacono_emerito' || selOficial.value === 'presbitero_emerito')
           cConcessao.style.display = (isOf && isEmerito)? 'flex' : 'none'
@@ -185,34 +173,34 @@ export function OficialToggle() {
       if (btnSalvar) btnSalvar.style.display = 'block'
       form.classList.remove('modo-visualizar')
       inputs.forEach((el) => {
-        if ((el as any).type!== 'hidden') {
-          (el as any).disabled = false
-          ;(el as any).readOnly = false
-          ;(el as any).style.pointerEvents = 'auto'
+        if (el.type!== 'hidden') {
+          el.disabled = false
+          el.readOnly = false
+          el.style.pointerEvents = 'auto'
         }
       })
-      fotoBtns.forEach((b) => { (b as any).style.display = '' })
+      fotoBtns.forEach((b) => { b.style.display = '' })
     } else {
       if (btnSalvar) btnSalvar.style.display = 'none'
       form.classList.add('modo-visualizar')
       inputs.forEach((el) => {
-        if ((el as any).type === 'hidden') return
-        ;(el as any).disabled = false
-        if ((el as any).tagName === 'SELECT') {
-          ;(el as any).style.pointerEvents = 'none'
+        if (el.type === 'hidden') return
+        el.disabled = false
+        if (el.tagName === 'SELECT') {
+          el.style.pointerEvents = 'none'
         } else {
-          ;(el as any).readOnly = true
-          ;(el as any).style.pointerEvents = 'none'
+          el.readOnly = true
+          el.style.pointerEvents = 'none'
         }
       })
-      fotoBtns.forEach((b) => { (b as any).style.display = 'none' })
+      fotoBtns.forEach((b) => { b.style.display = 'none' })
     }
 
     const onSubmit = () => {
       inputs.forEach((el) => {
-        ;(el as any).disabled = false
-        ;(el as any).readOnly = false
-        ;(el as any).style.pointerEvents = 'auto'
+        el.disabled = false
+        el.readOnly = false
+        el.style.pointerEvents = 'auto'
       })
     }
     form.addEventListener('submit', onSubmit)
