@@ -67,22 +67,99 @@ export function OficialToggle() {
     const gDem = document.getElementById('grupo-demissao')
     const gProf = document.getElementById('grupo-prof-fe')
     const cOf = document.getElementById('campo-oficial-tipo')
-    const cOrd = document.getElementById('campo-data-ordenacao')
-    const cInst = document.getElementById('campo-data-instalacao')
     const cConcessao = document.getElementById('campo-data-concessao')
+    
+    // NOVO: campos separados e antigos (compatibilidade)
+    const cDiac = document.getElementById('campo-diaconato')
+    const cPresb = document.getElementById('campo-presbiterato')
+    const cOrdAntigo = document.getElementById('campo-data-ordenacao')
+    const cInstAntigo = document.getElementById('campo-data-instalacao')
+    const inputOrdDiac = document.getElementById('data_ordenacao_diacono') as HTMLInputElement
+    const inputInstDiac = document.getElementById('data_instalacao_diacono') as HTMLInputElement
+    const inputOrdPresb = document.getElementById('data_ordenacao_presbitero') as HTMLInputElement
+    const inputInstPresb = document.getElementById('data_instalacao_presbitero') as HTMLInputElement
 
     const applyRules = () => {
       if (gConj && selEC) gConj.style.display = selEC.value === 'casado'? 'grid' : 'none'
       if (gDem && selStatus) gDem.style.display = (selStatus.value === 'inativo' || selStatus.value === 'demitido')? 'block' : 'none'
+      
+      // === REGRA NOVA DE OFÍCIOS ===
+      if (selOficial) {
+        const tipo = (selOficial.value || '').toLowerCase()
+        const isDiaconoAtual = tipo.includes('diacono')
+        const isPresbAtual = tipo.includes('presbitero')
+        const temHistDiac = !!(inputOrdDiac?.value || inputInstDiac?.value)
+        const temHistPresb = !!(inputOrdPresb?.value || inputInstPresb?.value)
+
+        // Esconde os campos antigos se os novos existirem
+        if (cDiac || cPresb) {
+          if (cOrdAntigo) cOrdAntigo.style.display = 'none'
+          if (cInstAntigo) cInstAntigo.style.display = 'none'
+        }
+
+        if (cDiac && cPresb) {
+          // Caso Vitalino: foi diácono e agora é presbítero -> mostra os dois
+          if (temHistDiac && temHistPresb) {
+            cDiac.style.display = 'grid'
+            cPresb.style.display = 'grid'
+          } else if (!temHistDiac && !temHistPresb) {
+            // Sem histórico: mostra só o ofício atual
+            cDiac.style.display = isDiaconoAtual ? 'grid' : 'none'
+            cPresb.style.display = isPresbAtual ? 'grid' : 'none'
+          } else {
+            // Tem um dos históricos
+            // Se virou presbítero mas tinha histórico de diácono, mantém os dois
+            if (isPresbAtual && temHistDiac) {
+              cDiac.style.display = 'grid'
+              cPresb.style.display = 'grid'
+            } else if (isDiaconoAtual && temHistPresb) {
+              cDiac.style.display = 'grid'
+              cPresb.style.display = 'grid'
+            } else {
+              cDiac.style.display = (isDiaconoAtual || temHistDiac) ? 'grid' : 'none'
+              cPresb.style.display = (isPresbAtual || temHistPresb) ? 'grid' : 'none'
+            }
+          }
+
+          // Presbítero direto: não mostra diácono
+          if (isPresbAtual && !temHistDiac) {
+            cDiac.style.display = 'none'
+          }
+          // Diácono direto: não mostra presbítero
+          if (isDiaconoAtual && !temHistPresb) {
+            cPresb.style.display = 'none'
+          }
+
+          // Compatibilidade: atualiza campos hidden antigos
+          const inputOrdAntigo = document.getElementById('data_ordenacao') as HTMLInputElement
+          const inputInstAntigo = document.getElementById('data_instalacao') as HTMLInputElement
+          if (inputOrdAntigo && inputInstAntigo) {
+            if (isPresbAtual && inputOrdPresb?.value) {
+              inputOrdAntigo.value = inputOrdPresb.value
+              inputInstAntigo.value = inputInstPresb.value || ''
+            } else if (isDiaconoAtual && inputOrdDiac?.value) {
+              inputOrdAntigo.value = inputOrdDiac.value
+              inputInstAntigo.value = inputInstDiac.value || ''
+            }
+          }
+        } else {
+          // Fallback antigo (se page.tsx ainda não foi atualizado)
+          if (cOrdAntigo && cInstAntigo) {
+            const isOficial = selCat ? selCat.value === 'comungante_oficial' : true
+            cOrdAntigo.style.display = isOficial ? '' : 'none'
+            cInstAntigo.style.display = isOficial ? '' : 'none'
+          }
+        }
+      }
+
       if (selCat) {
         const isNao = selCat.value === 'nao_comungante'
         const isOf = selCat.value === 'comungante_oficial'
         if (gProf) gProf.style.display = isNao? 'none' : 'grid'
         if (cOf) cOf.style.display = isOf? '' : 'none'
-        if (cOrd) cOrd.style.display = isOf? '' : 'none'
-        if (cInst) cInst.style.display = isOf? '' : 'none'
-        if (selAdm) selAdm.querySelectorAll('optgroup').forEach((og) => { og.hidden = isNao?!og.label.includes('Art. 17') :!og.label.includes('Art. 16') })
-        if (selDem) selDem.querySelectorAll('optgroup').forEach((og) => { og.hidden = isNao?!og.label.includes('Art. 24') :!og.label.includes('Art. 23') })
+        // os campos de ordenação agora são tratados acima
+        if (selAdm) selAdm.querySelectorAll('optgroup').forEach((og) => { (og as any).hidden = isNao?!og.label.includes('Art. 17') :!og.label.includes('Art. 16') })
+        if (selDem) selDem.querySelectorAll('optgroup').forEach((og) => { (og as any).hidden = isNao?!og.label.includes('Art. 24') :!og.label.includes('Art. 23') })
         if (cConcessao) {
           const isEmerito = selOficial && (selOficial.value === 'diacono_emerito' || selOficial.value === 'presbitero_emerito')
           cConcessao.style.display = (isOf && isEmerito)? 'flex' : 'none'
@@ -108,34 +185,34 @@ export function OficialToggle() {
       if (btnSalvar) btnSalvar.style.display = 'block'
       form.classList.remove('modo-visualizar')
       inputs.forEach((el) => {
-        if (el.type!== 'hidden') {
-          el.disabled = false
-          el.readOnly = false
-          el.style.pointerEvents = 'auto'
+        if ((el as any).type!== 'hidden') {
+          (el as any).disabled = false
+          ;(el as any).readOnly = false
+          ;(el as any).style.pointerEvents = 'auto'
         }
       })
-      fotoBtns.forEach((b) => { b.style.display = '' })
+      fotoBtns.forEach((b) => { (b as any).style.display = '' })
     } else {
       if (btnSalvar) btnSalvar.style.display = 'none'
       form.classList.add('modo-visualizar')
       inputs.forEach((el) => {
-        if (el.type === 'hidden') return
-        el.disabled = false
-        if (el.tagName === 'SELECT') {
-          el.style.pointerEvents = 'none'
+        if ((el as any).type === 'hidden') return
+        ;(el as any).disabled = false
+        if ((el as any).tagName === 'SELECT') {
+          ;(el as any).style.pointerEvents = 'none'
         } else {
-          el.readOnly = true
-          el.style.pointerEvents = 'none'
+          ;(el as any).readOnly = true
+          ;(el as any).style.pointerEvents = 'none'
         }
       })
-      fotoBtns.forEach((b) => { b.style.display = 'none' })
+      fotoBtns.forEach((b) => { (b as any).style.display = 'none' })
     }
 
     const onSubmit = () => {
       inputs.forEach((el) => {
-        el.disabled = false
-        el.readOnly = false
-        el.style.pointerEvents = 'auto'
+        ;(el as any).disabled = false
+        ;(el as any).readOnly = false
+        ;(el as any).style.pointerEvents = 'auto'
       })
     }
     form.addEventListener('submit', onSubmit)
@@ -355,8 +432,6 @@ export function HistoricoMembro({ membroId, ficha }) {
 .then(r => r.json())
 .then(data => {
         let lista = Array.isArray(data)? data : []
-
-        // FIX: remove duplicidade por data+tipo (ex: 21/07/2005 ADMISSÃO duplicado)
         const seen = new Set()
         const dedup = []
         for (const h of lista) {
@@ -366,8 +441,6 @@ export function HistoricoMembro({ membroId, ficha }) {
             dedup.push(h)
           }
         }
-
-        // FIX: sempre da mais antiga para a mais nova
         dedup.sort((a,b)=> new Date(a.data_evento) - new Date(b.data_evento))
         setHistorico(dedup)
         setLoading(false)
@@ -380,7 +453,6 @@ export function HistoricoMembro({ membroId, ficha }) {
   return (
     <div className="mt-10 border-t-2 border-[#0F3A1F] pt-6">
       <h3 className="font-bold text-[#0F3A1F] text-[15px] mb-4">📜 Histórico de Admissões e Demissões na Igreja</h3>
-
       {loading? <p className="text-xs text-gray-500">Carregando histórico...</p> : (
         <div className="space-y-2">
           {historico.map(h=>(
