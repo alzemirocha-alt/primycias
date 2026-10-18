@@ -243,7 +243,7 @@ export function AcoesFichaDemitido({ membroId, statusAtual }) {
   })
   const [formDem, setFormDem] = useState({
     data_evento: '',
-    forma: 'Exclusão a Pedido - Art. 23, alínea "b" CI/IPB',
+    forma: 'Exclusão por Ausência - Art. 23, alínea "c" CI/IPB',
     pastor_epoca: '',
     ata_numero: '',
     motivo: ''
@@ -383,10 +383,10 @@ export function AcoesFichaDemitido({ membroId, statusAtual }) {
             <label className="block text-xs font-bold mb-1">Forma de Demissão *</label>
             <select className="w-full border rounded p-2 mb-3 text-sm"
               value={formDem.forma} onChange={e=>setFormDem({...formDem, forma: e.target.value})}>
-              <option>Exclusão a Pedido - Art. 23, alínea "b" CI/IPB</option>
               <option>Transferência - Art. 23, alínea "a" CI/IPB</option>
-              <option>Exclusão por Jurisdição - Art. 23, alínea "c" CI/IPB</option>
-              <option>Falecimento - Art. 23</option>
+              <option>Exclusão a Pedido - Art. 23, alínea "b" CI/IPB</option>
+              <option>Exclusão por Ausência - Art. 23, alínea "c" CI/IPB</option>
+              <option>Falecimento - Art. 23 CI/IPB</option>
             </select>
 
             <label className="block text-xs font-bold mb-1">Pastor na época *</label>
@@ -417,9 +417,26 @@ export function HistoricoMembro({ membroId, ficha }) {
   useEffect(()=>{
     if(!membroId) return
     fetch(`/api/historico?membro_id=${membroId}`)
-.then(r => r.json())
-.then(data => {
+    .then(r => r.json())
+    .then(data => {
         let lista = Array.isArray(data)? data : []
+
+        // Se histórico não tem admissão, injeta a admissão atual da ficha (ex: 04/03/2004 da Fernanda)
+        if(ficha?.data_admissao){
+          const temAdmissao = lista.some(h => String(h.tipo).toLowerCase().includes('admissao'))
+          if(!temAdmissao){
+            lista = [...lista, {
+              id: 'admissao-ficha',
+              data_evento: ficha.data_admissao,
+              tipo: 'admissao',
+              forma: ficha.forma_admissao || '---',
+              pastor_nome: ficha.pastor_batismo || ficha.pastor_profissao_fe || '',
+              local_evento: ficha.local_batismo || '',
+              observacao: 'Admissão original da ficha'
+            }]
+          }
+        }
+
         const seen = new Set()
         const dedup = []
         for (const h of lista) {
@@ -433,8 +450,8 @@ export function HistoricoMembro({ membroId, ficha }) {
         setHistorico(dedup)
         setLoading(false)
       })
-.catch(()=> setLoading(false))
-  },[membroId])
+    .catch(()=> setLoading(false))
+  },[membroId, ficha])
 
   if(!membroId) return null
 
