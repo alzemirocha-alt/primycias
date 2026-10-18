@@ -28,8 +28,8 @@ export async function POST(req){
   const { error } = await supabaseAdmin.from('membros_oficial').update({
     status: 'ativo',
     status_membro: 'ativo',
-    data_primeira_admissao: primeira, // 1975 fica guardado
-    data_admissao: data_evento, // 2005 é o que aparece no campo e na carteira
+    data_primeira_admissao: primeira, // 2004 da Fernanda fica guardado aqui
+    data_admissao: data_evento, // 2011 é o que aparece no campo e na carteira
     forma_admissao: forma_admissao,
     data_admissao_atual: data_evento,
     data_ultima_admissao: data_evento,
@@ -38,8 +38,8 @@ export async function POST(req){
     forma_demissao: null,
     motivo_demissao: null,
     pastor_demissao: null,
-    pastor_admissao_atual: pastor_epoca,
-    pastor_admissao: pastor_epoca
+    // REMOVIDO: pastor_admissao e pastor_admissao_atual não existem no banco
+    // O pastor da readmissão fica só no histórico
   }).eq('id', id)
 
   if(error) return NextResponse.json({error:error.message},{status:400})
