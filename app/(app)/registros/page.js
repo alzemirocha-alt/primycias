@@ -35,7 +35,7 @@ function getStatusLabel(culto, mapaUsuarios, nomeTesoureiroDaIgreja) {
   }
 
   if (s === "validado") return "Validado"
-  if (s === "devolvido_com_erro") return "Devolvido com erro"
+  if (s === "devolvido" || s === "devolvido_com_erro") return "Devolvido com erro"
   return culto.status.toUpperCase()
 }
 
@@ -90,7 +90,11 @@ export default async function RegistrosPage() {
   if (isPastor) {
     regsFiltrados = regsAll.filter(r=>r.status==='validado')
   } else if (isTesoureiro) {
-    regsFiltrados = regsAll.filter(r=>['aguardando_tesoureiro','validado','devolvido_com_erro'].includes(r.status) || participei(r))
+    // Tesoureiro vê tudo que não está validado + os validados que ele participou
+    regsFiltrados = regsAll.filter(r=>{
+      const s = String(r.status||'').toLowerCase()
+      return s !== 'validado' || participei(r)
+    })
   } else if (isDiacono) {
     regsFiltrados = regsAll.filter(r=> participei(r) )
   } else {
@@ -100,7 +104,11 @@ export default async function RegistrosPage() {
   const agoraRecifeStr = new Date().toLocaleString('en-CA', { timeZone: 'America/Recife', year: 'numeric', month: '2-digit' })
   const [anoAtual, mesAtual] = agoraRecifeStr.split('-').map(Number)
 
-  const regsDoMes = regsFiltrados.filter(r=>{
+  // REGRA NOVA: Se não está validado, mostra sempre, independente do mês
+  const regsParaMostrar = regsFiltrados.filter(r=>{
+    const status = String(r.status||'').toLowerCase()
+    if (status !== 'validado') return true
+
     const dataBase = r.data_culto || r.created_at?.slice(0,10)
     if(!dataBase) return false
     const d = new Date(dataBase+"T12:00:00")
@@ -108,7 +116,7 @@ export default async function RegistrosPage() {
   })
 
   const grupos = {}
-  regsDoMes.forEach(r=>{
+  regsParaMostrar.forEach(r=>{
     const dataBase = r.data_culto || r.created_at?.slice(0,10)
     const periodo = r.cultos?.periodo || r.periodo || 'manha'
     const cultoId = r.culto_id || ''
@@ -155,7 +163,7 @@ export default async function RegistrosPage() {
           </div>
         )
       })}
-      {regsDoMes.length===0 && <div className="text-center text-gray-500 mt-10 border-2 border-dashed p-8 rounded">Nenhum registro em {String(mesAtual).padStart(2,'0')}/{anoAtual}.<br/>A tela fica limpa quando o mês vira.<br/>Os registros anteriores continuam salvos e aparecem nos Relatórios (respeitando a regra de cada usuário).</div>}
+      {regsParaMostrar.length===0 && <div className="text-center text-gray-500 mt-10 border-2 border-dashed p-8 rounded">Nenhum registro pendente.<br/>Validados de {String(mesAtual).padStart(2,'0')}/{anoAtual} aparecem aqui.<br/>Pendentes de outros meses continuam até serem validados.</div>}
     </div>
   )
 }
