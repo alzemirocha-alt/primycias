@@ -18,7 +18,7 @@ function getStatusLabel(culto, mapaUsuarios, nomeTesoureiroDaIgreja) {
   const s = String(culto.status).toLowerCase()
 
   if (s === "aguardando_segundo_diacono") {
-    const idSegundo = culto.segundo_diacono_id || culto.diacono2_id || culto.segundoDiaconoId
+    const idSegundo = culto.segundo_diacono_id || culto.diacono2_id || culto.segundoDiaconoId || culto.cultos?.segundo_diacono_id
     const nomeSegundo = culto.segundo_diacono_nome || culto.diacono2_nome || (idSegundo? mapaUsuarios[String(idSegundo)] : null)
     if (nomeSegundo) return `Aguardando Diácono ${primeiroNome(nomeSegundo)}`
     return "Aguardando Segundo Diácono"
@@ -49,8 +49,17 @@ export default async function RegistrosPage() {
     igreja_id = perfil?.igreja_id
   }
 
-  const { data } = await supabaseAdmin.from('records').select('*, cultos!records_culto_id_fkey(data, periodo, primeiro_diacono_id, segundo_diacono_id, tesoureiro_id)').eq('igreja_id', igreja_id).order('data_culto', { ascending: false }).order('created_at', { ascending: false })
+  // QUERY ORIGINAL QUE JÁ FUNCIONAVA - NÃO MEXI
+  const { data } = await supabaseAdmin.from('records').select('*, cultos!records_culto_id_fkey(data, periodo)').eq('igreja_id', igreja_id).order('data_culto', { ascending: false }).order('created_at', { ascending: false })
   const regsAll = data || []
+
+  // BUSCA SEPARADA DOS CULTOS PRA PEGAR O SEGUNDO DIÁCONO - NÃO QUEBRA SE NÃO EXISTIR
+  const cultoIds = [...new Set(regsAll.map(r=>r.culto_id).filter(Boolean))]
+  let mapaCultos = {}
+  if (cultoIds.length > 0) {
+    const { data: cultosData } = await supabaseAdmin.from('cultos').select('*').in('id', cultoIds)
+    ;(cultosData || []).forEach(c => { mapaCultos[String(c.id)] = c })
+  }
 
   const { data: usuariosDaIgreja } = await supabaseAdmin.from('users').select('id, nome, funcao, oficio').eq('igreja_id', igreja_id)
   const mapaUsuarios = {}
@@ -78,13 +87,19 @@ export default async function RegistrosPage() {
   const isDiacono = oficio.includes('diacono')
 
   function participei(r) {
+    const cultoInfo = r.culto_id ? mapaCultos[String(r.culto_id)] : null
     const ids = [
       r.primeiro_diacono_id, r.segundo_diacono_id, r.diacono_id,
       r.criado_por, r.diacono1_id, r.diacono2_id,
       r.lancado_por, r.confirmado_por,
+      cultoInfo?.primeiro_diacono_id,
+      cultoInfo?.segundo_diacono_id,
+      cultoInfo?.primeiro_diácono_id,
+      cultoInfo?.segundo_diácono_id,
+      cultoInfo?.diacono1_id,
+      cultoInfo?.diacono2_id,
       r.cultos?.primeiro_diacono_id,
-      r.cultos?.segundo_diacono_id,
-      r.cultos?.tesoureiro_id
+      r.cultos?.segundo_diacono_id
     ].map(x => String(x || ''))
     return ids.includes(meuId)
   }
@@ -93,7 +108,6 @@ export default async function RegistrosPage() {
   if (isPastor) {
     regsFiltrados = regsAll.filter(r=>r.status==='validado')
   } else if (isTesoureiro) {
-    // Tesoureiro vê tudo que não está validado + os validados que ele participou
     regsFiltrados = regsAll.filter(r=>{
       const s = String(r.status||'').toLowerCase()
       return s !== 'validado' || participei(r)
@@ -107,11 +121,9 @@ export default async function RegistrosPage() {
   const agoraRecifeStr = new Date().toLocaleString('en-CA', { timeZone: 'America/Recife', year: 'numeric', month: '2-digit' })
   const [anoAtual, mesAtual] = agoraRecifeStr.split('-').map(Number)
 
-  // REGRA NOVA: Se não está validado, mostra sempre, independente do mês
   const regsParaMostrar = regsFiltrados.filter(r=>{
     const status = String(r.status||'').toLowerCase()
     if (status !== 'validado') return true
-
     const dataBase = r.data_culto || r.created_at?.slice(0,10)
     if(!dataBase) return false
     const d = new Date(dataBase+"T12:00:00")
@@ -143,6 +155,10 @@ export default async function RegistrosPage() {
         const totalDizimo = lista.filter(x=>(x.tipo||'').toLowerCase().includes('dizimo')).reduce((s,x)=>s+Number(x.valor||0),0)
         const totalOferta = lista.filter(x=>(x.tipo||'').toLowerCase().includes('oferta')).reduce((s,x)=>s+Number(x.valor||0),0)
         const primeiro = lista[0]
+        // injeta info do culto pra o botão funcionar
+        const cultoInfo = primeiro.culto_id ? mapaCultos[String(primeiro.culto_id)] : null
+        if (cultoInfo) primeiro.cultos = { ...primeiro.cultos, ...cultoInfo }
+        
         return (
           <div key={key} className="bg-white p-4 rounded shadow border-l-4 border-l-green-800 space-y-3">
             <div className="flex justify-between font-bold">
