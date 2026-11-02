@@ -6,10 +6,18 @@ import { useRouter } from "next/navigation"
 export default function RegistroBotoes({ culto, eu, isTesoureiro, isPastor }) {
   const [motivo, setMotivo] = useState('')
   const router = useRouter()
-  const isSegundo = culto.segundo_diacono_id === eu.id
-  const isPrimeiro = culto.primeiro_diacono_id === eu.id || culto.diacono_id === eu.id
 
-  if (culto.status === 'aguardando_segundo_diacono' && isSegundo) {
+  // CORREÇÃO: pega id do segundo diácono tanto de records quanto de cultos (join)
+  const segundoId = String(culto.segundo_diacono_id || culto.diacono2_id || culto.cultos?.segundo_diacono_id || '')
+  const primeiroId = String(culto.primeiro_diacono_id || culto.diacono_id || culto.criado_por || culto.cultos?.primeiro_diacono_id || '')
+  const euId = String(eu.id)
+
+  const isSegundo = segundoId === euId
+  const isPrimeiro = primeiroId === euId
+
+  const status = String(culto.status || '').toLowerCase()
+
+  if (status === 'aguardando_segundo_diacono' && isSegundo) {
     return (
       <div className="flex gap-2 flex-col">
         <button onClick={() => confirmarRegistro(culto.id)} className="bg-green-700 text-white px-4 py-2 rounded font-bold">✓ Confirmar e enviar p/ Tesoureiro</button>
@@ -21,7 +29,7 @@ export default function RegistroBotoes({ culto, eu, isTesoureiro, isPastor }) {
     )
   }
 
-  if (culto.status === 'aguardando_tesoureiro' && isTesoureiro) {
+  if (status === 'aguardando_tesoureiro' && isTesoureiro) {
     return (
       <div className="flex gap-2 flex-col">
         <button onClick={() => validarRegistro(culto.id)} className="bg-blue-700 text-white px-4 py-2 rounded font-bold">✓ Validar como Tesoureiro</button>
@@ -33,7 +41,7 @@ export default function RegistroBotoes({ culto, eu, isTesoureiro, isPastor }) {
     )
   }
 
-  if (culto.status === 'devolvido_com_erro' && isPrimeiro) {
+  if ((status === 'devolvido_com_erro' || status === 'devolvido') && isPrimeiro) {
     return (
       <div className="flex gap-2">
         {/* CORREÇÃO: usa culto_id pra separar manhã/noite - antes usava data_culto e juntava tudo */}
@@ -43,7 +51,7 @@ export default function RegistroBotoes({ culto, eu, isTesoureiro, isPastor }) {
     )
   }
 
-  if (culto.status === 'validado' && isPastor) {
+  if (status === 'validado' && isPastor) {
     return (
       <div className="bg-green-50 p-2 rounded border border-green-200">
         <p className="text-sm text-green-800 mb-2 font-bold">✓ Validado pelo tesoureiro - Pronto para arquivo</p>
