@@ -49,7 +49,7 @@ export default async function RegistrosPage() {
     igreja_id = perfil?.igreja_id
   }
 
-  const { data } = await supabaseAdmin.from('records').select('*, cultos!records_culto_id_fkey(data, periodo)').eq('igreja_id', igreja_id).order('data_culto', { ascending: false }).order('created_at', { ascending: false })
+  const { data } = await supabaseAdmin.from('records').select('*, cultos!records_culto_id_fkey(data, periodo, primeiro_diacono_id, segundo_diacono_id, tesoureiro_id)').eq('igreja_id', igreja_id).order('data_culto', { ascending: false }).order('created_at', { ascending: false })
   const regsAll = data || []
 
   const { data: usuariosDaIgreja } = await supabaseAdmin.from('users').select('id, nome, funcao, oficio').eq('igreja_id', igreja_id)
@@ -81,7 +81,10 @@ export default async function RegistrosPage() {
     const ids = [
       r.primeiro_diacono_id, r.segundo_diacono_id, r.diacono_id,
       r.criado_por, r.diacono1_id, r.diacono2_id,
-      r.lancado_por, r.confirmado_por
+      r.lancado_por, r.confirmado_por,
+      r.cultos?.primeiro_diacono_id,
+      r.cultos?.segundo_diacono_id,
+      r.cultos?.tesoureiro_id
     ].map(x => String(x || ''))
     return ids.includes(meuId)
   }
